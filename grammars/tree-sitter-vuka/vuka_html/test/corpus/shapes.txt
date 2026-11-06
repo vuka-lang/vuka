@@ -1,0 +1,188 @@
+==================
+A shape with a Go header
+==================
+
+package sales
+
+import Clock "./clock.tsx"
+
+// Sales shows a week of figures.
+type Sales struct {
+	Title string
+	Week  []int @ui.URL("week").Default(7)
+}
+
+@ui.Mount
+func (s *Sales) mount(ctx context.Context) error { return nil }
+<section class="sales" class:big={len(Week) > 3}>
+  <h2>{Title}</h2>
+  <Clock zone={Zone} />
+  {{literal}
+</section>
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (import_declaration
+    (import_spec
+      (package_identifier)
+      (interpreted_string_literal
+        (interpreted_string_literal_content))))
+  (comment)
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier))
+          (field_declaration
+            (field_identifier)
+            (slice_type
+              (type_identifier))
+            (attribute
+              (attribute_name
+                (package_identifier)
+                (identifier))
+              (argument_list
+                (interpreted_string_literal
+                  (interpreted_string_literal_content)))
+              (field_identifier)
+              (argument_list
+                (int_literal))))))))
+  (attribute
+    (attribute_name
+      (package_identifier)
+      (identifier)))
+  (method_declaration
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (pointer_type
+          (type_identifier))))
+    (field_identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (qualified_type
+          (package_identifier)
+          (type_identifier))))
+    (type_identifier)
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (nil))))))
+  (element
+    (start_tag
+      (tag_name)
+      (html_attribute
+        (attribute_name)
+        (quoted_value
+          (value_text)))
+      (html_attribute
+        (attribute_name)
+        (hole
+          (binary_expression
+            (call_expression
+              (identifier)
+              (argument_list
+                (identifier)))
+            (int_literal)))))
+    (element
+      (start_tag
+        (tag_name))
+      (hole
+        (identifier))
+      (end_tag
+        (tag_name)))
+    (element
+      (self_closing_tag
+        (tag_name)
+        (html_attribute
+          (attribute_name)
+          (hole
+            (identifier)))))
+    (escape)
+    (text)
+    (end_tag
+      (tag_name))))
+
+==================
+A shape in the script form
+==================
+
+<script lang="go">
+package components
+
+// Card is in the script form: "</script>" in a string does not end it.
+type Card struct{ Name string }
+</script>
+
+<!DOCTYPE html>
+<!-- a comment -->
+<p title="Hello {Name}">Hello, {Name}!<br><img src={Avatar}/></p>
+
+<script lang="ts">
+export default component<Card>((el, props) => ({}))
+</script>
+
+<style scoped>
+p { color: red }
+</style>
+
+---
+
+(source_file
+  (raw_element
+    (tag_name)
+    (html_attribute
+      (attribute_name)
+      (quoted_value
+        (value_text)))
+    (raw_text)
+    (tag_name))
+  (doctype)
+  (html_comment)
+  (element
+    (start_tag
+      (tag_name)
+      (html_attribute
+        (attribute_name)
+        (quoted_value
+          (value_text)
+          (hole
+            (identifier)))))
+    (text)
+    (hole
+      (identifier))
+    (text)
+    (element
+      (void_tag
+        (tag_name)))
+    (element
+      (self_closing_tag
+        (tag_name)
+        (html_attribute
+          (attribute_name)
+          (hole
+            (identifier)))))
+    (end_tag
+      (tag_name)))
+  (raw_element
+    (tag_name)
+    (html_attribute
+      (attribute_name)
+      (quoted_value
+        (value_text)))
+    (raw_text)
+    (tag_name))
+  (raw_element
+    (tag_name)
+    (html_attribute
+      (attribute_name))
+    (raw_text)
+    (tag_name)))

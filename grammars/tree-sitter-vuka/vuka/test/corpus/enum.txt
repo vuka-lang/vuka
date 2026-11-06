@@ -1,0 +1,77 @@
+==================
+Enum declarations
+==================
+
+package p
+
+enum Status { Draft, Sent, Paid }
+
+enum Role string {
+	Admin = "admin"
+	Clerk = "clerk"
+}
+
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Unknown
+}
+
+func (Role.Admin) Label() string { return "Administrator" }
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (enum_declaration
+    (type_identifier)
+    (enum_variant
+      (identifier))
+    (enum_variant
+      (identifier))
+    (enum_variant
+      (identifier)))
+  (enum_declaration
+    (type_identifier)
+    (type_identifier)
+    (enum_variant
+      (identifier)
+      (interpreted_string_literal
+        (interpreted_string_literal_content)))
+    (enum_variant
+      (identifier)
+      (interpreted_string_literal
+        (interpreted_string_literal_content))))
+  (enum_declaration
+    (type_identifier)
+    (enum_variant
+      (identifier)
+      (field_declaration_list
+        (field_declaration
+          (field_identifier)
+          (type_identifier))))
+    (enum_variant
+      (identifier)
+      (field_declaration_list
+        (field_declaration
+          (field_identifier)
+          (field_identifier)
+          (type_identifier))))
+    (enum_variant
+      (identifier)))
+  (method_declaration
+    (parameter_list
+      (parameter_declaration
+        (qualified_type
+          (package_identifier)
+          (type_identifier))))
+    (field_identifier)
+    (parameter_list)
+    (type_identifier)
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (interpreted_string_literal
+              (interpreted_string_literal_content))))))))

@@ -1,0 +1,246 @@
+==================
+Statements in markup
+==================
+
+package main
+
+type Page struct{ Items []Item }
+<ul>
+  total := len(Items)
+  for _, i := range Items {
+    if i.Done {
+      <li class="done">{i.Name}</li>
+    } else if i.Late {
+      <li>{i.Name} is late</li>
+    } else {
+      <li>{i.Name}</li>
+    }
+  }
+  switch total {
+  case 0:
+    <li>none</li>
+  default:
+    <li>{total} items</li>
+  }
+  match Find() {
+  case Ok(u) if u.Admin:
+    <li>admin</li>
+  case Err(e):
+    <li>{e}</li>
+  }
+</ul>
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (slice_type
+              (type_identifier)))))))
+  (element
+    (start_tag
+      (tag_name))
+    (html_statement
+      (identifier)
+      (expression_list
+        (call_expression
+          (identifier)
+          (argument_list
+            (identifier)))))
+    (html_for
+      (range_clause
+        (expression_list
+          (identifier)
+          (identifier))
+        (identifier))
+      (html_body
+        (html_if
+          (selector_expression
+            (identifier)
+            (field_identifier))
+          (html_body
+            (element
+              (start_tag
+                (tag_name)
+                (html_attribute
+                  (attribute_name)
+                  (quoted_value
+                    (value_text))))
+              (hole
+                (selector_expression
+                  (identifier)
+                  (field_identifier)))
+              (end_tag
+                (tag_name))))
+          (html_if
+            (selector_expression
+              (identifier)
+              (field_identifier))
+            (html_body
+              (element
+                (start_tag
+                  (tag_name))
+                (hole
+                  (selector_expression
+                    (identifier)
+                    (field_identifier)))
+                (text)
+                (end_tag
+                  (tag_name))))
+            (html_body
+              (element
+                (start_tag
+                  (tag_name))
+                (hole
+                  (selector_expression
+                    (identifier)
+                    (field_identifier)))
+                (end_tag
+                  (tag_name))))))))
+    (html_switch
+      (identifier)
+      (html_case
+        (expression_list
+          (int_literal))
+        (element
+          (start_tag
+            (tag_name))
+          (text)
+          (end_tag
+            (tag_name))))
+      (html_case
+        (element
+          (start_tag
+            (tag_name))
+          (hole
+            (identifier))
+          (text)
+          (end_tag
+            (tag_name)))))
+    (html_match
+      (call_expression
+        (identifier)
+        (argument_list))
+      (html_case
+        (expression_list
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier))))
+        (selector_expression
+          (identifier)
+          (field_identifier))
+        (element
+          (start_tag
+            (tag_name))
+          (text)
+          (end_tag
+            (tag_name))))
+      (html_case
+        (expression_list
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier))))
+        (element
+          (start_tag
+            (tag_name))
+          (hole
+            (identifier))
+          (end_tag
+            (tag_name)))))
+    (end_tag
+      (tag_name))))
+
+==================
+Holes, fragments and template headers
+==================
+
+package main
+
+<>
+  <button onClick={open = !open; Bump()} {attrs...}>bump</button>
+  <slot:row let={t, i}>{t.Name}</slot:row>
+  <p>if you can, a } stays text</p>
+</>
+
+func row(o Order)
+<li key={o.ID}>{o.Ref}</li>
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (element
+    (start_tag)
+    (element
+      (start_tag
+        (tag_name)
+        (html_attribute
+          (attribute_name)
+          (hole
+            (assignment_statement
+              (expression_list
+                (identifier))
+              (expression_list
+                (unary_expression
+                  (identifier))))
+            (call_expression
+              (identifier)
+              (argument_list))))
+        (hole
+          (variadic_argument
+            (identifier))))
+      (text)
+      (end_tag
+        (tag_name)))
+    (element
+      (start_tag
+        (tag_name)
+        (html_attribute
+          (attribute_name)
+          (hole
+            (identifier)
+            (identifier))))
+      (hole
+        (selector_expression
+          (identifier)
+          (field_identifier)))
+      (end_tag
+        (tag_name)))
+    (element
+      (start_tag
+        (tag_name))
+      (text)
+      (end_tag
+        (tag_name)))
+    (end_tag))
+  (template_header
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier))))
+  (element
+    (start_tag
+      (tag_name)
+      (html_attribute
+        (attribute_name)
+        (hole
+          (selector_expression
+            (identifier)
+            (field_identifier)))))
+    (hole
+      (selector_expression
+        (identifier)
+        (field_identifier)))
+    (end_tag
+      (tag_name))))

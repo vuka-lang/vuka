@@ -1,0 +1,68 @@
+==================
+Statics
+==================
+
+package p
+
+type User struct {
+	Name string
+
+	static Table   = "users"
+	static created int
+	static const Max = 100
+}
+
+func User.New(name string) *User {
+	User.created++
+	return &User{Name: name}
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier))
+          (static_declaration
+            (field_identifier)
+            (interpreted_string_literal
+              (interpreted_string_literal_content)))
+          (static_declaration
+            (field_identifier)
+            (type_identifier))
+          (static_declaration
+            (field_identifier)
+            (int_literal))))))
+  (function_declaration
+    (type_identifier)
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (pointer_type
+      (type_identifier))
+    (block
+      (statement_list
+        (inc_statement
+          (selector_expression
+            (identifier)
+            (field_identifier)))
+        (return_statement
+          (expression_list
+            (unary_expression
+              (composite_literal
+                (type_identifier)
+                (literal_value
+                  (keyed_element
+                    (literal_element
+                      (identifier))
+                    (literal_element
+                      (identifier))))))))))))
