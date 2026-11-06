@@ -33,7 +33,7 @@ func mustUI(t *testing.T, dir string, args ...string) string {
 }
 
 // uiGoMod is an app's go.mod requiring the ui library the components use.
-const uiGoMod = "module example.com/shop\n\ngo 1.25\n\nrequire github.com/vuka-lang/ui/v2 v2.17.0\n"
+const uiGoMod = "module example.com/shop\n\ngo 1.25\n\nrequire github.com/vuka-lang/ui/v2 v2.16.2-0.20261106081042-c2870b7828d7\n"
 
 // uiApp is a module like vuka new's: a stylesheet with a theme of its own
 // and a vuka.toml with formatting options.

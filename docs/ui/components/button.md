@@ -22,7 +22,7 @@ A button: six variants, four sizes, a ui.JS chain or a live handler on click.
 vuka ui add button
 ```
 
-It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
+It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `d0334320cb89` or newer.
 
 ## Using It
 

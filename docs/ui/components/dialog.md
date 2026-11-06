@@ -22,7 +22,7 @@ A &lt;dialog&gt; over the page, shown while a browser state holds.
 vuka ui add dialog
 ```
 
-It writes `components/ui/dialog.vuka.html`, with what it uses: [Button](/ui/components/button), [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
+It writes `components/ui/dialog.vuka.html`, with what it uses: [Button](/ui/components/button), [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `c2870b7828d7` or newer.
 
 ## Using It
 

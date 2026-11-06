@@ -17,6 +17,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/semver"
 )
 
 // The registry vuka ui reads: index.json and the files it names, served
@@ -258,7 +260,6 @@ func readRegistry(src regSource) (*registry, error) {
 var (
 	itemName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	sha256Re = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	semverRe = regexp.MustCompile(`^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
 )
 
 // check is whether the index is one this vuka reads, and sound.
@@ -304,7 +305,7 @@ func (r *registry) check() error {
 			if requireModules[lib] == "" {
 				return fmt.Errorf("item %s requires %s: the libraries are vuka, ui and web", it.Name, lib)
 			}
-			if !semverRe.MatchString(v) {
+			if !semver.IsValid(v) {
 				return fmt.Errorf("item %s requires %s %q: a version, vX.Y.Z", it.Name, lib, v)
 			}
 		}
@@ -492,10 +493,10 @@ func checkRequires(root string, items []*registryItem) error {
 	for _, it := range items {
 		for _, lib := range slices.Sorted(mapKeys(it.Requires)) {
 			p, v := requireModules[lib], it.Requires[lib]
-			if have := m.requires(p); m.replaced(p) != "" || have != "" && compareVersions(have, v) >= 0 {
+			if have := m.requires(p); m.replaced(p) != "" || have != "" && semver.Compare(have, v) >= 0 {
 				continue
 			}
-			if have, ok := need[p]; !ok || compareVersions(have, v) < 0 {
+			if have, ok := need[p]; !ok || semver.Compare(have, v) < 0 {
 				need[p] = v
 			}
 			who[p] = append(who[p], it.Name)

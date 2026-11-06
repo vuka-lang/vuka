@@ -22,7 +22,7 @@ A small label: a status or a count.
 vuka ui add badge
 ```
 
-It writes `components/ui/badge.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
+It writes `components/ui/badge.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `d0334320cb89` or newer.
 
 ## Using It
 
