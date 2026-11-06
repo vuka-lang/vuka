@@ -17,8 +17,9 @@ starting, theming and updating them.
 | [Badge](/ui/components/badge) | in the browser | A small label: a status or a count. |
 | [Button](/ui/components/button) | in the browser | A button: six variants, four sizes, a ui.JS chain or a live handler on click. |
 | [Card](/ui/components/card) | in the browser | A panel with a title, a description, an action, its content and a footer. |
-| [Dialog](/ui/components/dialog) | in the browser | A &lt;dialog&gt; over the page, opened and closed by JS commands. |
+| [Dialog](/ui/components/dialog) | in the browser | A &lt;dialog&gt; over the page, shown while a browser state holds. |
+| [Dropdown Menu](/ui/components/dropdown-menu) | in the browser | A menu under a button, shown while a browser state holds. |
 | [Input](/ui/components/input) | in the browser | A text field. |
 | [Label](/ui/components/label) | in the browser | A form field's label. |
 | [Skeleton](/ui/components/skeleton) | in the browser | Placeholder bones while content loads: shapes, lines of text, a wrapper around the real content, and a component drawn as bones. |
-| [Tabs](/ui/components/tabs) | on the server | Panels shown one at a time, the tab shown kept on the server. |
+| [Tabs](/ui/components/tabs) | in the browser | Panels shown one at a time, the tab shown kept in browser state. |

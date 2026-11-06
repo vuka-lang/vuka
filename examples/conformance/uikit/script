@@ -1,15 +1,19 @@
 # uikit: the components vuka ui add writes, in a live page — buttons with
 # live handlers and JS commands, badges, alerts, a card with its slots,
-# labels and inputs, tabs whose tab is server state, a dialog opened by a
-# button's JS commands and one its page's handlers open and close (PushJS),
-# its OnClose hearing Escape.
+# labels and inputs, tabs and a dropdown menu following browser state, a
+# dialog its page's state shows (written by a handler too), one a server
+# bool shows, its OnClose clearing it on Escape, and one its page's
+# handlers show and hide with commands (PushJS), its OnClose hearing
+# Escape.
 GET /
 LIVE /
   {"type":"event","target":"c1:0","event":"click"}
   {"type":"event","target":"c1:0","event":"click"}
-  {"type":"event","target":"c2:yearly:0","event":"click"}
+  {"type":"event","target":"c1:2","event":"click"}
   {"type":"event","target":"c1:1","event":"click"}
-  {"type":"event","target":"c1:2","event":"keydown","key":"Escape"}
-  {"type":"event","target":"c2:monthly:0","event":"click"}
+  {"type":"event","target":"c1:8","event":"keydown","key":"Escape"}
+  {"type":"event","target":"c1:3","event":"click"}
+  {"type":"event","target":"c1:4","event":"keydown","key":"Escape"}
+  {"type":"event","target":"c1:0:0","event":"click"}
   {"type":"event","target":"c1:1","event":"click"}
-  {"type":"event","target":"c1:5","event":"click"}
+  {"type":"event","target":"c1:11","event":"click"}

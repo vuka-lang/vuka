@@ -185,7 +185,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 				}
 				for _, f := range sh.Fields {
 					switch {
-					case f.Role != transpile.Prop:
+					case f.Role != transpile.Prop && !passedState(f):
 					case f.Name == "Children":
 						info.children = true
 					default:
@@ -512,4 +512,10 @@ func (info *tagInfo) markdown(tag string) string {
 		b.WriteString("\n\nAn attribute left out is the field's zero value.")
 	}
 	return b.String()
+}
+
+// passedState is whether f is a state its caller may pass, as show={open}:
+// an exported ui.State field.
+func passedState(f transpile.ShapeField) bool {
+	return f.Role == transpile.BrowserState && token.IsExported(f.Name) && !strings.Contains(f.Type, "Derived[")
 }

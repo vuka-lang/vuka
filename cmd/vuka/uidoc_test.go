@@ -19,16 +19,16 @@ func TestUIListComponent(t *testing.T) {
 		`  variant   ButtonVariant  design.ButtonDefault (""), design.ButtonDestructive ("destructive"), design.ButtonOutline ("outline")`,
 		"  on        any            event\n",
 		"  on: On is what a click does: a ui.JS chain, or a live handler.\n",
-		"  slots: children\n  events: on\n",
+		"  slots: children\n  events: on, onClick\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("list button lacks %q:\n%s", want, out)
 		}
 	}
-	if out := mustUI(t, dir, "list", "dialog"); !strings.Contains(out, "  id           string  required\n") || !strings.Contains(out, "  slots: children, <slot:footer>\n  events: onClose\n") {
+	if out := mustUI(t, dir, "list", "dialog"); !strings.Contains(out, "  show         ui.State[bool]\n") || !strings.Contains(out, "  slots: children, <slot:footer>\n  events: onClose\n") {
 		t.Errorf("list dialog:\n%s", out)
 	}
-	if out := mustUI(t, dir, "list", "tabs"); !strings.Contains(out, "<design.Tabs>  live component") || !strings.Contains(out, "  slots: <slot:tab>\n") {
+	if out := mustUI(t, dir, "list", "tabs"); !strings.Contains(out, "<design.Tabs>  component") || !strings.Contains(out, "  value    ui.State[string]") || !strings.Contains(out, "  slots: <slot:tab>\n") {
 		t.Errorf("list tabs:\n%s", out)
 	}
 

@@ -31,10 +31,13 @@ It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored
 <design.Button variant={design.ButtonOutline} size={design.SizeSm}>Cancel</design.Button>
 <design.Button variant={design.ButtonGhost} size={design.SizeIcon} attrs={closeLabel}><svg>…</svg></design.Button>
 <design.Button type="submit" disabled={busy}>Send</design.Button>
-<design.Button on={ui.JS.Toggle(ui.Sel("#menu"))}>Menu</design.Button>
+<design.Button onClick={open = !open}>Menu</design.Button>
 ```
 
-`on` takes a live handler or a `ui.JS` chain. The variant can be written as
+`onClick` takes what an element's `onClick` does: statements writing
+[browser state](/ui/state) (`onClick={open = true}`), calls among them
+(`onClick={open = false; Save()}`), a `ui.JS` chain. `on` takes a live
+handler or a `ui.JS` chain; `onClick` wins when both are set. The variant can be written as
 its string too: `variant="outline"`.
 
 The classes are data: `buttonVariants`, a [`ui.Variants`](/ui/classes),
@@ -51,6 +54,7 @@ entry under `"variant"`; the editor completes `variant="…"` from them.
 | `variant` | `ButtonVariant` | One of `ButtonDefault`, `ButtonDestructive`, `ButtonOutline`, `ButtonSecondary`, `ButtonGhost`, `ButtonLink`. |
 | `size` | `ButtonSize` | One of `SizeDefault`, `SizeSm`, `SizeLg`, `SizeIcon`. |
 | `on` | `any` | On is what a click does: a ui.JS chain, or a live handler. |
+| `onClick` | `ui.JSChain` | OnClick is what a click does in the browser, written as an on… attribute is: onClick={open = true}, onClick={open = false; Save()}. It wins over On. |
 | `type` | `string` | Type is "button" (the default), "submit" or "reset". |
 | `disabled` | `bool` |  |
 | `class` | `string` | Class is added to the button's classes, winning over them (ui.MergeClasses). |
@@ -97,7 +101,7 @@ const (
 //
 //	<design.Button on={p.Save}>Save</design.Button>
 //	<design.Button variant={design.ButtonOutline} size={design.SizeSm}>Cancel</design.Button>
-//	<design.Button on={ui.JS.Toggle(ui.Sel("#menu"))}>Menu</design.Button>
+//	<design.Button onClick={open = !open}>Menu</design.Button>
 type Button struct {
 	// ID is the button's id, e.g. for a JS command to target it.
 	ID      string
@@ -105,6 +109,10 @@ type Button struct {
 	Size    ButtonSize
 	// On is what a click does: a ui.JS chain, or a live handler.
 	On any
+	// OnClick is what a click does in the browser, written as an on…
+	// attribute is: onClick={open = true}, onClick={open = false; Save()}.
+	// It wins over On.
+	OnClick ui.JSChain
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
@@ -156,10 +164,14 @@ func (b Button) typ() string {
 
 // on is the click handler's attribute, none without one.
 func (b Button) on() []ui.Attr {
-	if b.On == nil {
+	h := b.On
+	if b.OnClick != nil {
+		h = b.OnClick
+	}
+	if h == nil {
 		return nil
 	}
-	return []ui.Attr{{Name: "onClick", Value: ui.On(b.On)}}
+	return []ui.Attr{{Name: "onClick", Value: ui.On(h)}}
 }
 </script>
 
@@ -209,7 +221,7 @@ const (
 //
 //	<design.Button on={p.Save}>Save</design.Button>
 //	<design.Button variant={design.ButtonOutline} size={design.SizeSm}>Cancel</design.Button>
-//	<design.Button on={ui.JS.Toggle(ui.Sel("#menu"))}>Menu</design.Button>
+//	<design.Button onClick={open = !open}>Menu</design.Button>
 type Button struct {
 	// ID is the button's id, e.g. for a JS command to target it.
 	ID      string
@@ -217,6 +229,10 @@ type Button struct {
 	Size    ButtonSize
 	// On is what a click does: a ui.JS chain, or a live handler.
 	On any
+	// OnClick is what a click does in the browser, written as an on…
+	// attribute is: onClick={open = true}, onClick={open = false; Save()}.
+	// It wins over On.
+	OnClick ui.JSChain
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
@@ -268,10 +284,14 @@ func (b Button) typ() string {
 
 // on is the click handler's attribute, none without one.
 func (b Button) on() []ui.Attr {
-	if b.On == nil {
+	h := b.On
+	if b.OnClick != nil {
+		h = b.OnClick
+	}
+	if h == nil {
 		return nil
 	}
-	return []ui.Attr{{Name: "onClick", Value: ui.On(b.On)}}
+	return []ui.Attr{{Name: "onClick", Value: ui.On(h)}}
 }
 
 func (b Button) View() ui.Node {

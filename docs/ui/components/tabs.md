@@ -1,6 +1,6 @@
 ---
 title: Tabs
-description: "Panels shown one at a time, the tab shown kept on the server."
+description: "Panels shown one at a time, the tab shown kept in browser state."
 pageClass: vk-ui-component
 aside: false
 ---
@@ -9,7 +9,7 @@ aside: false
 
 # Tabs
 
-Panels shown one at a time, the tab shown kept on the server.
+Panels shown one at a time, the tab shown kept in browser state.
 
 <div class="vk-ui-shots">
   <img src="/ui/components/tabs-light.png" alt="Tabs in the light theme">
@@ -22,29 +22,50 @@ Panels shown one at a time, the tab shown kept on the server.
 vuka ui add tabs
 ```
 
-It writes `components/ui/tabs.vuka.html` and `components/ui/tabs.go`, with what it uses: [cn](/ui/vendored#cn). It runs on the server ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.10.0 or newer.
+It writes `components/ui/tabs.vuka.html` and `components/ui/tabs.go`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
 
 ## Using It
 
 ```vuka-html
-<design.Tabs id="plan" default="monthly">
-  <slot:tab value="monthly" label="Monthly"><p>Billed every month.</p></slot:tab>
-  <slot:tab value="yearly" label="Yearly"><p>Billed once a year.</p></slot:tab>
-  <slot:tab value="lifetime" label="Lifetime" disabled><p>Not offered.</p></slot:tab>
-</design.Tabs>
+<script lang="go">
+package settings
+
+import "github.com/vuka-lang/ui/v2"
+
+// Plan is the billing settings.
+type Plan struct {
+	plan ui.State[string]
+}
+</script>
+
+<section>
+  <design.Tabs id="plan" value={plan} default="monthly">
+    <slot:tab value="monthly" label="Monthly"><p>Billed every month.</p></slot:tab>
+    <slot:tab value="yearly" label="Yearly"><p>Billed once a year.</p></slot:tab>
+    <slot:tab value="lifetime" label="Lifetime" disabled><p>Not offered.</p></slot:tab>
+  </design.Tabs>
+  <design.Button variant={design.ButtonLink} onClick={plan = "yearly"}>Save two months</design.Button>
+</section>
 ```
 
-A [live component](/ui/stateful): the tab shown is its own state on the
-server, so a click switches it over the live connection and the rest of the
-page keeps its state. Rendered on a page that isn't live, it shows its
-first tab. The markup is `role="tablist"`, `role="tab"` buttons with
-`aria-selected` and `aria-controls`, and the `role="tabpanel"` labelled by
-its tab.
+The tab shown is [browser state](/ui/state): a `ui.State[string]` holding
+the shown tab's value, passed as `value`. A click on a tab writes it, so the
+panel switches at once with no round trip, and anything else writing it —
+a button, a live handler's `p.plan = "yearly"` — switches it too. Without
+`value` the tabs keep a state of their own. Until a tab is picked, the
+`default` one shows, and the server renders it so.
+
+Every panel is rendered, the others `hidden`. A live page that wants to hear
+the switch declares the state with
+[`@ui.Notify`](/ui/state#notify): `plan ui.State[string] @ui.Notify(OnPlan)`.
+The markup is `role="tablist"`, `role="tab"` buttons with `aria-selected`
+and `aria-controls`, and the `role="tabpanel"` labelled by its tab.
 
 ## Props
 
 | Prop | Type | |
 |---|---|---|
+| `value` | `ui.State[string]` | Value is the browser state holding the Value of the tab shown: pass the page's to read or switch it from elsewhere, or leave it to the tabs' own. Empty shows Default. |
 | `id` | `string` | ID prefixes the tabs' and the panels' ids; "tabs" by default. Give each Tabs on a page its own. |
 | `default` | `string` | Default is the Value of the tab shown first; the first tab's by default. |
 | `<slot:tab>` | `[]Tab` | Tabs are the tabs, a &lt;slot:tab&gt; each, in order. |
@@ -76,18 +97,22 @@ package design
 import "github.com/vuka-lang/ui/v2"
 
 // Tabs shows one panel at a time, a tab list above them. The tab shown is
-// state on the server: a click switches it over the page's live
-// connection, and the page's other state stays as it is.
+// browser state: a click switches it at once, with no round trip.
 //
-//	<design.Tabs id="settings" default="account">
+//	tab ui.State[string]
+//
+//	<design.Tabs id="settings" value={tab} default="account">
 //	  <slot:tab value="account" label="Account">…</slot:tab>
 //	  <slot:tab value="password" label="Password">…</slot:tab>
 //	</design.Tabs>
+//	<design.Button onClick={tab = "password"}>Change the password</design.Button>
 //
-// Rendered without a live connection (a page that isn't live), it shows
-// the Default tab.
+// Until a tab is picked it shows the Default one; the server renders it so.
 type Tabs struct {
-	ui.Live
+	// Value is the browser state holding the Value of the tab shown: pass
+	// the page's to read or switch it from elsewhere, or leave it to the
+	// tabs' own. Empty shows Default.
+	Value ui.State[string]
 	// ID prefixes the tabs' and the panels' ids; "tabs" by default. Give
 	// each Tabs on a page its own.
 	ID string
@@ -98,24 +123,14 @@ type Tabs struct {
 	Tabs []Tab
 	// Class is added to the root's classes, winning over them (see cn).
 	Class string
-
-	active string
 }
 
-// Select shows the tab whose Value is v.
-func (t *Tabs) Select(v string) { t.active = v }
-
-// current is the Value of the tab shown.
-func (t *Tabs) current() string {
-	switch {
-	case t.active != "":
-		return t.active
-	case t.Default != "":
+// first is the Value of the tab shown until one is picked.
+func (t *Tabs) first() string {
+	if t.Default != "" || len(t.Tabs) == 0 {
 		return t.Default
-	case len(t.Tabs) > 0:
-		return t.Tabs[0].Value
 	}
-	return ""
+	return t.Tabs[0].Value
 }
 
 func (t *Tabs) id(tab Tab, part string) string {
@@ -124,14 +139,6 @@ func (t *Tabs) id(tab Tab, part string) string {
 		id = "tabs"
 	}
 	return id + "-" + part + "-" + tab.Value
-}
-
-// selected is a tab's aria-selected.
-func (t *Tabs) selected(tab Tab) string {
-	if tab.Value == t.current() {
-		return "true"
-	}
-	return "false"
 }
 
 const tabsList = "inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground"
@@ -151,24 +158,23 @@ const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-
         role="tab"
         id={t.id(tab, "tab")}
         aria-controls={t.id(tab, "panel")}
-        aria-selected={t.selected(tab)}
+        aria-selected={Value == tab.Value || Value == "" && tab.Value == t.first()}
         disabled={tab.Disabled}
         class={tabsTrigger}
-        onClick={Select(tab.Value)}
+        onClick={Value = tab.Value}
       >{tab.Label}</button>
     }
   </div>
   for _, tab := range t.Tabs {
-    if tab.Value == t.current() {
-      <div
-        key={tab.Value}
-        role="tabpanel"
-        id={t.id(tab, "panel")}
-        aria-labelledby={t.id(tab, "tab")}
-        tabindex="0"
-        class="flex-1 outline-none"
-      >{tab.Panel}</div>
-    }
+    <div
+      key={tab.Value}
+      role="tabpanel"
+      id={t.id(tab, "panel")}
+      aria-labelledby={t.id(tab, "tab")}
+      tabindex="0"
+      show={Value == tab.Value || Value == "" && tab.Value == t.first()}
+      class="flex-1 outline-none"
+    >{tab.Panel}</div>
   }
 </div>
 ```
@@ -177,23 +183,30 @@ const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-
 package design
 
 import (
+	"context"
+	"io"
+
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/ui/v2/uigen"
 )
 
 // Tabs shows one panel at a time, a tab list above them. The tab shown is
-// state on the server: a click switches it over the page's live
-// connection, and the page's other state stays as it is.
+// browser state: a click switches it at once, with no round trip.
 //
-//	<design.Tabs id="settings" default="account">
+//	tab ui.State[string]
+//
+//	<design.Tabs id="settings" value={tab} default="account">
 //	  <slot:tab value="account" label="Account">…</slot:tab>
 //	  <slot:tab value="password" label="Password">…</slot:tab>
 //	</design.Tabs>
+//	<design.Button onClick={tab = "password"}>Change the password</design.Button>
 //
-// Rendered without a live connection (a page that isn't live), it shows
-// the Default tab.
+// Until a tab is picked it shows the Default one; the server renders it so.
 type Tabs struct {
-	ui.Live
+	// Value is the browser state holding the Value of the tab shown: pass
+	// the page's to read or switch it from elsewhere, or leave it to the
+	// tabs' own. Empty shows Default.
+	Value ui.State[string]
 	// ID prefixes the tabs' and the panels' ids; "tabs" by default. Give
 	// each Tabs on a page its own.
 	ID string
@@ -204,24 +217,14 @@ type Tabs struct {
 	Tabs []Tab
 	// Class is added to the root's classes, winning over them (see cn).
 	Class string
-
-	active uigen.Assign[string]
 }
 
-// Select shows the tab whose Value is v.
-func (t *Tabs) Select(v string) { t.active.Set(v) }
-
-// current is the Value of the tab shown.
-func (t *Tabs) current() string {
-	switch {
-	case t.active.Get() != "":
-		return t.active.Get()
-	case t.Default != "":
+// first is the Value of the tab shown until one is picked.
+func (t *Tabs) first() string {
+	if t.Default != "" || len(t.Tabs) == 0 {
 		return t.Default
-	case len(t.Tabs) > 0:
-		return t.Tabs[0].Value
 	}
-	return ""
+	return t.Tabs[0].Value
 }
 
 func (t *Tabs) id(tab Tab, part string) string {
@@ -232,14 +235,6 @@ func (t *Tabs) id(tab Tab, part string) string {
 	return id + "-" + part + "-" + tab.Value
 }
 
-// selected is a tab's aria-selected.
-func (t *Tabs) selected(tab Tab) string {
-	if tab.Value == t.current() {
-		return "true"
-	}
-	return "false"
-}
-
 const tabsList = "inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground"
 
 const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1 " +
@@ -247,34 +242,33 @@ const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-
 	"focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring " +
 	"aria-selected:bg-background aria-selected:shadow-sm"
 
-func (t *Tabs) Render() ui.Node {
+func (t *Tabs) View() ui.Node {
+	uigen.States(t)
 	var buttons []ui.Node
 	for _, tab := range t.Tabs {
-		buttons = append(buttons, ui.HTML(`<button key={tab.Value} type="button" role="tab" id={t.id(tab, "tab")} aria-controls={t.id(tab, "panel")} aria-selected={t.selected(tab)} disabled={tab.Disabled} class={tabsTrigger} onClick={ui.JS.Push(t.Select, tab.Value)}>{tab.Label}</button>`,
+		buttons = append(buttons, ui.HTML(`<button key={tab.Value} type="button" role="tab" id={t.id(tab, "tab")} aria-controls={t.id(tab, "panel")} aria-selected={uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first()))} disabled={tab.Disabled} class={tabsTrigger} onClick={ui.JS.Set(t.Value, tab.Value)}>{tab.Label}</button>`,
 			tab.Value,
 			t.id(tab, "tab"),
 			t.id(tab, "panel"),
-			t.selected(tab),
+			uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first())),
 			tab.Disabled,
 			tabsTrigger,
-			ui.JS.Push(t.Select, tab.Value),
+			ui.JS.Set(t.Value, tab.Value),
 			tab.Label,
 		))
 	}
-	var texts []ui.Node
+	var divs []ui.Node
 	for _, tab := range t.Tabs {
-		var div ui.Node
-		if tab.Value == t.current() {
-			div = ui.HTML(`<div key={tab.Value} role="tabpanel" id={t.id(tab, "panel")} aria-labelledby={t.id(tab, "tab")} tabindex="0" class="flex-1 outline-none">{tab.Panel}</div>`, tab.Value, t.id(tab, "panel"), t.id(tab, "tab"), tab.Panel)
-		}
-		texts = append(texts, ui.HTML(`{div}`, div))
+		divs = append(divs, ui.HTML(`<div key={tab.Value} role="tabpanel" id={t.id(tab, "panel")} aria-labelledby={t.id(tab, "tab")} tabindex="0" show={uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first()))} class="flex-1 outline-none">{tab.Panel}</div>`, tab.Value, t.id(tab, "panel"), t.id(tab, "tab"), uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first())), tab.Panel))
 	}
 	return ui.HTML(`
 <div class={cn("flex flex-col gap-2", t.Class)}>
   <div role="tablist" class={tabsList}>{buttons}</div>
-  {texts}
-</div>`, cn("flex flex-col gap-2", t.Class), tabsList, buttons, texts)
+  {divs}
+</div>`, cn("flex flex-col gap-2", t.Class), tabsList, buttons, divs)
 }
+
+func (t *Tabs) Render(ctx context.Context, w io.Writer) error { return t.View().Render(ctx, w) }
 ```
 
 :::

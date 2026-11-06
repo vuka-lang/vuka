@@ -4,18 +4,22 @@ package design
 import "github.com/vuka-lang/ui/v2"
 
 // Tabs shows one panel at a time, a tab list above them. The tab shown is
-// state on the server: a click switches it over the page's live
-// connection, and the page's other state stays as it is.
+// browser state: a click switches it at once, with no round trip.
 //
-//	<design.Tabs id="settings" default="account">
+//	tab ui.State[string]
+//
+//	<design.Tabs id="settings" value={tab} default="account">
 //	  <slot:tab value="account" label="Account">…</slot:tab>
 //	  <slot:tab value="password" label="Password">…</slot:tab>
 //	</design.Tabs>
+//	<design.Button onClick={tab = "password"}>Change the password</design.Button>
 //
-// Rendered without a live connection (a page that isn't live), it shows
-// the Default tab.
+// Until a tab is picked it shows the Default one; the server renders it so.
 type Tabs struct {
-	ui.Live
+	// Value is the browser state holding the Value of the tab shown: pass
+	// the page's to read or switch it from elsewhere, or leave it to the
+	// tabs' own. Empty shows Default.
+	Value ui.State[string]
 	// ID prefixes the tabs' and the panels' ids; "tabs" by default. Give
 	// each Tabs on a page its own.
 	ID string
@@ -26,24 +30,14 @@ type Tabs struct {
 	Tabs []Tab
 	// Class is added to the root's classes, winning over them (see cn).
 	Class string
-
-	active string
 }
 
-// Select shows the tab whose Value is v.
-func (t *Tabs) Select(v string) { t.active = v }
-
-// current is the Value of the tab shown.
-func (t *Tabs) current() string {
-	switch {
-	case t.active != "":
-		return t.active
-	case t.Default != "":
+// first is the Value of the tab shown until one is picked.
+func (t *Tabs) first() string {
+	if t.Default != "" || len(t.Tabs) == 0 {
 		return t.Default
-	case len(t.Tabs) > 0:
-		return t.Tabs[0].Value
 	}
-	return ""
+	return t.Tabs[0].Value
 }
 
 func (t *Tabs) id(tab Tab, part string) string {
@@ -52,14 +46,6 @@ func (t *Tabs) id(tab Tab, part string) string {
 		id = "tabs"
 	}
 	return id + "-" + part + "-" + tab.Value
-}
-
-// selected is a tab's aria-selected.
-func (t *Tabs) selected(tab Tab) string {
-	if tab.Value == t.current() {
-		return "true"
-	}
-	return "false"
 }
 
 const tabsList = "inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground"
@@ -79,23 +65,22 @@ const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-
         role="tab"
         id={t.id(tab, "tab")}
         aria-controls={t.id(tab, "panel")}
-        aria-selected={t.selected(tab)}
+        aria-selected={Value == tab.Value || Value == "" && tab.Value == t.first()}
         disabled={tab.Disabled}
         class={tabsTrigger}
-        onClick={Select(tab.Value)}
+        onClick={Value = tab.Value}
       >{tab.Label}</button>
     }
   </div>
   for _, tab := range t.Tabs {
-    if tab.Value == t.current() {
-      <div
-        key={tab.Value}
-        role="tabpanel"
-        id={t.id(tab, "panel")}
-        aria-labelledby={t.id(tab, "tab")}
-        tabindex="0"
-        class="flex-1 outline-none"
-      >{tab.Panel}</div>
-    }
+    <div
+      key={tab.Value}
+      role="tabpanel"
+      id={t.id(tab, "panel")}
+      aria-labelledby={t.id(tab, "tab")}
+      tabindex="0"
+      show={Value == tab.Value || Value == "" && tab.Value == t.first()}
+      class="flex-1 outline-none"
+    >{tab.Panel}</div>
   }
 </div>
