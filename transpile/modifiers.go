@@ -15,6 +15,7 @@ import (
 //	onKeydown.ctrl.enter.prevent={Send()}  →  ui.JS.Key("ctrl+Enter").Prevent().Push(p.Send)
 //	onInput.debounce.300ms={Search(this.value)}  →  ui.JS.Debounce(300ms).Push(p.Search, ui.This.Value())
 //	onClick.stop={open = !open}            →  ui.JS.Stop().Then(uigen.Toggle(ui.JS, open))
+//	onClick.optimistic={liked = !liked; Like(id)}  →  ui.JS.Optimistic().Then(uigen.Toggle(ui.JS, liked).Push(…))
 //	bind:value.throttle.1s={Q}             →  ui.BindValue(p, &p.Q, ui.JS.Throttle(1s))
 //
 // A handler that is a func (a method value, a closure) is pushed; browser
@@ -24,6 +25,7 @@ import (
 type eventMods struct {
 	keys                []string // KeyboardEvent.key names, a modifier key's first: ctrl+Enter
 	prevent, stop, once bool
+	optimistic          bool   // the chain's state writes are its pushes' predictions
 	pace                string // "debounce" or "throttle"
 	dur                 time.Duration
 }
@@ -37,7 +39,7 @@ var modKeys = map[string]string{
 // modHeld are the modifier keys a key filter may name before its key.
 var modHeld = map[string]bool{"ctrl": true, "shift": true, "alt": true, "meta": true}
 
-var modNames = []string{"debounce", "throttle", "prevent", "stop", "once", "enter", "esc", "tab", "space", "up", "down", "left", "right", "ctrl", "shift", "alt", "meta"}
+var modNames = []string{"debounce", "throttle", "prevent", "stop", "once", "optimistic", "enter", "esc", "tab", "space", "up", "down", "left", "right", "ctrl", "shift", "alt", "meta"}
 
 // defaultPace is .debounce's and .throttle's wait without a duration.
 const defaultPace = 300 * time.Millisecond
@@ -83,6 +85,8 @@ func (p *jsxParser) eventMods(a *jsxAttr, base, text string) *eventMods {
 			m.stop = true
 		case t == "once":
 			m.once = true
+		case t == "optimistic":
+			m.optimistic = true
 		case modHeld[t]:
 			held = append(held, t)
 		case modKeys[t] != "":
@@ -99,7 +103,7 @@ func (p *jsxParser) eventMods(a *jsxAttr, base, text string) *eventMods {
 			if s := closestName(t, modNames); s != "" {
 				fail(".%s isn't a modifier of %s; did you mean .%s?", t, base, s)
 			}
-			fail(".%s isn't a modifier of %s: .debounce, .throttle, .prevent, .stop, .once and the keys (.enter, .esc, .ctrl.enter, …) are", t, base)
+			fail(".%s isn't a modifier of %s: .debounce, .throttle, .prevent, .stop, .once, .optimistic and the keys (.enter, .esc, .ctrl.enter, …) are", t, base)
 		}
 	}
 	if len(held) > 0 {
@@ -139,6 +143,9 @@ func (m *eventMods) steps(q string) string {
 	if m.once {
 		b.WriteString(".Once()")
 	}
+	if m.optimistic {
+		b.WriteString(".Optimistic()")
+	}
 	if m.pace != "" {
 		b.WriteString(".")
 		b.WriteString(strings.ToUpper(m.pace[:1]) + m.pace[1:])
@@ -150,6 +157,14 @@ func (m *eventMods) steps(q string) string {
 // modded writes an event attribute with modifiers: the steps, then the
 // handler — browser commands joined on with Then, a func pushed.
 func (w *jsxWriter) modded(a *jsxAttr, value func()) {
+	if a.emods.optimistic && !a.stmts && w.final && !w.f.writeDone[a.expr.start] {
+		if w.f.writeDone == nil {
+			w.f.writeDone = map[int]bool{}
+		}
+		w.f.writeDone[a.expr.start] = true
+		w.f.eng.errs.add("E0173", w.f.at(a.off), "%s.optimistic predicts the states the chain writes before a push, and %s writes none", a.name, w.f.src[a.expr.start:a.expr.end]).
+			help("write the state first, then call the method: %s.optimistic={liked = !liked; Like(id)}", a.name)
+	}
 	w.gen(a.emods.steps(w.q))
 	if w.isChainValue(a) {
 		w.gen(".Then(")

@@ -13,6 +13,7 @@
 TestDerivedE2E
 TestWatchesE2E
 TestKeepSharedE2E
+TestOptimisticE2E
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E

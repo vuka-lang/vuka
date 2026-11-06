@@ -163,6 +163,7 @@ runs, in the browser, before anything is sent:
 | `.prevent` | keeps the browser from doing what the event would: following a link, submitting a form, ticking a box |
 | `.stop` | keeps the event from the elements around this one, once the element's own listeners have run |
 | `.once` | runs the handler the first time the event fires on the element only |
+| `.optimistic` | the [state](/ui/state#optimistic) writes before a push are its predictions: an error reply puts them back |
 | `.enter`, `.esc`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right` | on a key event, only that key; several are any of them |
 | `.ctrl`, `.shift`, `.alt`, `.meta` before a key | that key with the modifier held: `.ctrl.enter`, `.shift.alt.tab` |
 
@@ -170,7 +171,7 @@ A duration is written as Go writes one: `300ms`, `1s`, `1m30s`.
 
 The modifiers are steps of the [JS command chain](/ui/js) before the
 handler, in one order whatever order they are written in: the key filter,
-`prevent`, `stop`, `once`, then the pace. `onKeydown.enter.prevent={Add(this.value)}`
+`prevent`, `stop`, `once`, `optimistic`, then the pace. `onKeydown.enter.prevent={Add(this.value)}`
 is `ui.JS.Key("Enter").Prevent().Push(Add, ui.This.Value())`: other keys
 type as usual. They work with any handler — a method call, a method value,
 browser state (`onClick.stop={open = !open}`), commands — and on a

@@ -267,6 +267,12 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 						help("declare the prop as ui.JSChain, the value an element's %s={open = !open} is, and forward it to the element: <button onClick={%s}>", a.name, exportName(a.name))
 					continue
 				}
+				if a.emods != nil && a.emods.optimistic && !predicts(steps) {
+					f.writeDone[a.expr.start] = true
+					e.errs.add("E0173", f.at(a.off), "%s.optimistic predicts the states the chain writes before a push, and %s writes none before one", a.name, f.src[a.expr.start:a.expr.end]).
+						help("write the state first, then call the method: %s.optimistic={liked = !liked; Like(id)}", a.name)
+					continue
+				}
 				a.write = e.chain(f, e.statePkg(f, pkg), f.genQual(stateGenPath(pkg)), steps)
 				a.write.start, a.write.end = a.expr.start, a.expr.end
 				f.dropEdits(a.expr, a.write.pieces)
@@ -275,6 +281,22 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 		})
 	}
 	return spans
+}
+
+// predicts reports whether steps write a state and then push: what an
+// optimistic chain takes back when the push fails.
+func predicts(steps []writeStep) bool {
+	wrote := false
+	for _, s := range steps {
+		if s.op == "Push" {
+			if wrote {
+				return true
+			}
+		} else {
+			wrote = true
+		}
+	}
+	return false
 }
 
 // takesCommands reports whether a value of type t can hold the chain of

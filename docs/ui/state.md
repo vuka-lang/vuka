@@ -113,6 +113,26 @@ component method, `p.open = false` sends the browser update.
 > [!WARNING]
 > Browser state is not durable storage or trusted authorization data.
 
+### Optimistic Writes {#optimistic}
+
+A write before a push shows at once, but when the server refuses the push
+the page would keep showing what it refused. `.optimistic` makes the
+handler's state writes predictions of its pushes:
+
+```html
+<button onClick.optimistic={liked = !liked; Like(post.ID)}>♥</button>
+```
+
+When the push's reply is an error, the states the handler wrote before it
+are put back, last first, before the error shows; on success they stay, and
+the next render reconciles as usual. Only that handler's writes are taken
+back, and several optimistic pushes in flight each put back their own: when
+an earlier one fails after a later one wrote the same state, the later one
+starts from what was there before both. Without `.optimistic` a failed push
+leaves its writes. Built in Go, the chain is `ui.JS.Optimistic().Set(liked,
+true).Push(c.Like)`.
+
+
 ## Keeping State {#keep}
 
 Browser state ends with the tab. `@ui.Keep("key")` keeps a state in the

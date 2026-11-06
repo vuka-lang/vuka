@@ -155,6 +155,15 @@ parameter keeps the call a handler.
   them on the server. Needs ui and web at the release's version. See
   [Keeping State](/ui/state#keep).
 
+- **Optimistic writes** ([#369](https://github.com/vuka-lang/vuka/issues/369)).
+  `onClick.optimistic={liked = !liked; Like(id)}` makes the handler's state
+  writes predictions of its push: an error reply puts them back, last
+  first, before the error shows, and optimistic pushes in flight put back
+  only their own. Plain pushes keep their writes as before. `.optimistic`
+  on a handler writing no state before a push is [E0173](/errors/E0173);
+  `ui.JS.Optimistic()` is the Go form. Needs ui and web at the release's
+  version. See [Optimistic Writes](/ui/state#optimistic).
+
 ### Component Classes
 
 - **`ui.Variants`, a component's classes by its props**
