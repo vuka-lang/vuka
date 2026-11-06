@@ -106,4 +106,3 @@ func TestScriptFileErrors(t *testing.T) {
 		t.Errorf("no %q in %v", want, err)
 	}
 }
-
