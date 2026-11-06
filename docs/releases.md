@@ -38,7 +38,7 @@ the `github.com/vuka-lang/vuka` package your module requires.
 - **The same call on a component's tag.** An `on…` attribute the
   component doesn't declare goes on to the element it spreads its `Attrs`
   on, `<components.Combobox onChange={Choose(this.value)}/>`, in place of
-  `attrs={[]ui.Attr{{Name: "onChange", Value: ui.JS.Push(…)}}}`; a prop
+  <span v-pre>`attrs={[]ui.Attr{{Name: "onChange", Value: ui.JS.Push(…)}}}`</span>; a prop
   taking browser commands takes it too. A component with neither is
   [E0106](/errors/E0106), naming it.
 - **Checked as a push is.** The arguments against the method's parameters
