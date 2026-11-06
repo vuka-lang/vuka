@@ -5,6 +5,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,7 +27,33 @@ var Variants = &analysis.Analyzer{
 }
 
 // variantsFact is a ui.Variants variable's variants and their values.
-type variantsFact struct{ Variants map[string][]string }
+// Facts must encode deterministically and gob writes maps in a random
+// order, so the fact holds the variants sorted by name.
+type variantsFact struct{ Dims []variantDim }
+
+type variantDim struct {
+	Name   string
+	Values []string
+}
+
+func factOf(dims map[string][]string) *variantsFact {
+	f := &variantsFact{}
+	for _, name := range slices.Sorted(maps.Keys(dims)) {
+		f.Dims = append(f.Dims, variantDim{Name: name, Values: dims[name]})
+	}
+	return f
+}
+
+func (f *variantsFact) dims() map[string][]string {
+	if len(f.Dims) == 0 {
+		return nil
+	}
+	m := make(map[string][]string, len(f.Dims))
+	for _, d := range f.Dims {
+		m[d.Name] = d.Values
+	}
+	return m
+}
 
 func (*variantsFact) AFact()         {}
 func (*variantsFact) String() string { return "variants" }
@@ -63,7 +90,7 @@ func runVariants(pass *analysis.Pass) (any, error) {
 					}
 					dims := variantValues(pass, lit)
 					vars[v] = dims
-					pass.ExportObjectFact(v, &variantsFact{dims})
+					pass.ExportObjectFact(v, factOf(dims))
 				}
 			}
 		}
@@ -74,7 +101,7 @@ func runVariants(pass *analysis.Pass) (any, error) {
 		}
 		var f variantsFact
 		if pass.ImportObjectFact(v, &f) {
-			return f.Variants
+			return f.dims()
 		}
 		return nil
 	}
