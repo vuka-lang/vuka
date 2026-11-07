@@ -73,7 +73,7 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 			case *jsxElem:
 				for _, a := range n.attrs {
 					switch {
-					case a.event || a.stmts || a.bind != nil || a.write != nil || strings.HasPrefix(a.name, "bind:"):
+					case a.event || a.stmts || a.bind != nil || a.write != nil || strings.HasPrefix(a.name, "bind:") || e.isFieldRef(f, n, a):
 					case a.kind == 'e':
 						before := len(out)
 						add(a.expr, n.comp == nil)
