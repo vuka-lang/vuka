@@ -1,0 +1,9 @@
+error[E0106]: <form> has no attribute confirmLeav; did you mean ConfirmLeave?
+  --> err_formoption.vuka:13:28
+   |
+13 |     return <form for={j.Form} confirmLeav></form>
+   |                               ^^^^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+For more information about this error, try `vuka explain E0106`.

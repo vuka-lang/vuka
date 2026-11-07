@@ -1,0 +1,24 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/stateui"
+
+// Join's form is a plain <form for>: its fields named by bare paths, a
+// fieldset's relative to its field, and a button outside it naming it.
+type Join struct {
+	ui.Live
+	Form Signup
+}
+</script>
+
+<main>
+  <form for={Form} class="stack">
+    <label for={Form.Email}/>
+    <input model={Form.Email}/>
+    <fieldset for={Form.Address}>
+      <legend/>
+      <input model={City}/>
+    </fieldset>
+  </form>
+  <button form={Form}>Join</button>
+</main>

@@ -260,11 +260,11 @@ func (w *jsxWriter) checkRowAttr(el *jsxElem, a *jsxAttr, field string) {
 // isUIForm reports whether an element is a <ui.Form> tag: a component
 // named Form of the JSX target's package.
 func isUIForm(el *jsxElem) bool {
-	if el.comp == nil || !strings.HasSuffix(el.tag, ".Form") {
+	if el.comp == nil || !el.formFor && !strings.HasSuffix(el.tag, ".Form") {
 		return false
 	}
 	n, ok := types.Unalias(typeOrNil(el.comp.propsTyp)).(*types.Named)
-	return !ok || n.Obj().Name() == "Form"
+	return !ok || isFormComp(n.Obj().Name())
 }
 
 // checkRowForm reports a <ui.Form> in a stream row that can't submit

@@ -83,6 +83,8 @@ type jsxElem struct {
 	slotField  string       // a fallback's field, once found
 	parts      []*partUse   // the deferred methods its part waits for (parts.go)
 	partFB     *deferMethod // a <ui.Fallback for={M}>: the method it stands in for
+	formFor    bool         // a <form for={Form}>: the target's FormElement component (forms.go)
+	legendOf   *jsxAttr     // an empty <legend/> in a <fieldset for>: the fieldset's for (forms.go)
 }
 
 // letVar is a name a slot's let declares.
@@ -125,7 +127,9 @@ type jsxAttr struct {
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
 	model bool       // model={Form.Email} on a field (forms.go), its modifiers in mods
 	mods  string
-	ref   bool // a field reference, lowered to ui.For or ui.ModelID: for={Form.Email}
+	ref   bool     // a field reference, lowered to ui.For or ui.ModelID: for={Form.Email}
+	scope *jsxAttr // the <fieldset for={…}> a field reference is relative to: model={Street} (forms.go)
+	of    bool     // form={Form} on a control outside its form: the form's element id
 }
 
 // attrPart is a piece of an attribute's text: text, or a hole's expression.
@@ -171,8 +175,9 @@ type jsxParser struct {
 	trees   []*jsxTree
 	matches []*matchStmt
 	cur     *jsxTree
-	goToks  [][]tok // each Go expression's tokens, its JSX read as one
-	inComp  int     // how many component tags the parser is inside
+	goToks  [][]tok    // each Go expression's tokens, its JSX read as one
+	inComp  int        // how many component tags the parser is inside
+	scopes  []*jsxAttr // the for={…} of each <fieldset for> the parser is inside (forms.go)
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
@@ -313,6 +318,8 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
 			p.checkStyle(el)
+			p.formTag(el)
+			p.legend(el)
 			return el
 		case c == '>' && (p.f.html != nil && (el.tag == "script" || el.tag == "style") || el.isAsset()):
 			el.asset = el.isAsset()
@@ -332,10 +339,18 @@ func (p *jsxParser) element(off int) *jsxElem {
 			return el
 		case c == '>':
 			p.checkStyle(el)
+			if p.formTag(el) {
+				comp = true
+			}
 			if comp {
 				p.inComp++
 			}
+			scoped := p.fieldsetScope(el)
 			el.kids, i = p.children(i+1, el, 0, false)
+			if scoped {
+				p.scopes = p.scopes[:len(p.scopes)-1]
+			}
+			p.legend(el)
 			if comp {
 				p.inComp--
 			}
@@ -1121,7 +1136,7 @@ func (w *jsxWriter) attrValueOf(a *jsxAttr) {
 			w.gen(" }")
 			return
 		}
-		if a.ref && (w.addressable(a) || a.name == "model") { // a component's model is always a reference: its field is a ui.FieldRef
+		if a.ref && !a.of && (w.addressable(a) || a.name == "model" || a.scope != nil) { // a component's model is always a reference: its field is a ui.FieldRef
 			w.modelCall("For", "", a)
 			return
 		}

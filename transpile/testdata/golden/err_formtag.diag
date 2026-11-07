@@ -1,0 +1,20 @@
+error[E0186]: for on a <form> takes the form it renders: <form for={Form}>
+  --> err_formtag.vuka:17:15
+   |
+17 |     return <form for="signup"></form>
+   |                  ^^^
+
+error[E0186]: an attribute set on a <form for={…}>: pass them as attrs={…}, a []ui.Attr
+  --> err_formtag.vuka:21:28
+   |
+21 |     return <form for={j.Form} {attrs...}></form>
+   |                               ^
+
+error[E0187]: model on an <input type="hidden">: a form takes no value the visitor can't see or change (an id, an owner); take it from the route or the session, and leave the field out of the form with form:"-"
+  --> err_formtag.vuka:25:49
+   |
+25 |     return <form for={j.Form}><input type="hidden" model={j.Form.Owner}/></form>
+   |                                                    ^^^^^
+
+Some errors have detailed explanations: E0186, E0187.
+For more information about an error, try `vuka explain E0186`.
