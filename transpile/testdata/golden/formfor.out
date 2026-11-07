@@ -1,0 +1,1 @@
+<form data-for="{Edit.Form}" data-key="&lt;nil&gt;" data-bound="Name,Price"><label for="id:FormFor[main.Product].Value">Name</label><p>field {FormFor[main.Product].Value} </p><input data-model="? tag=input"></form> <nil> 25

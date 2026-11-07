@@ -91,6 +91,8 @@ same page in the terminal.
 | [E0179](./E0179) | A @ui.Keep or @ui.Shared the browser can't keep |
 | [E0180](./E0180) | A show or transition attribute that doesn't fit |
 | [E0181](./E0181) | A generic component's type arguments can't be inferred |
+| [E0182](./E0182) | A FormFor saved whose type is not a model |
+| [E0183](./E0183) | A field setting given by its tag and by an attribute |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |

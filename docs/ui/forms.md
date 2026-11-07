@@ -34,7 +34,8 @@ func (g *Geo) Cities(ctx context.Context, country string) ([]ui.Option, error) {
 
 ## Declaring a Form {#declaring}
 
-A struct embedding `ui.FormState` is a form. Its exported fields are the
+A struct embedding `ui.FormState` is a form; a form of a model, or of any
+struct, without one of its own is a [`ui.FormFor[T]`](#formfor). Its exported fields are the
 values the visitor edits, and the only ones a submit binds; `form:"-"`
 leaves one out. Owner, tenant and record ids come from the route or the
 session, never from the form.
@@ -505,6 +506,199 @@ func (e *Edit) Save(ctx context.Context, f *ui.ModelForm[account.User], users *a
 
 Embedding a database model in a form instead makes every column of it a
 field a submit may set; `vuka vet` warns about it ([W0311](/errors/W0311)).
+
+## One Form for Models and Plain Structs: FormFor {#formfor}
+
+`ui.FormFor[T]` is a form of any struct `T`, with no form struct of its
+own: its fields are `T`'s, described by `T`'s field attributes — a model's
+own (`@orm.Char{Max: 100}`) and the form's (`@ui.Placeholder("…")`) — and
+its type decides what is required. Markup names a field through the form,
+`Form.Name`, which Go code writes `Form.Value.Name`.
+
+### Forms of Models {#formfor-models}
+
+```vuka
+@orm.Meta{Table: "products"} @orm.Entity
+type Product struct {
+    orm.Base
+    ID     int64          @orm.PK
+    Name   string         @orm.Char{Max: 100, Unique: true, IgnoreCase: true, Trim: true} @ui.Placeholder("e.g. Desk lamp")
+    SKU    string         @orm.Char{Max: 12, Pattern: `^[A-Z0-9-]+$`, Help: "Letters, digits and dashes"}
+    Price  int64          @orm.Int{Min: 0}
+    Status string         @orm.Char{Choices: []string{"draft", "live"}}
+    Notes  Option[string] @orm.LongText
+}
+```
+
+```html
+<script lang="go">
+package products
+
+import (
+    "context"
+
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Products struct {
+    ui.Live
+    ID   int64 // the route's [id]; 0 for a new product
+    Form ui.FormFor[Product]
+}
+
+@ui.Mount
+func (p *Products) load(ctx context.Context) error {
+    if p.ID == 0 {
+        p.Form.Load(Product{})
+        return nil
+    }
+    p.Form.Load(Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
+    return nil
+}
+
+func (p *Products) save(ctx context.Context) error {
+    return p.Form.Save(ctx)
+}
+</script>
+
+if Form.IsNew() {
+  <h1>Add product</h1>
+} else {
+  <h1>Edit product</h1>
+}
+<ui.Form for={Form} onSubmit={save}>
+  <ui.Field for={Form.Name}/>
+  <ui.Field for={Form.SKU}/>
+  <ui.Field for={Form.Price}/>
+  <ui.Field for={Form.Status}/>
+  <ui.Field for={Form.Notes}/>
+</ui.Form>
+```
+
+- `Load(row)` edits that row; `Load(Product{})` starts a new one. The
+  loaded record, its primary key included, stays on the server: the key is
+  never a field.
+- `Save(ctx)` runs the form's checks when no submit did, copies the form's
+  fields onto the record, inserts it when it is new and otherwise updates
+  **only the form's fields** (`SaveFields`), so a change another request
+  made to another column survives. It then reads the row again: a new one
+  has its key and what the database computed, and the form is clean. A
+  failed check returns `ui.ErrFormInvalid` and shows at its field.
+- `IsNew()` reports whether the record is new: none loaded, or its key
+  unset.
+- `Save` needs `T` to have `Save(ctx)` and `SaveFields(ctx, fields…)`
+  methods, as every `orm` model has; on a `FormFor` of another type it is a
+  compile error ([E0182](/errors/E0182)).
+- A unique column (`@orm.Char{Unique: true}`, `@orm.Unique`) is checked
+  against the table as the form is submitted, the record's own row left
+  out; `IgnoreCase` folds case for the check. The error shows at the field
+  until its value changes.
+
+### Forms of Any Other Struct {#formfor-plain}
+
+```vuka
+type Signup struct {
+    Email    string         @ui.Email @ui.Label("Email address")
+    Password string         @ui.Min(12) @ui.Widget("password")
+    Plan     string         @ui.OneOf("free", "pro")
+    Referrer Option[string] @ui.Max(40)
+    Terms    bool           @ui.Required("Accept the terms to continue")
+}
+
+func (s Signup) Clean() error {
+    if s.Plan == "pro" && s.Referrer.IsSome() {
+        return ui.FieldError(Signup.Referrer, "Referrals are for the free plan")
+    }
+    return nil
+}
+
+type SignupPage struct {
+    ui.Live
+    Form ui.FormFor[Signup]
+}
+
+func (p *SignupPage) submit(ctx context.Context, in Signup, users *Users) error {
+    if users.Exists(ctx, in.Email) {
+        return ui.FieldError(Signup.Email, "That email is already registered")
+    }
+    return users.Create(ctx, in)
+}
+```
+
+- The submit handler takes the checked value as a plain `T` (or `*T`), so
+  the same type can be a service's input, and the handler is tested
+  without ui.
+- `ui.FieldError(Type.Field, msg)` is an error of one field: a field
+  reference, so a misspelling is a compile error. Any other error is the
+  form's.
+- On success the form empties; `<ui.Form keep>` keeps its values (a
+  search, filters). A model's form that saved itself keeps the saved row.
+- `<Field>Choices(ctx, deps…)`, `Clean` and `Clean<Field>` on `T` are the
+  form's, as on a form struct.
+
+### What Is Required {#formfor-required}
+
+A `FormFor`'s field is required by its type: a plain field must be filled
+(a number's input may not be left empty, `0` is a value), an `Option[T]`
+may be left empty and is `None`, and so may a pointer and a slice. A
+`bool` unticked is a valid `false`; `@ui.Required` on a bool means it must
+be ticked. `@orm.Null` makes a plain field optional.
+
+### The Fields a Form Edits {#formfor-fields}
+
+A `FormFor` has no field list: its fields are the ones its markup binds.
+The compiler reads every `for={…}` and `model={…}` inside the
+`<ui.Form for={Form}>` and writes them into the form, and a submit sets
+only those, so a field the page doesn't show can never be a visitor's to
+set, and a column added to the model later stays off the form until the
+markup uses it. A childless `<ui.Form for={Form}/>` renders, and edits,
+every field but the key and the times the database sets.
+
+Markup the compiler can't see into — the form handed to a component of the
+app's — names the fields on the form's field instead:
+
+```vuka
+type Products struct {
+    ui.Live
+    Form ui.FormFor[Product] @ui.Fields(Product.Name, Product.Price)
+}
+```
+
+### Field Attributes {#field-attributes}
+
+A field's attributes are the typed form of its tags; a form reads them
+(`field.Describer`) whatever library declares them. The same setting in a
+tag and an attribute is a compile error ([E0183](/errors/E0183)): each has
+one source.
+
+| ui attribute | Tag | |
+|---|---|---|
+| `@ui.Label("…")` | `label:` | the label; the field's name in words otherwise |
+| `@ui.Help("…")` | `help:` | the hint |
+| `@ui.Placeholder("…")` | `placeholder:` | an example value |
+| `@ui.Widget("radio")` | `input:` | the control: `textarea`, `radio`, `password`, `email`, `date`, … |
+| `@ui.Autocomplete("…")` | `autocomplete:` | the autocomplete token |
+| `@ui.Msg("max", "…")` | `msg:` | a rule's own message |
+| `@ui.Required`, `@ui.Required("…")` | `validate:"required"` | required, with its message |
+| `@ui.Min(n)`, `@ui.Max(n)` | `validate:"min=n"` | a text's length, a number's value |
+| `@ui.Email`, `@ui.Email("…")` | `validate:"email"` | an email address |
+| `@ui.Pattern("…")` | | a regular expression the whole value matches |
+| `@ui.OneOf("a", "b")` | `validate:"oneof=a b"` | the values it takes: a select (radios with `@ui.Widget("radio")`) |
+| `@ui.Fields(T.A, T.B)` | | on a `FormFor` field: the fields it edits |
+
+| orm attribute or type | In a form |
+|---|---|
+| a plain field type | required |
+| `Option[T]`, `@orm.Null` | optional; empty is `None` |
+| `@orm.Char{Max, Min}`, `@orm.Int{Min, Max}` | length and range rules |
+| `Pattern` | a pattern rule |
+| `Trim`, `Lower` | normalized as it is bound |
+| `Choices` | a select's options |
+| `@orm.LongText` | a textarea |
+| `Label`, `Help` | the label and the hint |
+| `@orm.PK`, `AutoNow`, `AutoNowAdd` | never form fields |
+| an attribute with `Validate(v) error` | a check of the field |
+| `@orm.Char{Unique: true}` | a database check on submit (`field.Checker`), the record's own row left out |
 
 ## Choices {#choices}
 

@@ -195,6 +195,7 @@ func (e *engine) run() {
 			e.lowerContextVars(f)
 			e.resolveStatics(f)
 			e.resolveFieldRefs(f)
+			e.resolveFormFields(f)
 			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
@@ -252,6 +253,8 @@ func (e *engine) run() {
 		e.checkRefs()
 		e.checkGoTracked()
 		e.checkFormOf()
+		e.checkFormSaves()
+		e.checkTagAttrs()
 		e.checkStreams()
 	}
 	if len(*e.errs) == 0 && e.info != nil {

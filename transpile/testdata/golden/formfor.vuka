@@ -1,0 +1,34 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	Name  string
+	Price int
+	Note  string
+}
+
+type Edit struct {
+	Form ui.FormFor[Product]
+}
+
+func (e *Edit) View() ui.Node {
+	return <ui.Form for={e.Form}>
+		<label for={e.Form.Name}>Name</label>
+		<ui.Field for={e.Form.Name}/>
+		<input model={e.Form.Price}/>
+	</ui.Form>
+}
+
+func main() {
+	e := &Edit{}
+	e.Form.Load(Product{Name: "Kettle", Price: 30})
+	e.Form.Price = 25
+	out, err := ui.String(context.Background(), e.View())
+	fmt.Println(out, err, e.Form.Value.Price)
+}

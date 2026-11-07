@@ -103,12 +103,34 @@ type Form struct {
 	OnSubmit  any
 	OnChange  any
 	NoSummary bool
+	Bound     []string
 	Children  Node
 }
 
 func (f Form) View() Node {
-	return El("form", []Attr{{Name: "data-for", Value: fmt.Sprint(f.For)}, {Name: "data-key", Value: fmt.Sprint(f.Key)}}, f.Children)
+	attrs := []Attr{{Name: "data-for", Value: fmt.Sprint(f.For)}, {Name: "data-key", Value: fmt.Sprint(f.Key)}}
+	if f.Bound != nil {
+		attrs = append(attrs, Attr{Name: "data-bound", Value: strings.Join(f.Bound, ",")})
+	}
+	return El("form", attrs, f.Children)
 }
+
+// FormFor is a form of a T, its values in Value.
+type FormFor[T any] struct {
+	FormState
+	Value T
+}
+
+func (FormFor[T]) vukaFormFor() {}
+
+func (f *FormFor[T]) Load(v T)                       { f.Value = v }
+func (f *FormFor[T]) Save(ctx context.Context) error { return nil }
+
+// The form field attributes.
+type (
+	Label string
+	Max   float64
+)
 
 func (f Form) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
 
