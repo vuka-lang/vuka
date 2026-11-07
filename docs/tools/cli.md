@@ -710,7 +710,8 @@ one to build, such as the npm version ([Islands](/web/islands#build)).
 
 `vuka version` prints the command's version and the set of vuka, ui and web it expects
 (from v0.50.0 one version for all four; see
-[Versions and compatibility](/project/versions)), and the Go that built it. Inside a
+[Versions and compatibility](/project/versions)), the Go that built it and the vuka it
+compiles with. Inside a
 module it prints the Go that builds the module, warning when that is newer than vuka's
 (reinstall vuka with it: `GOTOOLCHAIN=<that go> go install …`). Inside an app it also lists
 the versions the app's go.mod requires, with any `replace`, and warns when
@@ -735,11 +736,22 @@ at its main branch's pseudo-version (resolved with `GOPROXY=direct`, so a commit
 minutes ago counts). It runs every rewrite after the app's version, those main has for a
 release not yet tagged included, then `vuka vet` and `vuka test` as above, and the summary
 names each module's commit. Main's commits are not a set tested together. The rewrites
-live in the command, so a command installed from a release runs main's to do it
-(`go run github.com/vuka-lang/vuka/cmd/vuka/v2@main upgrade main …`, same flags, same
-directory). `vuka version` reports an app whose modules are all at such commits as on
+live in the command, so a command installed from a release runs main's to do it (same
+flags, same directory), built in a temporary module that requires `cmd/vuka` and vuka
+at main, so it compiles with main's vuka rather than the one its go.mod pins. `vuka version` reports an app whose modules are all at such commits as on
 main. A pseudo-version sorts below the next release, so `vuka upgrade` after it moves the
 app back to tags.
+
+`vuka upgrade -self [version | main]` installs the command into `GOBIN` (or
+`GOPATH/bin`) and changes no app: the newest release's by default, a named release's as
+released, or main's built against vuka's main as above. Use it, not `go install
+…/cmd/vuka/v2@main`, to run main's command: the compiler is in the vuka module, and a
+fix merged there reaches `cmd/vuka`'s go.mod pin only in a later commit. It prints the
+command's version and the vuka it compiles with; `-n` prints the go commands instead.
+`vuka version` shows the vuka the command compiles with, and the commands that compile
+an app (build, run, test, vet, install, gen, eject, explain, routes, graphql,
+build-islands, lsp) warn once, on stderr, when it is older than the vuka the app's go.mod
+requires ([The command's compiler](/project/versions#command-compiler)).
 
 ## Releasing {#release}
 

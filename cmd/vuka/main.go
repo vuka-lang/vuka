@@ -109,6 +109,9 @@ Usage:
 	        web at that version, run the vuka fix rewrites for the releases in
 	        between, then vuka vet and vuka test; -n only says what it would do;
 	        main moves them (and the orm and tools it requires) to main's commits
+	vuka upgrade -self [-n] [version | main]
+	        install the command into GOBIN: the newest release's, a release's,
+	        or main's built against vuka's main; changes no app
 
 Maintainers:
 	vuka release [-yes] [-no-test] [-security] vX.Y.Z
@@ -137,6 +140,12 @@ func main() {
 	load.CompilerVersion = compilerVersion()
 	var err error
 	cmd := os.Args[1]
+	switch cmd {
+	case "build", "run", "test", "vet", "install", "build-islands", "gen", "eject", "explain", "routes", "graphql", "lsp":
+		// For lsp too: the protocol runs over stdin and stdout, and the
+		// editor shows a server's stderr in its log.
+		warnCompilerAge(os.Stderr)
+	}
 	switch cmd {
 	case "build", "run", "test", "vet", "install":
 		if args, ok := cutIslands(cmd, os.Args[2:]); ok {
