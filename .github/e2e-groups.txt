@@ -430,6 +430,14 @@ TestRelease
 TestReleaseChecks
 TestReleaseDryRun
 TestSetToolchain
+# compilerage_test.go
+TestCompilerAge
+TestDepVersion
+TestMainModuleCmds
+TestUpgradeSelfMain
+TestUpgradeSelfRelease
+TestVersionCmdCompiler
+TestWarnCompilerAgeOnce
 # upgrade_test.go
 TestOneSet
 TestStepsBetween

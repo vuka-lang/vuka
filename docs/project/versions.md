@@ -60,6 +60,7 @@ vuka upgrade            # the latest set
 vuka upgrade v2.1.0     # or a chosen one
 vuka upgrade -n         # say what it would do, change nothing
 vuka upgrade main       # main's current commits, to try unreleased work
+vuka upgrade -self main # main's command, compiling with main's vuka
 ```
 
 In a Go app with the command as a tool of the module, it is
@@ -91,10 +92,40 @@ of every release after the app's, including those main has for a release not
 yet tagged, then the same checks, and the summary names each module's commit.
 The commits are not a set tested together, so this is for trying unreleased
 work, not for shipping. The rewrites are the command's, so a command installed
-from a release runs main's (`go run github.com/vuka-lang/vuka/cmd/vuka/v2@main
-upgrade main`, with the same flags) to do it. `vuka version` reports the app as
-on main, with the commits. A pseudo-version (`v2.17.1-0.…`) sorts below the
+from a release runs main's to do it, with the same flags, built against vuka's
+main (see below). `vuka version` reports the app as on main, with the commits. A pseudo-version (`v2.17.1-0.…`) sorts below the
 next release, so `vuka upgrade` once it is tagged moves the app back to tags.
+
+### The Command's Compiler {#command-compiler}
+
+The compiler is part of the vuka module, and the command links it at the
+version its own go.mod pins. A compiler fix merged to main reaches the
+command only once that pin moves, which is a later commit: so
+`go install github.com/vuka-lang/vuka/cmd/vuka/v2@main` can install a command
+whose compiler is older than main's. `vuka upgrade -self main` installs main's
+command built against vuka's main instead, in a temporary module that
+requires both at main; `vuka upgrade main` runs main's command built the same
+way.
+
+```sh
+vuka upgrade -self          # the newest release's command
+vuka upgrade -self v2.17.0  # a release's
+vuka upgrade -self main     # main's, compiling with main's vuka
+vuka upgrade -self -n main  # say what it would run
+```
+
+It installs into `GOBIN` (or `GOPATH/bin`), prints the command's version and
+the vuka it compiles with, and changes no app. `vuka version` shows that vuka
+too, and a command that compiles an app (build, run, test, vet, lsp, …)
+warns once when it is older than the one the app's go.mod requires:
+
+```text
+warning: this vuka command compiles with vuka 9156bdf7ad26, older than the b616b7547f57 example.com/shop requires;
+         its fixes since aren't applied: vuka upgrade -self main (or go tool vuka, which builds against the app's go.mod)
+```
+
+`go tool vuka`, with the command a tool of the app's module, always builds
+against the app's go.mod and never needs this.
 
 ## Release Cadence {#release-cadence}
 

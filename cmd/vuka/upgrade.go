@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"debug/buildinfo"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -115,26 +116,170 @@ func unreleased(v string) bool {
 // source, and so carries main's upgrade steps.
 var commandFromMain = func() bool {
 	bi, ok := debug.ReadBuildInfo()
-	return ok && unreleased(bi.Main.Version)
+	return ok && unreleased(commandVersion(bi))
+}
+
+// commandVersion is the version of cmd/vuka bi was built from: the main
+// module's, or the dependency's when built in another module, as runMain
+// and -self main build it.
+func commandVersion(bi *debug.BuildInfo) string {
+	if bi.Main.Path != cmdModPath {
+		for _, d := range bi.Deps {
+			if d.Path == cmdModPath {
+				return d.Version
+			}
+		}
+	}
+	return bi.Main.Version
 }
 
 // upgradeMainEnv marks the command vuka upgrade main runs from main, so
 // that one never runs another.
 const upgradeMainEnv = "VUKA_UPGRADE_MAIN"
 
-// mainCommand is vuka upgrade args run by main's command, in dir.
-func mainCommand(dir string, args []string) *exec.Cmd {
-	c := exec.Command("go", append([]string{"run", cmdModPath + "@" + mainTarget, "upgrade"}, args...)...)
+// mainModuleCmds are the go commands that, in the empty directory dir, make
+// a module requiring cmd/vuka and vuka at their main branches, so that main's
+// command builds against main's vuka rather than the vuka its go.mod pins,
+// then run go with last (build -o …, install) on the command.
+func mainModuleCmds(dir string, last ...string) []*exec.Cmd {
+	get := exec.Command("go", "get", cmdModPath+"@"+mainTarget, vukaModPath+"@"+mainTarget)
+	build := exec.Command("go", append(last, cmdModPath)...)
+	for _, c := range []*exec.Cmd{get, build} {
+		c.Dir, c.Env = dir, upgradeEnv()
+	}
+	return []*exec.Cmd{get, build}
+}
+
+// writeMainModule writes the go.mod mainModuleCmds start from.
+func writeMainModule(dir string) error {
+	return os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module vuka-main\n"), 0o644)
+}
+
+// goCmd runs a go command vuka upgrade -self or main needs; tests replace it.
+var goCmd = func(c *exec.Cmd, stdout, stderr io.Writer) error {
+	c.Stdout, c.Stderr = stdout, stderr
+	return c.Run()
+}
+
+// runQuiet runs c with goCmd, its output shown only when it fails.
+func runQuiet(c *exec.Cmd) error {
+	var out bytes.Buffer
+	if err := goCmd(c, &out, &out); err != nil {
+		return fmt.Errorf("%s: %v\n%s", strings.Join(c.Args, " "), err, out.Bytes())
+	}
+	return nil
+}
+
+// mainCommand is vuka upgrade args run by exe, main's command, in dir.
+func mainCommand(dir, exe string, args []string) *exec.Cmd {
+	c := exec.Command(exe, append([]string{"upgrade"}, args...)...)
 	c.Dir, c.Env = dir, append(directEnv(), upgradeMainEnv+"=1")
 	return c
 }
 
-// runMain runs vuka upgrade args with main's command, its output and status
-// being this one's.
+// runMain runs vuka upgrade args with main's command, built against main's
+// vuka, its output and status being this one's.
 var runMain = func(dir string, args []string, stdout, stderr io.Writer) error {
-	c := mainCommand(dir, args)
+	tmp, err := os.MkdirTemp("", "vuka-main-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	if err := writeMainModule(tmp); err != nil {
+		return err
+	}
+	bin := exe(filepath.Join(tmp, "vuka"))
+	for _, c := range mainModuleCmds(tmp, "build", "-o", bin) {
+		if err := runQuiet(c); err != nil {
+			return fmt.Errorf("building main's command: %v", err)
+		}
+	}
+	c := mainCommand(dir, bin, args)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, stderr
 	return c.Run()
+}
+
+// selfCmds are the go commands that install the command at target into
+// GOBIN: a release's with go install, its pins being the release's; main's
+// built against vuka's main in the temporary module at dir.
+func selfCmds(dir, target string) []*exec.Cmd {
+	if target == mainTarget {
+		return mainModuleCmds(dir, "install")
+	}
+	c := exec.Command("go", "install", cmdModPath+"@"+target)
+	c.Dir, c.Env = dir, append(directEnv(), "GOWORK=off")
+	return []*exec.Cmd{c}
+}
+
+// installedPath is where go install puts the command: GOBIN, else the
+// first GOPATH's bin.
+func installedPath() (string, error) {
+	out, err := exec.Command("go", "env", "GOBIN", "GOPATH").Output()
+	if err != nil {
+		return "", fmt.Errorf("go env: %v", err)
+	}
+	gobin, gopath, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	if gobin = strings.TrimSpace(gobin); gobin == "" {
+		gobin = filepath.Join(filepath.SplitList(strings.TrimSpace(gopath))[0], "bin")
+	}
+	return exe(filepath.Join(gobin, "vuka")), nil
+}
+
+// installedInfo is the build information of the binary at path.
+var installedInfo = buildinfo.ReadFile
+
+// upgradeSelf installs the command at target (the newest release when "")
+// and says what it installed and the vuka it compiles with.
+func upgradeSelf(target string, dry bool, stdout, stderr io.Writer) error {
+	tmp, err := os.MkdirTemp("", "vuka-self-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	if err := writeMainModule(tmp); err != nil {
+		return err
+	}
+	if target == "" {
+		if target, err = latestSet(tmp, []string{cmdModPath}); err != nil {
+			return err
+		}
+	}
+	if target != mainTarget && !releaseVersion.MatchString(target) {
+		return fmt.Errorf("%q is not a release version (vX.Y.Z) or main", target)
+	}
+	path, err := installedPath()
+	if err != nil {
+		return err
+	}
+	cmds := selfCmds(tmp, target)
+	what := "the " + target + " command"
+	if target == mainTarget {
+		what = "main's command, built against vuka's main"
+	}
+	if dry {
+		fmt.Fprintf(stdout, "install %s into %s:\n", what, path)
+		for _, c := range cmds {
+			fmt.Fprintf(stdout, "  %s\n", strings.Join(c.Args, " "))
+		}
+		fmt.Fprintln(stdout, "dry run: nothing changed")
+		return nil
+	}
+	fmt.Fprintf(stderr, "vuka upgrade -self: installing %s\n", what)
+	for _, c := range cmds {
+		if err := runQuiet(c); err != nil {
+			return err
+		}
+	}
+	bi, err := installedInfo(path)
+	if err != nil {
+		return fmt.Errorf("reading the installed command: %v", err)
+	}
+	linked := depVersion(bi, vukaModPath)
+	if linked == "" {
+		linked = "an unknown version"
+	}
+	fmt.Fprintf(stdout, "installed %s: cmd/vuka %s, compiling with vuka %s\n", path, commandVersion(bi), linked)
+	return nil
 }
 
 // moduleLabel is how the plan names module p: vuka, ui, cmd/vuka, ….
@@ -203,8 +348,9 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 	dry := fs.Bool("n", false, "only say what would be done")
 	fs.BoolVar(dry, "dry-run", false, "same as -n")
 	noTest := fs.Bool("no-test", false, "don't run vuka test after the upgrade")
+	self := fs.Bool("self", false, "install the command (the newest release, a version or main) into GOBIN; no app changes")
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version | main]\n\nmoves the app's vuka, ui and web to one set (the latest by default) and,\nto this command's set, its orm to the version new apps use; runs the\nvuka fix rewrites for the releases in between, then vuka vet and\nvuka test.\n\nmain moves vuka, ui, web and, when the app requires them, the orm and\nthe cmd/vuka and cmd/vukavet tools to their main branches' current\ncommits, and runs every rewrite after the app's version, main's own\nincluded; a command not built from main runs main's to do it\n(go run "+cmdModPath+"@main upgrade …).")
+		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version | main]\n       vuka upgrade -self [-n] [version | main]\n\nmoves the app's vuka, ui and web to one set (the latest by default) and,\nto this command's set, its orm to the version new apps use; runs the\nvuka fix rewrites for the releases in between, then vuka vet and\nvuka test.\n\nmain moves vuka, ui, web and, when the app requires them, the orm and\nthe cmd/vuka and cmd/vukavet tools to their main branches' current\ncommits, and runs every rewrite after the app's version, main's own\nincluded; a command not built from main runs main's to do it\n(built against vuka's main in a temporary module).\n\n-self installs the command into GOBIN (or GOPATH/bin): a release's as\nreleased, main's built against vuka's main; it changes no app.")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -213,6 +359,9 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 	if fs.NArg() > 1 {
 		fs.Usage()
 		return errors.New("vuka upgrade takes one version")
+	}
+	if *self {
+		return upgradeSelf(fs.Arg(0), *dry, stdout, stderr)
 	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
@@ -241,7 +390,7 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 		if os.Getenv(upgradeMainEnv) != "" {
 			return errors.New("vuka upgrade main: the command run from main is not built from main")
 		}
-		fmt.Fprintf(stderr, "vuka upgrade main: running main's command (go run %s@%s)\n", cmdModPath, mainTarget)
+		fmt.Fprintln(stderr, "vuka upgrade main: running main's command, built against vuka's main")
 		return runMain(".", args, stdout, stderr)
 	}
 	type move struct{ mod, from, to string }

@@ -445,8 +445,8 @@ func TestUpgradeMainRunsMainsCommand(t *testing.T) {
 		t.Errorf("main's command ran another (err %v, args %v)", err, got)
 	}
 
-	c := mainCommand("/apps/shop", []string{"-no-test", "main"})
-	if want := []string{"go", "run", cmdModPath + "@main", "upgrade", "-no-test", "main"}; !slices.Equal(c.Args, want) || c.Dir != "/apps/shop" {
+	c := mainCommand("/apps/shop", "/tmp/vuka-main/vuka", []string{"-no-test", "main"})
+	if want := []string{"/tmp/vuka-main/vuka", "upgrade", "-no-test", "main"}; !slices.Equal(c.Args, want) || c.Dir != "/apps/shop" {
 		t.Errorf("command %v in %q", c.Args, c.Dir)
 	}
 	for _, want := range []string{"GOPROXY=direct", upgradeMainEnv + "=1"} {

@@ -16,8 +16,8 @@ var (
 	moduleGoVersion = load.ModuleGoVersion
 )
 
-// versionCmd prints this command's toolchain set and the Go that built it
-// and, inside a module, the Go that builds the module, warning when that
+// versionCmd prints this command's toolchain set, the Go that built it and
+// the vuka it compiles with and, inside a module, the Go that builds the module, warning when that
 // is newer, and, inside an app, the set's versions its go.mod requires,
 // warning when they aren't one set or not the set this command expects, or
 // saying it is on main when they are all at unreleased commits.
@@ -33,10 +33,14 @@ func versionCmd(args []string, stdout, stderr io.Writer) error {
 	}
 	vukaGo := vukaGoVersion()
 	fmt.Fprintf(stdout, "built with %s\n", vukaGo)
+	if v := linkedVuka(); v != "" {
+		fmt.Fprintf(stdout, "compiles with vuka %s\n", v)
+	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return nil
 	}
+	fmt.Fprint(stderr, compilerAge(root, linkedVuka()))
 	if modGo, err := moduleGoVersion(root); err == nil {
 		fmt.Fprintf(stdout, "%s builds with %s\n", modPath, modGo)
 		if err := load.CheckGoVersions(vukaGo, modGo); err != nil {
