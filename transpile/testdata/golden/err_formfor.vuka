@@ -1,0 +1,21 @@
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+type Signup struct {
+	Email string `label:"Email" validate:"required,max=80"` @ui.Label("Email address") @ui.Max(120)
+}
+
+type Join struct {
+	Form ui.FormFor[Signup]
+}
+
+func (j *Join) save(ctx context.Context) error {
+	return j.Form.Save(ctx)
+}
+
+func main() {}

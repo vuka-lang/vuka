@@ -2,9 +2,12 @@ package transpile
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
+	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -221,7 +224,7 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 			if !ok {
 				return
 			}
-			if _, known := e.info.Selections[sel]; known {
+			if _, known := e.info.Selections[sel]; known || e.formValueField(sel) {
 				return
 			}
 			if _, isPkg := e.info.Uses[identOf(sel.X)].(*types.PkgName); isPkg {
@@ -403,4 +406,293 @@ func missingField(t types.Type, path string) (string, int, types.Type, []string)
 		at += len(name) + 1
 	}
 	return "", 0, nil, nil
+}
+
+// A FormFor[T] of the ui target (its type has the marker method
+// vukaFormFor) holds its values in its Value field; Form.Name, Name a field
+// of T and not one of the form's own, is Form.Value.Name:
+//
+//	<ui.Field for={Form.Name}/>  →  ui.Field{For: ui.For(&p.Form.Value.Name, &p.Form, p)}
+//	p.Form.Price = 0             →  p.Form.Value.Price = 0
+
+// formValueType is T of a FormFor[T] (or a pointer to one); nil for any
+// other type.
+func formValueType(t types.Type) types.Type {
+	n := namedOf(t)
+	if n == nil || n.TypeArgs().Len() != 1 || n.Obj().Pkg() == nil {
+		return nil
+	}
+	if _, ok := pkgMethod(types.NewPointer(n), n.Obj().Pkg(), "vukaFormFor"); !ok {
+		return nil
+	}
+	return n.TypeArgs().At(0)
+}
+
+// formValueField reports whether sel is a FormFor's X naming a field of T
+// that the form itself has no member of.
+func (e *engine) formValueField(sel *ast.SelectorExpr) bool {
+	tv, ok := e.info.Types[sel.X]
+	if !ok {
+		return false
+	}
+	vt := formValueType(tv.Type)
+	if vt == nil {
+		return false
+	}
+	if obj, _, _ := types.LookupFieldOrMethod(tv.Type, true, e.pkg, sel.Sel.Name); obj != nil {
+		return false
+	}
+	obj, _, _ := types.LookupFieldOrMethod(vt, true, e.pkg, sel.Sel.Name)
+	v, ok := obj.(*types.Var)
+	return ok && v.IsField()
+}
+
+// resolveFormFields writes each Form.X naming a field of a FormFor's T as
+// Form.Value.X.
+func (e *engine) resolveFormFields(f *fileState) {
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok || !f.lowerable(sel.Pos()) || e.info.Selections[sel] != nil {
+			return true
+		}
+		at := f.orig(sel.Sel.Pos())
+		if f.done[at] || !e.formValueField(sel) {
+			return true
+		}
+		from := f.orig(sel.X.End())
+		dot := strings.IndexByte(string(f.src[from:at]), '.')
+		if dot < 0 {
+			return true
+		}
+		f.done[at] = true
+		f.add(from+dot, from+dot+1, ".Value.")
+		e.progress = true
+		return true
+	})
+}
+
+// boundFields gives each <ui.Form for={Form}> of a FormFor, with markup
+// inside, the fields that markup binds — the for={…} and model={…} naming
+// Form's fields — as its Bound: the only fields a submit sets.
+//
+//	<ui.Form for={Form}><ui.Field for={Form.Name}/></ui.Form>
+//	→ ui.Form{For: ui.For(&p.Form), Bound: []string{"Name"}, Children: …}
+func (e *engine) boundFields(f *fileState, t *jsxTree) {
+	for _, c := range t.comps {
+		n := namedOf(c.propsTyp)
+		if !c.resolved || c.dead || n == nil || n.Obj().Name() != "Form" || n.Obj().Pkg() == nil || c.target == nil || n.Obj().Pkg().Path() != c.target.path {
+			continue
+		}
+		if obj, _, _ := types.LookupFieldOrMethod(n, false, n.Obj().Pkg(), "Bound"); obj == nil || attrNamed(c.el, "bound") != nil || !hasElems(c.el.kids) {
+			continue
+		}
+		forAttr := attrNamed(c.el, "for")
+		if forAttr == nil || forAttr.kind != 'e' {
+			continue
+		}
+		x := e.chainAt(f, forAttr)
+		if x == nil {
+			continue
+		}
+		if tv, ok := e.info.Types[x]; !ok || formValueType(tv.Type) == nil {
+			continue
+		}
+		prefix := strings.TrimSpace(string(f.src[forAttr.expr.start:forAttr.expr.end])) + "."
+		var names []string
+		var walk func(ns []jsxNode)
+		walk = func(ns []jsxNode) {
+			for _, nd := range ns {
+				switch nd := nd.(type) {
+				case *jsxElem:
+					for _, a := range nd.attrs {
+						if a.kind != 'e' || !(a.model || a.ref || nd.comp != nil && (a.name == "for" || a.name == "model")) {
+							continue
+						}
+						text := strings.TrimSpace(string(f.src[a.expr.start:a.expr.end]))
+						if rest, ok := strings.CutPrefix(text, prefix); ok && chainRe.MatchString(rest) {
+							rest = strings.TrimPrefix(rest, "Value.")
+							if !slices.Contains(names, rest) {
+								names = append(names, rest)
+							}
+						}
+					}
+					walk(nd.kids)
+				case *jsxBlock:
+					for _, b := range nd.bodies {
+						walk(b)
+					}
+					for _, cs := range nd.cases {
+						walk(cs)
+					}
+				}
+			}
+		}
+		walk(c.el.kids)
+		quoted := make([]string, len(names))
+		for i, name := range names {
+			quoted[i] = strconv.Quote(name)
+		}
+		c.args = append(c.args, &compArg{key: "Bound: ", text: "[]string{" + strings.Join(quoted, ", ") + "}"})
+	}
+}
+
+// checkFormSaves reports a FormFor's Save whose T has no SaveFields method
+// to save the form's fields with: a plain struct's form hands its value to
+// its submit handler instead (E0182).
+func (e *engine) checkFormSaves() {
+	for _, f := range e.vuka {
+		if f.ast == nil {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Save" {
+				return true
+			}
+			s := e.info.Selections[sel]
+			if s == nil || s.Kind() != types.MethodVal {
+				return true
+			}
+			vt := formValueType(s.Recv())
+			if vt == nil {
+				return true
+			}
+			if obj, _, _ := types.LookupFieldOrMethod(types.NewPointer(vt), true, nil, "SaveFields"); obj != nil {
+				return true
+			}
+			t := e.display(vt)
+			e.errs.add("E0182", f.nodePos(sel.Sel.Pos()), "ui.FormFor[%s].Save saves a model's row, and %s has no SaveFields method to save the form's fields with", t, t).
+				help("make %s a model (embed orm.Base), or take the checked %s as a parameter of the submit handler and save it there", t, t)
+			return true
+		})
+	}
+}
+
+// uiTagSettings and ormTagSettings are what a ui or orm field attribute sets that a form
+// field's tag sets too: the tag's key (label, input) or validate rule
+// (validate:max), by the attribute's name, and by a composite attribute's
+// member.
+var (
+	uiTagSettings = map[string]string{"Label": "label", "Help": "help", "Placeholder": "placeholder", "Widget": "input", "Autocomplete": "autocomplete",
+		"Required": "validate:required", "Email": "validate:email", "Min": "validate:min", "Max": "validate:max", "OneOf": "validate:oneof"}
+	ormTagSettings = map[string]string{"LongText": "input", ".Label": "label", ".Help": "help", ".Max": "validate:max", ".Min": "validate:min", ".Choices": "validate:oneof"}
+)
+
+// tagSettings is the table for pkg: ui's (the package whose client state
+// the compiler lowers), the orm's, or none.
+func tagSettings(pkg *types.Package) map[string]string {
+	if declaresState(pkg) {
+		return uiTagSettings
+	}
+	if ormPackage(pkg) {
+		return ormTagSettings
+	}
+	return nil
+}
+
+// checkTagAttrs reports a field whose tag and attribute both set the same
+// thing of it as a form field — label:"…" and @ui.Label, validate:"max=50"
+// and @orm.Char{Max: 100} — so each setting has one source (E0183).
+func (e *engine) checkTagAttrs() {
+	for _, f := range e.vuka {
+		for _, a := range f.attrs {
+			if !a.Field || len(a.fieldNames) == 0 {
+				continue
+			}
+			pkgName, name, ok := strings.Cut(a.Name, ".")
+			if !ok {
+				continue
+			}
+			pkg := e.importedAs(f, pkgName)
+			if pkg == nil {
+				continue
+			}
+			table := tagSettings(pkg)
+			tag := f.fieldTag(a.structOf, a.fieldNames[0])
+			if table == nil || tag == "" {
+				continue
+			}
+			var sets []string
+			if s := table[name]; s != "" {
+				sets = append(sets, s)
+			}
+			args := strings.TrimSpace(a.Args)
+			if strings.HasPrefix(args, "{") {
+				if x, err := parser.ParseExpr("T" + args); err == nil {
+					if lit, ok := x.(*ast.CompositeLit); ok {
+						for _, el := range lit.Elts {
+							if kv, ok := el.(*ast.KeyValueExpr); ok {
+								if id, ok := kv.Key.(*ast.Ident); ok && table["."+id.Name] != "" {
+									sets = append(sets, table["."+id.Name])
+								}
+							}
+						}
+					}
+				}
+			}
+			if name == "Msg" {
+				if x, err := parser.ParseExpr("f" + args); err == nil {
+					if c, ok := x.(*ast.CallExpr); ok && len(c.Args) > 0 {
+						if lit, ok := c.Args[0].(*ast.BasicLit); ok {
+							if r, err := strconv.Unquote(lit.Value); err == nil {
+								sets = append(sets, "msg:"+r)
+							}
+						}
+					}
+				}
+			}
+			for _, s := range sets {
+				if !tagSets(tag, s) {
+					continue
+				}
+				what, _, _ := strings.Cut(s, ":")
+				if rule, ok := strings.CutPrefix(s, what+":"); ok {
+					what += ":\"" + rule + "\""
+				}
+				e.errs.add("E0183", a.Pos, "%s.%s's %s is set by its tag (%s) and by @%s: a setting has one source",
+					a.structOf, a.fieldNames[0], strings.TrimPrefix(s, "validate:"), what, a.Name).
+					help("drop it from the tag, or drop the attribute")
+			}
+		}
+	}
+}
+
+// tagSets reports whether a struct tag sets s: a key (label), a validate
+// rule (validate:max) or a rule's message (msg:max).
+func tagSets(tag reflect.StructTag, s string) bool {
+	key, rule, ok := strings.Cut(s, ":")
+	v, has := tag.Lookup(key)
+	if !ok || !has {
+		return has
+	}
+	if key == "msg" {
+		return regexp.MustCompile(`(^|,)\s*` + regexp.QuoteMeta(rule) + `\s*=`).MatchString(v)
+	}
+	for _, part := range strings.Split(v, ",") {
+		if n, _, _ := strings.Cut(strings.TrimSpace(part), "="); n == rule {
+			return true
+		}
+	}
+	return false
+}
+
+// fieldTag is the tag of the struct type's field name, as written in f.
+func (f *fileState) fieldTag(typeName, name string) reflect.StructTag {
+	st := f.structType(typeName)
+	if st == nil {
+		return ""
+	}
+	for _, fl := range st.Fields.List {
+		for _, n := range fl.Names {
+			if n.Name == name && fl.Tag != nil {
+				s, _ := strconv.Unquote(fl.Tag.Value)
+				return reflect.StructTag(s)
+			}
+		}
+	}
+	return ""
 }

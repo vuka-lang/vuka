@@ -171,6 +171,7 @@ enum.go s
 fields.go kind
 fields.go n.Obj().Name() + "Columns"
 fields.go n.Obj().Name() + suffix
+forms.go key
 graphql.go name
 graphql.go op.name
 graphqlloader.go l.fetch

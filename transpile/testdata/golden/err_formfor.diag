@@ -1,0 +1,26 @@
+error[E0183]: Signup.Email's label is set by its tag (label) and by @ui.Label: a setting has one source
+  --> err_formfor.vuka:10:58
+   |
+10 |     Email string `label:"Email" validate:"required,max=80"` @ui.Label("Email address") @ui.Max(120)
+   |                                                             ^^^^^^^^^
+   |
+   = help: drop it from the tag, or drop the attribute
+
+error[E0183]: Signup.Email's max is set by its tag (validate:"max") and by @ui.Max: a setting has one source
+  --> err_formfor.vuka:10:85
+   |
+10 |     Email string `label:"Email" validate:"required,max=80"` @ui.Label("Email address") @ui.Max(120)
+   |                                                                                        ^^^^^^^
+   |
+   = help: drop it from the tag, or drop the attribute
+
+error[E0182]: ui.FormFor[Signup].Save saves a model's row, and Signup has no SaveFields method to save the form's fields with
+  --> err_formfor.vuka:18:16
+   |
+18 |     return j.Form.Save(ctx)
+   |                   ^^^^
+   |
+   = help: make Signup a model (embed orm.Base), or take the checked Signup as a parameter of the submit handler and save it there
+
+Some errors have detailed explanations: E0182, E0183.
+For more information about an error, try `vuka explain E0182`.

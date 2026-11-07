@@ -1,0 +1,3 @@
+err_formfor.vuka:10:58: Signup.Email's label is set by its tag (label) and by @ui.Label: a setting has one source; drop it from the tag, or drop the attribute
+err_formfor.vuka:10:85: Signup.Email's max is set by its tag (validate:"max") and by @ui.Max: a setting has one source; drop it from the tag, or drop the attribute
+err_formfor.vuka:18:16: ui.FormFor[Signup].Save saves a model's row, and Signup has no SaveFields method to save the form's fields with; make Signup a model (embed orm.Base), or take the checked Signup as a parameter of the submit handler and save it there
