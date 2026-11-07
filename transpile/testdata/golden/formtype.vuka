@@ -1,0 +1,64 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	Name  string
+	Price int
+	Sale  int
+	Stock int
+}
+
+func (p *Product) Save(ctx context.Context) error                     { return nil }
+func (p *Product) SaveFields(ctx context.Context, fields ...any) error { return nil }
+
+// ProductForm is a form of Product with hooks of its own.
+type ProductForm struct {
+	ui.FormFor[Product]
+	Mode string
+}
+
+func (f *ProductForm) Init(ctx context.Context) error {
+	if f.IsNew() {
+		f.Stock = 1
+	}
+	return nil
+}
+
+func (f *ProductForm) Clean(ctx context.Context) error {
+	if f.Sale > f.Price {
+		return errors.New("sale price must be below the price")
+	}
+	return nil
+}
+
+type Products struct {
+	Form ProductForm
+}
+
+func (p *Products) View() ui.Node {
+	return <ui.Form for={p.Form}>
+		<ui.Field for={p.Form.Name}/>
+		<input model={p.Form.Price}/>
+	</ui.Form>
+}
+
+func (p *Products) edit(ctx context.Context, row Product) error {
+	return p.Form.Load(ctx, row)
+}
+
+func main() {
+	ctx := context.Background()
+	p := &Products{}
+	fmt.Println(p.edit(ctx, Product{Name: "Kettle", Price: 30}), p.Form.Stock)
+	p.Form.Sale = 40
+	fmt.Println(p.Form.Save(ctx))
+	out, err := ui.String(ctx, p.View())
+	fmt.Println(out, err)
+}

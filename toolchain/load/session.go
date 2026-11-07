@@ -701,7 +701,7 @@ func probed(name string) bool {
 }
 
 var (
-	probedNames    = map[string]bool{"Base": true, "Commands": true, "Ctx": true, "ModelAnnotation": true, "Part": true, "Result": true, "VukaJSX": true, "VukaState": true}
+	probedNames    = map[string]bool{"Attach": true, "Base": true, "Commands": true, "Ctx": true, "ModelAnnotation": true, "Part": true, "Result": true, "VukaJSX": true, "VukaState": true}
 	probedPrefixes = []string{"Parse", "parse", "Register"}
 	probedSuffixes = []string{"Values", "Columns", "Fields"}
 )

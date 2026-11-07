@@ -303,6 +303,20 @@ type Join struct {
 			t.Errorf("%+v, %v", s, err)
 		}
 	})
+	t.Run("a form type beside one struct", func(t *testing.T) {
+		s, err := transpile.ParseShapeFile("anything.vuka.html", []byte(pkg+`type ProductForm struct {
+	ui.FormFor[Product]
+}
+
+type Products struct {
+	Form ProductForm
+}
+<p/>
+`))
+		if err != nil || s == nil || s.Type != "Products" || len(s.Helpers) != 1 {
+			t.Errorf("%+v, %v", s, err)
+		}
+	})
 	t.Run("a form, a helper and the struct", func(t *testing.T) {
 		s, err := transpile.ParseShapeFile("join.vuka.html", []byte(pkg+`type Signup struct {
 	ui.FormState

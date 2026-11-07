@@ -1,0 +1,27 @@
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	Name  string
+	Price int
+}
+
+func (p *Product) CleanName(ctx context.Context) error { return nil }
+
+type ProductForm struct {
+	ui.FormFor[Product]
+	Name string
+}
+
+func (f *ProductForm) Init() error { return nil }
+
+func (f *ProductForm) Clean(ctx context.Context) bool { return true }
+
+func (f *ProductForm) CleanName(ctx context.Context) error { return nil }
+
+func main() {}

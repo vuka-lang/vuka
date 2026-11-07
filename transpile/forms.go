@@ -424,10 +424,51 @@ func missingField(t types.Type, path string) (string, int, types.Type, []string)
 //
 //	<ui.Field for={Form.Name}/>  →  ui.Field{For: ui.For(&p.Form.Value.Name, &p.Form, p)}
 //	p.Form.Price = 0             →  p.Form.Value.Price = 0
+//
+// A struct embedding a FormFor[T] (by value) is a form type, a form of T
+// as the FormFor is, its fields reached through it the same way. Its own
+// Init, Clean, Clean<Field> and <Field>Choices are the form's (formMethods),
+// which Load and Save run: a call of either on a form type with Init or a
+// Clean method is given ui.Attach, which makes the form type the form its
+// FormFor's methods are of before a render does.
+//
+//	p.Form.Load(ctx, row)  →  ui.Attach(&p.Form).Load(ctx, row)
 
-// formValueType is T of a FormFor[T] (or a pointer to one); nil for any
-// other type.
+// formValueType is T of a FormFor[T] or of a form type (or a pointer to
+// either); nil for any other type.
 func formValueType(t types.Type) types.Type {
+	vt, _ := formForOf(t)
+	return vt
+}
+
+// formForOf is T of a FormFor[T] or of a form type, and the FormFor's
+// type; nil for any other type.
+func formForOf(t types.Type) (types.Type, *types.Named) {
+	if n := uiFormFor(t); n != nil {
+		return n.TypeArgs().At(0), n
+	}
+	if namedOf(t) == nil {
+		return nil, nil
+	}
+	st, ok := derefPtr(t).Underlying().(*types.Struct)
+	if !ok {
+		return nil, nil
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		fl := st.Field(i)
+		if _, ptr := types.Unalias(fl.Type()).(*types.Pointer); !fl.Embedded() || ptr {
+			continue
+		}
+		if n := uiFormFor(fl.Type()); n != nil {
+			return n.TypeArgs().At(0), n
+		}
+	}
+	return nil, nil
+}
+
+// uiFormFor is t, or what t points to, when it is a FormFor of the ui
+// target.
+func uiFormFor(t types.Type) *types.Named {
 	n := namedOf(t)
 	if n == nil || n.TypeArgs().Len() != 1 || n.Obj().Pkg() == nil {
 		return nil
@@ -435,7 +476,180 @@ func formValueType(t types.Type) types.Type {
 	if _, ok := pkgMethod(types.NewPointer(n), n.Obj().Pkg(), "vukaFormFor"); !ok {
 		return nil
 	}
-	return n.TypeArgs().At(0)
+	return n
+}
+
+// formType is the form type t is (or points to), and its FormFor; nil for
+// a FormFor itself or any type that isn't a form.
+func formType(t types.Type) (*types.Named, *types.Named) {
+	if uiFormFor(t) != nil {
+		return nil, nil
+	}
+	_, ff := formForOf(t)
+	if ff == nil {
+		return nil, nil
+	}
+	return namedOf(t), ff
+}
+
+// ownMethod reports whether m is declared by n, not promoted from what it
+// embeds.
+func ownMethod(n *types.Named, m *types.Func) bool {
+	sig, ok := m.Type().(*types.Signature)
+	return ok && sig.Recv() != nil && namedOf(sig.Recv().Type()) != nil && namedOf(sig.Recv().Type()).Obj() == n.Obj()
+}
+
+// formMethods are a form type's own methods of a form's: Init, Clean,
+// Clean<Field> and <Field>Choices.
+func formMethods(n *types.Named) []*types.Func {
+	var out []*types.Func
+	ms := types.NewMethodSet(types.NewPointer(n))
+	for i := 0; i < ms.Len(); i++ {
+		m, ok := ms.At(i).Obj().(*types.Func)
+		if !ok || !ownMethod(n, m) {
+			continue
+		}
+		if name := m.Name(); name == "Init" || strings.HasPrefix(name, "Clean") || strings.HasSuffix(name, "Choices") {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// runsHooks reports whether a form type has methods Load or Save run:
+// Init, or a Clean method.
+func runsHooks(n *types.Named) bool {
+	for _, m := range formMethods(n) {
+		if !strings.HasSuffix(m.Name(), "Choices") {
+			return true
+		}
+	}
+	return false
+}
+
+// attachForms gives each Load and Save of a form type with hooks
+// ui.Attach, so a Load before its page attached the form runs its Init.
+func (e *engine) attachForms(f *fileState) {
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Load" && sel.Sel.Name != "Save" || !f.lowerable(sel.Pos()) {
+			return true
+		}
+		s := e.info.Selections[sel]
+		if s == nil || s.Kind() != types.MethodVal || len(s.Index()) < 2 {
+			return true // not promoted: the form type's own method, or a FormFor's
+		}
+		ft, ff := formType(s.Recv())
+		if ft == nil || s.Obj().Pkg() != ff.Obj().Pkg() || !runsHooks(ft) {
+			return true
+		}
+		attach := ff.Obj().Pkg().Scope().Lookup("Attach")
+		if attach == nil {
+			return true // a ui before form types' hooks
+		}
+		tv, ok := e.info.Types[sel.X]
+		_, ptr := types.Unalias(tv.Type).(*types.Pointer)
+		if !ok || !ptr && !tv.Addressable() {
+			return true
+		}
+		start, end := f.orig(sel.X.Pos()), f.orig(sel.X.End())
+		if f.attached[start] {
+			return true
+		}
+		if f.attached == nil {
+			f.attached = map[int]bool{}
+		}
+		f.attached[start] = true
+		missing := ""
+		q := e.qualifier(f, &missing)(attach.Pkg())
+		if missing != "" {
+			q = f.importAs(attach.Pkg().Path(), "__ui")
+		}
+		lead := q + ".Attach("
+		if !ptr {
+			lead += "&"
+		}
+		f.insert(start, lead, 0)
+		f.insert(end, ")", 0)
+		e.progress = true
+		return true
+	})
+}
+
+// checkFormTypes reports, of each form type a .vuka file declares, an
+// Init or Clean method of another shape than a form's (E0184), and a field
+// or form method of its own that T has too (E0185): Form.Name names T's
+// field through the form, and a form's method has one place.
+func (e *engine) checkFormTypes() {
+	for _, f := range e.vuka {
+		if f.ast == nil {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok || !f.lowerable(spec.Pos()) {
+				return true
+			}
+			obj, ok := e.info.Defs[spec.Name].(*types.TypeName)
+			if !ok {
+				return false
+			}
+			ft, ff := formType(obj.Type())
+			if ft == nil {
+				return false
+			}
+			vt := ff.TypeArgs().At(0)
+			name, tName := ft.Obj().Name(), e.display(vt)
+			at := func(p token.Pos) (*fileState, bool) {
+				pf := e.fileOf(p)
+				return pf, pf != nil && pf.vuka
+			}
+			if st, ok := ft.Underlying().(*types.Struct); ok {
+				for i := 0; i < st.NumFields(); i++ {
+					fl := st.Field(i)
+					if fl.Embedded() {
+						continue
+					}
+					other, _, _ := types.LookupFieldOrMethod(vt, true, fl.Pkg(), fl.Name())
+					if v, ok := other.(*types.Var); ok && v.IsField() {
+						if pf, ok := at(fl.Pos()); ok {
+							e.errs.add("E0185", pf.nodePos(fl.Pos()), "%s.%s and %s.%s share a name: a form type's own fields aren't the form's, and Form.%s names %s.%[4]s", name, fl.Name(), tName, fl.Name(), fl.Name(), tName).
+								help("rename %s.%s", name, fl.Name())
+						}
+					}
+				}
+			}
+			for _, m := range formMethods(ft) {
+				pf, ok := at(m.Pos())
+				if !ok {
+					continue
+				}
+				if m.Name() != "Init" {
+					other, _, _ := types.LookupFieldOrMethod(types.NewPointer(vt), true, m.Pkg(), m.Name())
+					if _, ok := other.(*types.Func); ok {
+						e.errs.add("E0185", pf.nodePos(m.Pos()), "%s.%s and %s.%s: the form type and its %s both declare the form's method %s", name, m.Name(), tName, m.Name(), tName, m.Name()).
+							help("keep one: the form type's, or %s's", tName)
+						continue
+					}
+				}
+				sig := m.Type().(*types.Signature)
+				errRes := sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), types.Universe.Lookup("error").Type())
+				switch {
+				case m.Name() == "Init" && (!errRes || sig.Params().Len() == 0 || !isContext(sig.Params().At(0).Type())):
+					e.errs.add("E0184", pf.nodePos(m.Pos()), "%s.Init is the form type's Init: it runs when the form is created and on every Load, and takes a ctx (then any dependencies) and returns an error", name).
+						help("declare it func (f *%s) Init(ctx context.Context) error", name)
+				case strings.HasPrefix(m.Name(), "Clean") && !errRes:
+					e.errs.add("E0184", pf.nodePos(m.Pos()), "%s.%s is a form's check: it returns an error, nil when the form passes", name, m.Name()).
+						help("declare it func (f *%s) %s(ctx context.Context) error", name, m.Name())
+				}
+			}
+			return false
+		})
+	}
 }
 
 // formValueField reports whether sel is a FormFor's X naming a field of T

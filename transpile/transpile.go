@@ -257,6 +257,7 @@ type fileState struct {
 	varReads     []VarRead       // the reads lowered
 
 	done        map[int]bool  // src offsets of identifiers already rewritten or reported
+	attached    map[int]bool  // the Load and Save calls of a form type given ui.Attach, by offset (forms.go)
 	partsDone   bool          // its parts are decided (parts.go)
 	unwrapped   map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
 	unwraps     []Unwrap      // the calls unwrapped

@@ -30,7 +30,7 @@ func (e *Edit) View() ui.Node {
 //line formfor.vuka:28
 func main() {
 	e := &Edit{}
-	e.Form.Load(Product{Name: "Kettle", Price: 30})
+	e.Form.Load(context.Background(), Product{Name: "Kettle", Price: 30})
 	e.Form.Value.Price = 25
 	out, err := ui.String(context.Background(), e.View())
 	fmt.Println(out, err, e.Form.Value.Price)
