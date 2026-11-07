@@ -103,6 +103,18 @@ needed. These functions read them:
 
 A type decorator runs after its type's attributes are recorded.
 
+### Describing Fields to Forms
+
+An attribute may describe its field to a form, whatever library reads it:
+package `github.com/vuka-lang/vuka/v2/field` is the vocabulary. One with a
+`Describe(*field.Spec)` method (`field.Describer`) sets the field's label,
+hint, rules, choices or control; one with a `Check(ctx, field.Value)
+error` method (`field.Checker`) checks a value on the server as a form is
+submitted, answering a `*field.Invalid` for a value it refuses. The orm's
+attributes and ui's describe their fields so, and
+[`ui.FormFor`](/ui/forms#formfor) reads them; `field.Describe(attrs)` is
+the `Spec` a field's attributes give.
+
 Schema-aware libraries record field attributes through their generated metadata.
 For live shapes, declare field attributes and decorated hooks directly in the
 `.vuka.html` header; see [hooks](/ui/stateful#hooks).
