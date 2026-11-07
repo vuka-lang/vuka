@@ -104,10 +104,11 @@ Usage:
 	vuka version
 	        print this vuka's toolchain set and, in an app, the set its go.mod
 	        requires (warning when its vuka, ui and web aren't one set)
-	vuka upgrade [-n] [-no-test] [version]
+	vuka upgrade [-n] [-no-test] [version | main]
 	        move the app to a set (the latest by default): go get vuka, ui and
 	        web at that version, run the vuka fix rewrites for the releases in
-	        between, then vuka vet and vuka test; -n only says what it would do
+	        between, then vuka vet and vuka test; -n only says what it would do;
+	        main moves them (and the orm and tools it requires) to main's commits
 
 Maintainers:
 	vuka release [-yes] [-no-test] [-security] vX.Y.Z

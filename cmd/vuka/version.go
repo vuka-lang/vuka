@@ -19,7 +19,8 @@ var (
 // versionCmd prints this command's toolchain set and the Go that built it
 // and, inside a module, the Go that builds the module, warning when that
 // is newer, and, inside an app, the set's versions its go.mod requires,
-// warning when they aren't one set or not the set this command expects.
+// warning when they aren't one set or not the set this command expects, or
+// saying it is on main when they are all at unreleased commits.
 func versionCmd(args []string, stdout, stderr io.Writer) error {
 	if len(args) > 0 {
 		return fmt.Errorf("usage: vuka version")
@@ -64,6 +65,16 @@ func versionCmd(args []string, stdout, stderr io.Writer) error {
 			line += " => " + r
 		}
 		fmt.Fprintln(stdout, line)
+	}
+	if onMain(have) {
+		var parts []string
+		for _, p := range setModules {
+			if v, ok := have[p]; ok {
+				parts = append(parts, shortModule(p)+" "+commit(v))
+			}
+		}
+		fmt.Fprintf(stdout, "%s is on main (%s), not a release\n", modPath, strings.Join(parts, ", "))
+		return nil
 	}
 	matches := true
 	for p, v := range have {

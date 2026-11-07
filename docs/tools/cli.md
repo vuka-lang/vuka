@@ -38,7 +38,7 @@ vuka doctor [dir]
 vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [-imports] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
 vuka version
-vuka upgrade [-n] [-no-test] [version]
+vuka upgrade [-n] [-no-test] [version | main]
 vuka release [-yes] [-no-test] [-security] vX.Y.Z   (maintainers)
 ```
 
@@ -714,7 +714,8 @@ one to build, such as the npm version ([Islands](/web/islands#build)).
 module it prints the Go that builds the module, warning when that is newer than vuka's
 (reinstall vuka with it: `GOTOOLCHAIN=<that go> go install …`). Inside an app it also lists
 the versions the app's go.mod requires, with any `replace`, and warns when
-they aren't one set or aren't this command's set.
+they aren't one set or aren't this command's set; an app whose modules are all at
+unreleased commits (after `vuka upgrade main`) is reported as on main, with the commits.
 
 ## Upgrading an App {#upgrade}
 
@@ -727,6 +728,18 @@ pins, when the app requires an older one — (never `go mod tidy`), then runs `v
 `-n`
 (or `-dry-run`) prints the plan and changes nothing. go.mod and go.sum as they
 were are kept in `.vuka/upgrade/`; a failed `go get` puts them back.
+
+`vuka upgrade main` moves the app to main's current commits instead: vuka, ui and web
+and, when go.mod requires them, the orm and the `cmd/vuka` and `cmd/vukavet` tools, each
+at its main branch's pseudo-version (resolved with `GOPROXY=direct`, so a commit pushed
+minutes ago counts). It runs every rewrite after the app's version, those main has for a
+release not yet tagged included, then `vuka vet` and `vuka test` as above, and the summary
+names each module's commit. Main's commits are not a set tested together. The rewrites
+live in the command, so a command installed from a release runs main's to do it
+(`go run github.com/vuka-lang/vuka/cmd/vuka/v2@main upgrade main …`, same flags, same
+directory). `vuka version` reports an app whose modules are all at such commits as on
+main. A pseudo-version sorts below the next release, so `vuka upgrade` after it moves the
+app back to tags.
 
 ## Releasing {#release}
 

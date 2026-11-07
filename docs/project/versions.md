@@ -59,6 +59,7 @@ go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 vuka upgrade            # the latest set
 vuka upgrade v2.1.0     # or a chosen one
 vuka upgrade -n         # say what it would do, change nothing
+vuka upgrade main       # main's current commits, to try unreleased work
 ```
 
 In a Go app with the command as a tool of the module, it is
@@ -82,6 +83,18 @@ mv .vuka/upgrade/go.mod go.mod; mv .vuka/upgrade/go.sum go.sum
 
 New tags are fetched straight from their repositories (`GOPROXY=direct`), so
 a release can be used the hour it is tagged.
+
+`vuka upgrade main` moves the app to the main branches instead: vuka, ui, web
+and, when the app requires them, the orm and the `cmd/vuka` and `cmd/vukavet`
+tools, each at its current main commit's pseudo-version. It runs the rewrites
+of every release after the app's, including those main has for a release not
+yet tagged, then the same checks, and the summary names each module's commit.
+The commits are not a set tested together, so this is for trying unreleased
+work, not for shipping. The rewrites are the command's, so a command installed
+from a release runs main's (`go run github.com/vuka-lang/vuka/cmd/vuka/v2@main
+upgrade main`, with the same flags) to do it. `vuka version` reports the app as
+on main, with the commits. A pseudo-version (`v2.17.1-0.…`) sorts below the
+next release, so `vuka upgrade` once it is tagged moves the app back to tags.
 
 ## Release Cadence {#release-cadence}
 
