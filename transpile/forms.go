@@ -80,16 +80,26 @@ func (p *jsxParser) formAttr(el *jsxElem, a *jsxAttr, comp bool) {
 // (its type-check says so): only then is it lowered to a reference, a
 // constant or a method value staying what it was.
 func (w *jsxWriter) addressable(a *jsxAttr) bool {
-	e := w.f.eng
-	if e == nil || e.info == nil {
+	return w.f.eng != nil && w.f.eng.addressable(w.f, a)
+}
+
+func (e *engine) addressable(f *fileState, a *jsxAttr) bool {
+	if e.info == nil {
 		return false
 	}
-	x := e.chainAt(w.f, a)
+	x := e.chainAt(f, a)
 	if x == nil {
 		return false
 	}
 	tv, ok := e.info.Types[x]
 	return ok && tv.Addressable()
+}
+
+// isFieldRef reports whether el's attribute a is lowered to a reference to
+// its field, which takes the field as declared: an Option field stays one.
+// A component's model is one before the component is resolved.
+func (e *engine) isFieldRef(f *fileState, el *jsxElem, a *jsxAttr) bool {
+	return a.model || el.comp != nil && a.name == "model" && a.kind == 'e' || a.ref && e.addressable(f, a)
 }
 
 // refArgs writes the pointers a field reference lowers to: the field, then

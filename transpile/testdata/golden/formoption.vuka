@@ -1,0 +1,53 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/vuka/v2"
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	Name  vuka.Option[string]
+	Notes vuka.Option[string]
+}
+
+type Order struct {
+	ui.FormState
+	Note vuka.Option[string]
+	Ref  vuka.Option[string]
+}
+
+type Edit struct {
+	Form  ui.FormFor[Product]
+	Order Order
+	Model *ui.ModelForm[Product]
+}
+
+func (e *Edit) View() ui.Node {
+	return <div>
+		<ui.Form for={e.Form}>
+			<label for={e.Form.Name}>Name</label>
+			<input model={e.Form.Name}/>
+			<input model.lazy={e.Form.Notes}/>
+			<textarea model={e.Form.Notes}></textarea>
+			<ui.Field for={e.Form.Notes}/>
+		</ui.Form>
+		<ui.Form for={e.Order}>
+			<label for={e.Order.Note}>Note</label>
+			<input model={e.Order.Note}/>
+			<select model={e.Order.Ref}></select>
+		</ui.Form>
+		<ui.Form for={e.Model}>
+			<input model={e.Model.Value.Name}/>
+		</ui.Form>
+	</div>
+}
+
+func main() {
+	e := &Edit{Model: ui.FormOf[Product]("Name")}
+	e.Form.Load(Product{Name: vuka.Some("Kettle")})
+	out, err := ui.String(context.Background(), e.View())
+	fmt.Println(out, err)
+}

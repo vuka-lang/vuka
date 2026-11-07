@@ -302,6 +302,26 @@ The control follows the field's Go type:
 | `<select>` | a scalar; its options from `<Field>Choices` when the markup has none |
 | `<select multiple>` | a slice |
 | date | `time.Time`; any `encoding.TextUnmarshaler` takes its text |
+| the control of `T`, optional | `Option[T]`: an empty control is `None` |
+
+An `Option` field takes `model` as it is, the control showing the value a
+`Some` holds and nothing for `None`. On submit an empty control (or only
+whitespace, which is trimmed) is `None`, and any other value is `Some` of
+it, held to the field's checks:
+
+```html
+<!-- Notes is an Option[string] -->
+<ui.Form for={Form} onSubmit={Save}>
+  <label for={Form.Notes}>Notes</label>
+  <input model={Form.Notes} class="input"/>
+</ui.Form>
+```
+
+That holds in every kind of form: a `FormFor[Product]` (`Form.Notes` is its
+`Form.Value.Notes`), a struct embedding `ui.FormState`, and a
+`ui.ModelForm[Product]` through `Form.Value.Notes`. After
+`Form.Load(Product{Notes: Some("fragile")})` the input shows `fragile`;
+submitting it empty gives `None`, and `gift wrap` gives `Some("gift wrap")`.
 
 `model` takes modifiers, which change what the server binds, not only the
 browser:
@@ -640,7 +660,9 @@ func (p *SignupPage) submit(ctx context.Context, in Signup, users *Users) error 
 
 A `FormFor`'s field is required by its type: a plain field must be filled
 (a number's input may not be left empty, `0` is a value), an `Option[T]`
-may be left empty and is `None`, and so may a pointer and a slice. A
+may be left empty and is `None` (with `<ui.Field>` or a raw `<input
+model={Form.Notes}/>` alike: see [the controls](#markup)), and so may a
+pointer and a slice. A
 `bool` unticked is a valid `false`; `@ui.Required` on a bool means it must
 be ticked. `@orm.Null` makes a plain field optional.
 
