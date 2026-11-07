@@ -30,7 +30,7 @@ const zedRev = "31a3267183b8f1cdc35fc01532ebd9ca052990dc"
 
 var source = "https://raw.githubusercontent.com/zed-industries/zed/" + zedRev + "/crates/theme/src/icon_theme.rs"
 
-var vukaSuffixes = map[string]string{"vuka": "vuka", "vuka.html": "vuka"}
+var vukaSuffixes = map[string]string{"vuka": "vuka"}
 
 func main() {
 	if len(os.Args) > 1 {
