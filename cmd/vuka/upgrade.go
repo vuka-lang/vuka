@@ -11,8 +11,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
+
+	gomodule "golang.org/x/mod/module"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
@@ -36,11 +39,13 @@ var upgradeSteps = []upgradeStep{
 // upgradeAlways are the fixers every upgrade runs.
 var upgradeAlways = []string{"runtime", "db-schema", "templates-package"}
 
-// stepsBetween are the steps of releases after from, up to and including to.
+// stepsBetween are the steps of releases after from, up to and including to;
+// to main, every one after from, a release main has a step for not yet
+// tagged included.
 func stepsBetween(from, to string) []upgradeStep {
 	var out []upgradeStep
 	for _, s := range upgradeSteps {
-		if compareVersions(s.version, from) > 0 && compareVersions(s.version, to) <= 0 {
+		if compareVersions(s.version, from) > 0 && (to == mainTarget || compareVersions(s.version, to) <= 0) {
 			out = append(out, s)
 		}
 	}
@@ -50,14 +55,115 @@ func stepsBetween(from, to string) []upgradeStep {
 
 var releaseVersion = regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
 
-// upgradeEnv is the go command's environment for fetching a set: fresh tags
-// straight from their repositories, no workspace.
-func upgradeEnv() []string {
+// directEnv fetches vuka's modules straight from their repositories, so a
+// tag or a commit pushed minutes ago resolves.
+func directEnv() []string {
 	nosum := "github.com/vuka-lang"
 	if v := os.Getenv("GONOSUMDB"); v != "" {
 		nosum = v + "," + nosum
 	}
-	return append(os.Environ(), "GOPROXY=direct", "GONOSUMDB="+nosum, "GOWORK=off", "GOFLAGS=-mod=mod")
+	return append(os.Environ(), "GOPROXY=direct", "GONOSUMDB="+nosum)
+}
+
+// upgradeEnv is the go command's environment for fetching a set: fresh tags
+// straight from their repositories, no workspace.
+func upgradeEnv() []string {
+	return append(directEnv(), "GOWORK=off", "GOFLAGS=-mod=mod")
+}
+
+const mainTarget = "main"
+
+// mainSet is each of mods at its main branch's current commit, as a
+// pseudo-version.
+var mainSet = func(dir string, mods []string) (map[string]string, error) {
+	args := []string{"list", "-m", "-json"}
+	for _, p := range mods {
+		args = append(args, p+"@"+mainTarget)
+	}
+	c := exec.Command("go", args...)
+	c.Dir, c.Env = dir, upgradeEnv()
+	var stderr bytes.Buffer
+	c.Stderr = &stderr
+	out, err := c.Output()
+	if err != nil {
+		return nil, fmt.Errorf("resolving main: %v\n%s", err, stderr.Bytes())
+	}
+	vs := map[string]string{}
+	for d := json.NewDecoder(bytes.NewReader(out)); d.More(); {
+		var m struct{ Path, Version string }
+		if err := d.Decode(&m); err != nil {
+			return nil, err
+		}
+		vs[m.Path] = m.Version
+	}
+	for _, p := range mods {
+		if vs[p] == "" {
+			return nil, fmt.Errorf("resolving main: no version of %s", p)
+		}
+	}
+	return vs, nil
+}
+
+// unreleased reports whether a build's main-module version is not a
+// release: go run …@main stamps a pseudo-version, a checkout's build a
+// pseudo-version or (devel).
+func unreleased(v string) bool {
+	return v == "" || v == "(devel)" || gomodule.IsPseudoVersion(v)
+}
+
+// commandFromMain reports whether this command is built from unreleased
+// source, and so carries main's upgrade steps.
+var commandFromMain = func() bool {
+	bi, ok := debug.ReadBuildInfo()
+	return ok && unreleased(bi.Main.Version)
+}
+
+// upgradeMainEnv marks the command vuka upgrade main runs from main, so
+// that one never runs another.
+const upgradeMainEnv = "VUKA_UPGRADE_MAIN"
+
+// mainCommand is vuka upgrade args run by main's command, in dir.
+func mainCommand(dir string, args []string) *exec.Cmd {
+	c := exec.Command("go", append([]string{"run", cmdModPath + "@" + mainTarget, "upgrade"}, args...)...)
+	c.Dir, c.Env = dir, append(directEnv(), upgradeMainEnv+"=1")
+	return c
+}
+
+// runMain runs vuka upgrade args with main's command, its output and status
+// being this one's.
+var runMain = func(dir string, args []string, stdout, stderr io.Writer) error {
+	c := mainCommand(dir, args)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, stderr
+	return c.Run()
+}
+
+// moduleLabel is how the plan names module p: vuka, ui, cmd/vuka, ….
+func moduleLabel(p string) string {
+	return strings.TrimPrefix(shortModule(p), "vuka/")
+}
+
+// commit is the revision a pseudo-version names, else the version.
+func commit(v string) string {
+	if rev, err := gomodule.PseudoVersionRev(v); err == nil {
+		return rev
+	}
+	return v
+}
+
+// onMain reports whether the set's modules the app requires are where
+// vuka upgrade main puts them: at unreleased commits, but for a module
+// whose main is a release's commit, which resolves to the release.
+func onMain(have map[string]string) bool {
+	pseudo := false
+	for _, v := range have {
+		switch {
+		case gomodule.IsPseudoVersion(v):
+			pseudo = true
+		case !releaseVersion.MatchString(v):
+			return false
+		}
+	}
+	return pseudo
 }
 
 // latestSet is the newest version every one of mods is released at.
@@ -98,7 +204,7 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 	fs.BoolVar(dry, "dry-run", false, "same as -n")
 	noTest := fs.Bool("no-test", false, "don't run vuka test after the upgrade")
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version]\n\nmoves the app's vuka, ui and web to one set (the latest by default) and,\nto this command's set, its orm to the version new apps use; runs the\nvuka fix rewrites for the releases in between, then vuka vet and\nvuka test.")
+		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version | main]\n\nmoves the app's vuka, ui and web to one set (the latest by default) and,\nto this command's set, its orm to the version new apps use; runs the\nvuka fix rewrites for the releases in between, then vuka vet and\nvuka test.\n\nmain moves vuka, ui, web and, when the app requires them, the orm and\nthe cmd/vuka and cmd/vukavet tools to their main branches' current\ncommits, and runs every rewrite after the app's version, main's own\nincluded; a command not built from main runs main's to do it\n(go run "+cmdModPath+"@main upgrade …).")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -130,16 +236,58 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("%s requires none of %s", modPath, strings.Join(setModules, ", "))
 	}
 	target := fs.Arg(0)
-	if target == "" {
-		if target, err = latestSet(root, mods); err != nil {
+	toMain := target == mainTarget
+	if toMain && !commandFromMain() {
+		if os.Getenv(upgradeMainEnv) != "" {
+			return errors.New("vuka upgrade main: the command run from main is not built from main")
+		}
+		fmt.Fprintf(stderr, "vuka upgrade main: running main's command (go run %s@%s)\n", cmdModPath, mainTarget)
+		return runMain(".", args, stdout, stderr)
+	}
+	type move struct{ mod, from, to string }
+	var moves []move
+	if toMain {
+		want := slices.Clone(mods)
+		for _, p := range []string{ormModule, cmdModPath, vukavetModPath} {
+			if m.requires(p) != "" {
+				want = append(want, p)
+			}
+		}
+		pins, err := mainSet(root, want)
+		if err != nil {
 			return err
 		}
+		for _, p := range want {
+			moves = append(moves, move{p, m.requires(p), pins[p]})
+		}
+	} else {
+		if target == "" {
+			if target, err = latestSet(root, mods); err != nil {
+				return err
+			}
+		}
+		if !releaseVersion.MatchString(target) {
+			return fmt.Errorf("%q is not a release version (vX.Y.Z) or main", target)
+		}
+		if compareVersions(target, firstSetVersion) < 0 {
+			return fmt.Errorf("%s predates set versions; the first set is %s", target, firstSetVersion)
+		}
+		for _, p := range mods {
+			moves = append(moves, move{p, have[p], target})
+		}
+		// The orm moves with the command's own set to the version its new
+		// apps use, when the app requires an older one.
+		if ormHave := m.requires(ormModule); ormHave != "" && target == version && compareVersions(ormHave, ormVersion) < 0 {
+			moves = append(moves, move{ormModule, ormHave, ormVersion})
+		}
 	}
-	if !releaseVersion.MatchString(target) {
-		return fmt.Errorf("%q is not a release version (vX.Y.Z)", target)
+	setName := "the " + target + " set"
+	if toMain {
+		setName = mainTarget
 	}
-	if compareVersions(target, firstSetVersion) < 0 {
-		return fmt.Errorf("%s predates set versions; the first set is %s", target, firstSetVersion)
+	if !slices.ContainsFunc(moves, func(mv move) bool { return mv.from != mv.to }) {
+		fmt.Fprintf(stdout, "%s is on %s already\n", modPath, setName)
+		return nil
 	}
 	from := ""
 	for _, p := range mods {
@@ -147,28 +295,22 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 			from = have[p]
 		}
 	}
-	// The orm moves with the command's own set to the version its new apps
-	// use, when the app requires an older one.
-	ormHave, ormTo := m.requires(ormModule), ""
-	if ormHave != "" && target == version && compareVersions(ormHave, ormVersion) < 0 {
-		ormTo = ormVersion
-	}
-	if v, ok := oneSet(have); ok && v == target && ormTo == "" {
-		fmt.Fprintf(stdout, "%s is on the %s set already\n", modPath, target)
-		return nil
-	}
 	steps := stepsBetween(from, target)
 
-	fmt.Fprintf(stdout, "upgrade %s to the %s set\n", modPath, target)
-	for _, p := range mods {
+	fmt.Fprintf(stdout, "upgrade %s to %s\n", modPath, setName)
+	width := 5
+	for _, mv := range moves {
+		width = max(width, len(moduleLabel(mv.mod)))
+	}
+	for _, mv := range moves {
 		note := ""
-		if compareVersions(target, have[p]) < 0 {
+		if compareVersions(mv.to, mv.from) < 0 {
 			note = " (downgrade)"
 		}
-		fmt.Fprintf(stdout, "  %-5s %s → %s%s\n", shortModule(p), have[p], target, note)
+		fmt.Fprintf(stdout, "  %-*s %s → %s%s\n", width, moduleLabel(mv.mod), mv.from, mv.to, note)
 	}
-	if ormTo != "" {
-		fmt.Fprintf(stdout, "  %-5s %s → %s\n", "orm", ormHave, ormTo)
+	if toMain {
+		fmt.Fprintln(stdout, "  main's commits are not a set tested together")
 	}
 	fixNames := slices.Clone(upgradeAlways)
 	if len(steps) == 0 {
@@ -197,11 +339,8 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	get := []string{"get"}
-	for _, p := range mods {
-		get = append(get, p+"@"+target)
-	}
-	if ormTo != "" {
-		get = append(get, ormModule+"@"+ormTo)
+	for _, mv := range moves {
+		get = append(get, mv.mod+"@"+mv.to)
 	}
 	c := exec.Command("go", get...)
 	c.Dir, c.Env, c.Stdout, c.Stderr = root, upgradeEnv(), stdout, stderr
@@ -233,8 +372,17 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 		}
 		return "ok"
 	}
-	fmt.Fprintf(stdout, "\n%s is on the %s set\n", modPath, target)
-	fmt.Fprintf(stdout, "  go.mod   %s\n", strings.Join(mods, ", "))
+	fmt.Fprintf(stdout, "\n%s is on %s\n", modPath, setName)
+	if toMain {
+		var commits []string
+		for _, mv := range moves {
+			commits = append(commits, moduleLabel(mv.mod)+" "+commit(mv.to))
+		}
+		fmt.Fprintf(stdout, "  go.mod   %s\n", strings.Join(commits, ", "))
+		fmt.Fprintln(stdout, "  note     main's commits are not a set tested together; vuka upgrade moves back to a release")
+	} else {
+		fmt.Fprintf(stdout, "  go.mod   %s\n", strings.Join(mods, ", "))
+	}
 	fmt.Fprintf(stdout, "  fixes    %d change(s), %s\n", fixed, status(fixErr))
 	fmt.Fprintf(stdout, "  vet      %s\n", status(vetErr))
 	if *noTest {

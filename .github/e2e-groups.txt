@@ -433,14 +433,20 @@ TestSetToolchain
 # upgrade_test.go
 TestOneSet
 TestStepsBetween
+TestStepsBetweenMain
+TestUnreleased
 TestUpgrade
 TestUpgradeDryRun
 TestUpgradeFailingTests
 TestUpgradeLatest
+TestUpgradeMain
+TestUpgradeMainDryRun
+TestUpgradeMainRunsMainsCommand
 TestUpgradeORM
 TestUpgradeRefuses
 TestVersionCmd
 TestVersionCmdGo
+TestVersionCmdMain
 
 [conformance]
 # the examples as Vuka and ejected (their own job)
