@@ -169,11 +169,11 @@ func (j *Join) Save(ctx context.Context, f account.Signup, users *account.Users)
   <form for={Form} onSubmit={Save} class="stack">
     <label for={Form.Name}/>
     <input model={Form.Name} class="input"/>
-    <ui.Error for={Form.Name}/>
+    <widget.Error for={Form.Name}/>
 
     <label for={Form.Email}/>
     <input model={Form.Email} class="input"/>
-    <ui.Error for={Form.Email}/>
+    <widget.Error for={Form.Email}/>
 
     <button>Create account</button>
   </form>
@@ -257,10 +257,10 @@ compiler checks the name and writes the control's `name`, `id`, `value`,
 ```html
 <form for={Form} onSubmit={Save}>
   <label for={Form.Email}/>
-  <ui.Error for={Form.Email}/>
+  <widget.Error for={Form.Email}/>
   <input model={Form.Email} class="input"/>
 
-  <ui.Field for={Form.Password}/>
+  <widget.Field for={Form.Password}/>
 
   <label for={Form.Plan}>Plan</label>
   <select model={Form.Plan}></select>
@@ -300,47 +300,45 @@ post.
 
 The form's components fill in what the tags don't:
 
-- `<ui.Field for={Form.Email}/>` is one whole field: label, hint, error and
+- `<widget.Field for={Form.Email}/>` is one whole field: label, hint, error and
   control. Its attributes (`label`, `help`, `placeholder`, `class`) override
   the tags.
-- `<ui.Error for={Form.Email}/>` is the field's message, rendered only while
+- `<widget.Error for={Form.Email}/>` is the field's message, rendered only while
   it shows one.
-- `<ui.Fieldset legend="…">` groups fields; `<ui.Fieldset for={Form.Address}/>`
+- `<widget.Fieldset legend="…">` groups fields; `<widget.Fieldset for={Form.Address}/>`
   renders a struct field's fields under its label.
-- `<ui.Summary/>` puts the error summary somewhere other than the top of the
+- `<widget.Summary/>` puts the error summary somewhere other than the top of the
   form: among the fields, or inside an element of your own. The summary
   appearing or going never moves what was typed into another field.
-- `<ui.Choices for={Form.Plan}/>` is a field's radios (or, for a slice, its
+- `<widget.Choices for={Form.Plan}/>` is a field's radios (or, for a slice, its
   checkboxes), each with its label, from its `<Field>Choices`, for a field
   you lay out yourself; a `<select model>` with no options gets them the
   same way.
-- `<ui.Field for={Form.Email} ok/>` shows a tick once the visitor used the
+- `<widget.Field for={Form.Email} ok/>` shows a tick once the visitor used the
   field and it passes every check. Ticks are off by default.
 
-An app that styles its controls through components of its own gives the
-field to the component: a component whose props have a field `Model
-ui.FieldRef` takes `model={Form.Email}`, and gives it to its control with
-`model={Model}`, so the control gets its name, id, value, type and ARIA
-links as one written in the page would:
+An app that styles its controls through components of its own writes them
+as [widgets](./widgets): a component embedding `widget.Props` takes
+`model={Form.Email}`, gives it to its control with `model={Model}`, so the
+control gets its name, id, value, type and ARIA links as one written in the
+page would, and has its label, hint and error filled by the form:
 
 ```html
 <!-- components/text_field.vuka.html -->
 <script lang="go">
 package components
 
-import "github.com/vuka-lang/ui/v2"
+import "github.com/vuka-lang/ui/v2/widget"
 
 // TextField is the app's text field: a label, the error, the control.
 type TextField struct {
-    Model ui.FieldRef
-    Label string
-    Attrs []ui.Attr
+    widget.Props
 }
 </script>
 
-<div class="field" {Attrs...}>
-  <label class="field-label" for={ui.ModelID(Model)}>{Label}</label>
-  <ui.Error for={Model}/>
+<div class="field">
+  <label class="field-label" for={Model.ID()}>{Label}</label>
+  <widget.Error for={Model}/>
   <input model={Model} class="field-input"/>
 </div>
 ```
@@ -348,16 +346,15 @@ type TextField struct {
 ```html
 <form for={Form} onSubmit={Save}>
   <components.TextField model={Form.Email} label="Email"/>
-  <components.TextField model={Form.Name} label="Full name" data-hint="as on your ID"/>
+  <components.TextField model={Form.Name}/>
   <button>Create account</button>
 </form>
 ```
 
 The compiler checks the field as it does on a control, and refuses
 `model` on a component whose props have no `Model ui.FieldRef`; a modifier
-(`model.lazy`) goes on the component's control. A component with an `Attrs
-[]ui.Attr` field takes the tag's other HTML attributes there, as
-`data-hint` above.
+(`model.lazy`) goes on the component's control. The `label` set on the tag
+wins over the field's; what the tag leaves out the form fills.
 
 A misspelt field is a compile error naming the one it most likely meant:
 `model={Form.Emial}: Signup has no field Emial; did you mean Email?`
@@ -619,8 +616,8 @@ func (e *Edit) Save(ctx context.Context, f *ui.ModelForm[account.User], users *a
 </script>
 
 <ui.Form for={Form} onSubmit={Save}>
-  <ui.Field for={Form.Value.Name}/>
-  <ui.Field for={Form.Value.Email}/>
+  <widget.Field for={Form.Value.Name}/>
+  <widget.Field for={Form.Value.Email}/>
   <button>Save changes</button>
 </ui.Form>
 ```
@@ -686,11 +683,11 @@ if Form.IsNew() {
   <h1>Edit product</h1>
 }
 <ui.Form for={Form} onSubmit={save}>
-  <ui.Field for={Form.Name}/>
-  <ui.Field for={Form.SKU}/>
-  <ui.Field for={Form.Price}/>
-  <ui.Field for={Form.Status}/>
-  <ui.Field for={Form.Notes}/>
+  <widget.Field for={Form.Name}/>
+  <widget.Field for={Form.SKU}/>
+  <widget.Field for={Form.Price}/>
+  <widget.Field for={Form.Status}/>
+  <widget.Field for={Form.Notes}/>
 </ui.Form>
 ```
 
@@ -816,9 +813,9 @@ func (p *Products) save(ctx context.Context) error {
 </script>
 
 <ui.Form for={Form} onSubmit={save}>
-  <ui.Field for={Form.Name}/>
-  <ui.Field for={Form.Status}/>
-  <ui.Field for={Form.Notes}/>
+  <widget.Field for={Form.Name}/>
+  <widget.Field for={Form.Status}/>
+  <widget.Field for={Form.Notes}/>
 </ui.Form>
 ```
 
@@ -888,7 +885,7 @@ writes it at each `Load` and `Save` of a form type.
 
 A `FormFor`'s field is required by its type: a plain field must be filled
 (a number's input may not be left empty, `0` is a value), an `Option[T]`
-may be left empty and is `None` (with `<ui.Field>` or a raw `<input
+may be left empty and is `None` (with `<widget.Field>` or a raw `<input
 model={Form.Notes}/>` alike: see [the controls](#markup)), and so may a
 pointer and a slice. A
 `bool` unticked is a valid `false`; `@ui.Required` on a bool means it must
@@ -989,13 +986,23 @@ func (f *Address) CityChoices(ctx context.Context, geo *Geo) ([]ui.Option, error
 - A submitted value that isn't among the field's choices is an error
   ("Select city from the list"), so a post can't choose what the form never
   offered.
-- `depends:"Country"` names the field the choices follow. Without script,
-  that field gets an Update button, inside `<noscript>`: it sends the form,
-  which renders again with the new choices, and saves nothing (a plain post
-  answers 200).
+- The choices follow whatever the method reads, with no tag to say so: a
+  form's check carries the choices of every field with a `Choices` method.
+  `depends:"Country"` is for browsers without script: that field gets an
+  Update button, inside `<noscript>`: it sends the form, which renders
+  again with the new choices, and saves nothing (a plain post answers 200).
+- A `<Field>Choices` method may return an orm query instead of a list
+  (`Category.Objects.Filter(…)`): its rows are the options, labelled by
+  their `String()`, and a submitted key is checked against the query, one
+  row looked up, the table never listed. An `orm.FK[T]` field is a select
+  of every row of T without one; see [Related fields](./widgets#related).
 - A field's `Choices` method runs once per change, however often the
   render reads it. `vuka vet` warns about a `depends:` naming no field
   ([W0313](/errors/W0313)).
+
+A field's control is a [widget](./widgets): `<widget.Radios
+model={Form.Plan}/>` in the markup, `@ui.Spec{Widget: widget.Radios{}}` on
+the field, or `widget.Use[T]` for every field of a type.
 
 ## Files {#files}
 
@@ -1158,8 +1165,8 @@ typed stands, and a focused field is never overwritten.
 
 ```html
 <ui.Form for={Form} onSubmit={Save}>
-  <ui.Field for={Form.Name}/>
-  <ui.Field for={Form.Email} ok/>
+  <widget.Field for={Form.Name}/>
+  <widget.Field for={Form.Email} ok/>
   <button>Save</button>
   if Form.Dirty() {
     <button type="button" onClick={Discard}>Discard changes</button>
@@ -1294,7 +1301,7 @@ func (p *SignIn) save(ctx context.Context, f account.Credentials) error {
   errors — never `save`.
 - **Errors in place.** The runtime adds, changes or removes each field's
   error, its `aria-invalid` and `aria-describedby`, and the summary, in the
-  summary's place (the form's top, or where a `<ui.Summary/>` is). The
+  summary's place (the form's top, or where a `<widget.Summary/>` is). The
   fields themselves are never re-rendered, so what was typed, the focused
   field and the caret stay as they are.
 - **Submit.** The form is sent as a plain post is. When it fails, its
