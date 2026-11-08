@@ -888,6 +888,18 @@ func (p *proxy) fromGopls() {
 			m = p.namespaceCommands(m) // still adds the @ trigger
 			body, _ = json.Marshal(&m)
 		}
+		if m.Method == "window/logMessage" || m.Method == "window/showMessage" {
+			// gopls's tidy check reads route folders ((group), [id]) as
+			// import paths and logs go's refusal; vuka maps those packages.
+			params, drop := withoutRouteTidy(m.Params)
+			if drop {
+				continue
+			}
+			if string(params) != string(m.Params) {
+				m.Params = params
+				body, _ = json.Marshal(&m)
+			}
+		}
 		switch {
 		case m.isResponse():
 			id := string(m.ID)

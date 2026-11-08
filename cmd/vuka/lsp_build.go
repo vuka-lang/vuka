@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	templparser "github.com/a-h/templ/parser/v2"
+	"golang.org/x/mod/modfile"
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
@@ -965,7 +967,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		if staging != "" && strings.HasPrefix(uriToPath(dp.URI), staging+string(filepath.Separator)) {
 			return // the staging folder's, never the editor's (lsp_staging.go)
 		}
-		if kept, ok := withoutRouteFolderPaths(dp.Diagnostics); ok {
+		if kept, ok := withoutRouteFolderPaths(uriToPath(dp.URI), dp.Diagnostics); ok {
 			// go.mod's: gopls's tidy check reads route folders' names
 			// ((group), [id]) as import paths; vuka maps those packages.
 			_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
@@ -1245,22 +1247,108 @@ func goVersionDiagnostics(pkgs []*load.Package, bufs map[string][]byte, e *load.
 	return list
 }
 
-// routeFolderPath is gopls's complaint about a package in a route folder:
+// routeFolderPath is go's complaint about a package in a route folder:
 // pages/(admin) or pages/[id] is no import path, and vuka type-checks it
 // through the package it maps it to (load.RouteMapped).
-var routeFolderPath = regexp.MustCompile(`malformed import path "[^"]*/[(\[][^"/]*[)\]](?:/[^"]*)?"`)
+var routeFolderPath = regexp.MustCompile(`malformed import path "([^"]*/[(\[][^"/]*[)\]](?:/[^"]*)?)"`)
 
-// withoutRouteFolderPaths drops gopls's diagnostics about route folders'
-// import paths; ok is false when there are none to drop.
-func withoutRouteFolderPaths(ds []any) ([]any, bool) {
+// withoutRouteFolders drops, from go's output in text, the complaints about
+// route folders of the module modPath (any module when modPath is ""), each
+// an unindented line with its indented continuation lines. ok is false when
+// there are none to drop; kept is "" when nothing else is left.
+func withoutRouteFolders(text, modPath string) (kept string, ok bool) {
+	lines := strings.SplitAfter(text, "\n")
+	var b strings.Builder
+	for i := 0; i < len(lines); {
+		j := i + 1
+		for j < len(lines) && strings.HasPrefix(lines[j], "\t") {
+			j++
+		}
+		entry := strings.Join(lines[i:j], "")
+		if ownRouteFolder(entry, modPath) {
+			ok = true
+		} else {
+			b.WriteString(entry)
+		}
+		i = j
+	}
+	if !ok {
+		return text, false
+	}
+	return b.String(), true
+}
+
+func ownRouteFolder(entry, modPath string) bool {
+	m := routeFolderPath.FindStringSubmatch(entry)
+	return m != nil && (modPath == "" || strings.HasPrefix(m[1], modPath+"/"))
+}
+
+// modulePathOf is the module path the go.mod at path declares, "" when it
+// can't be read.
+func modulePathOf(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return modfile.ModulePath(data)
+}
+
+// withoutRouteFolderPaths drops gopls's diagnostics on the go.mod at path
+// about its module's route folders, keeping the rest of a message that
+// reports something else too; ok is false when there are none to drop.
+func withoutRouteFolderPaths(path string, ds []any) ([]any, bool) {
+	if filepath.Base(path) != "go.mod" {
+		return ds, false
+	}
+	modPath := modulePathOf(path)
 	kept := []any{}
+	dropped := false
 	for _, d := range ds {
 		if m, _ := d.(map[string]any); m != nil {
-			if msg, _ := m["message"].(string); routeFolderPath.MatchString(msg) {
-				continue
+			msg, _ := m["message"].(string)
+			if rest, ok := withoutRouteFolders(msg, modPath); ok {
+				dropped = true
+				if strings.TrimSpace(rest) == "" {
+					continue
+				}
+				c := maps.Clone(m)
+				c["message"] = strings.TrimRight(rest, "\n")
+				d = c
 			}
 		}
 		kept = append(kept, d)
 	}
-	return kept, len(kept) != len(ds)
+	return kept, dropped
+}
+
+// tidyFailure is how gopls logs a go mod tidy that failed: the go.mod's URI
+// and go's stderr.
+var tidyFailure = regexp.MustCompile(`(?s)^(.*?tidy: diagnosing (\S+/go\.mod): err: [^\n]*?stderr: )(.*)$`)
+
+// withoutRouteTidy rewrites gopls's window/logMessage or showMessage params
+// reporting a failed tidy run: the stderr's complaints about the module's
+// route folders are dropped, and drop is true when nothing else is left.
+func withoutRouteTidy(params json.RawMessage) (out json.RawMessage, drop bool) {
+	var mp map[string]any
+	if json.Unmarshal(params, &mp) != nil {
+		return params, false
+	}
+	msg, _ := mp["message"].(string)
+	g := tidyFailure.FindStringSubmatch(msg)
+	if g == nil {
+		return params, false
+	}
+	rest, ok := withoutRouteFolders(g[3], modulePathOf(uriToPath(g[2])))
+	if !ok {
+		return params, false
+	}
+	if strings.TrimSpace(rest) == "" {
+		return nil, true
+	}
+	mp["message"] = g[1] + rest
+	b, err := json.Marshal(mp)
+	if err != nil {
+		return params, false
+	}
+	return b, false
 }
