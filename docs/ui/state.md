@@ -322,6 +322,11 @@ func (p *Orders) Archive() { p.open = false }
 </main>
 ```
 
+A modal written inside an ancestor with a `mask-image`, `transform` or
+`filter` is clipped by it; wrap its markup in
+[`<ui.Teleport>`](/ui/components#teleport) to render it at the end of the
+page.
+
 The page's button writes `open` and the dialog shows; the dialog's Close
 writes `Show` and the page's `open` is `false` with it; the live method's
 `p.open = false` hides it from the server. Every write of the one state

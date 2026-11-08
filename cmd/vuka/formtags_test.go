@@ -63,7 +63,7 @@ func (c *Checkout) Save(ctx context.Context, o Order) error { return nil }
 </script>
 
 <main>
-  <form for={Form} onSubmit={Save} class="stack" autocomplete="off">
+  <form for={Form} onSubmit={Save} onSuccess={ui.JS.Hide(ui.Sel("#dialog"))} class="stack" autocomplete="off">
     <label for={Form.Name}/>
     <input model={Form.Name} class="input"/>
     <fieldset for={Form.Plan}>
@@ -112,6 +112,7 @@ func TestFormTags(t *testing.T) {
 		`name="address.street" id="order-address-street"`,
 		`for="order-address-city"`,
 		`<button form="order">Save</button>`,
+		`data-vk-js-vksuccess=`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("no %s in\n%s", want, got)

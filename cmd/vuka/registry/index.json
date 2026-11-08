@@ -189,7 +189,7 @@
       "files": [
         {
           "path": "ui/dialog.vuka.html",
-          "sha256": "ad000c9c677b9c56147b100ead18999f317bd5292abc469b13e6daf6a9fbb66f"
+          "sha256": "3dfa758b470cdd473be1b1222042b042f66f6254356db6ea233d9d6a3570a8c8"
         }
       ],
       "deps": [
@@ -197,7 +197,7 @@
         "cn"
       ],
       "requires": {
-        "ui": "v2.16.2-0.20261106081042-c2870b7828d7"
+        "ui": "v2.17.1-0.20261107182035-d82a0590bd58"
       }
     },
     {

@@ -408,6 +408,28 @@ browser:
   field loses (passwords and codes always keep it);
 - `model.number` takes only a number in a text field.
 
+### Events on the form tags {#events}
+
+DOM events work on the form tags as on any other (`onClick`,
+`onInput.debounce.300ms`, `onKeyDown.enter`, call syntax, `ui.JS`
+chains), beside `for`, `model` and `form`. A `<form for>` also has
+events of its form's lifecycle:
+
+| Event | Takes | Runs |
+|---|---|---|
+| `onSubmit` | a method | on submit, once the checks pass |
+| `onChange` | a method | as fields change, after the form's own checks |
+| `onSuccess` | a `ui.JS` chain | in the browser, once a submit's reply is in place without errors: `onSuccess={ui.JS.Set(open, false)}` |
+| `onError` | a `ui.JS` chain | once a submit's reply shows errors (a field's or the summary) |
+| `onInvalid` | a `ui.JS` chain | when the [browser's checks](#browser-checks) stop a submit before it is sent |
+| `onReset` | a method or a `ui.JS` chain | after the form is reset: a `<button type="reset">` resets it on the server (the loaded values back, its errors cleared), then the method runs, or the chain in the browser |
+
+An event of a control with `model`, or of a `<fieldset for>`
+(`<fieldset for={Form.Address} onChange={addressChanged}>`), runs after
+the form has taken the field's new value, so its handler reads the
+bound field. A button outside the form attached with `form={Form}` runs
+its `onClick` before the submit, and `onClick.prevent` stops the submit.
+
 ## When Checks Run {#timing}
 
 Every rule runs on every change, so an error that depends on two fields
