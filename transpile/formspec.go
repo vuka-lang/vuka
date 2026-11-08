@@ -475,7 +475,10 @@ func (e *engine) formMetas() map[string]string {
 			if !ok {
 				return false
 			}
-			vt := formTypeValue(st)
+			var vt types.Type
+			if ft, ff := formType(obj.Type()); ft != nil {
+				vt = ff.TypeArgs().At(0)
+			}
 			for i := 0; i < st.NumFields(); i++ {
 				fl := st.Field(i)
 				if fl.Embedded() || !isUIMeta(fl.Type()) {
@@ -508,21 +511,6 @@ func (e *engine) formMetas() map[string]string {
 		})
 	}
 	return out
-}
-
-// formTypeValue is T of a struct embedding a FormFor[T] (by value); nil
-// for any other struct.
-func formTypeValue(st *types.Struct) types.Type {
-	for i := 0; i < st.NumFields(); i++ {
-		fl := st.Field(i)
-		if _, ptr := types.Unalias(fl.Type()).(*types.Pointer); !fl.Embedded() || ptr {
-			continue
-		}
-		if vt := formValueType(fl.Type()); vt != nil {
-			return vt
-		}
-	}
-	return nil
 }
 
 // isUIMeta reports whether t is the ui target's Meta, a form type's

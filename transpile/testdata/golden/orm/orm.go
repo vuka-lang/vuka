@@ -66,14 +66,16 @@ func (s *Schema) Model(attrs ...ModelAttr) {
 	}
 }
 
-func (s *Schema) Field(ptr any, attrs ...FieldAttr) {
+func (s *Schema) Field(ptr any, attrs ...any) {
 	p := reflect.ValueOf(ptr).Pointer()
 	t := s.root.Elem().Type()
 	for i := range t.NumField() {
 		if s.root.Pointer()+t.Field(i).Offset == p && t.Field(i).Type == reflect.TypeOf(ptr).Elem() {
 			var o []string
 			for _, a := range attrs {
-				a.Apply(&o)
+				if a, ok := a.(FieldAttr); ok { // another library's is kept for it, as the orm does
+					a.Apply(&o)
+				}
 			}
 			s.fields[t.Field(i).Name] = append(s.fields[t.Field(i).Name], o...)
 			return

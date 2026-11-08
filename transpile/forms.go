@@ -729,8 +729,8 @@ func (e *engine) checkFormTypes() {
 			if st, ok := ft.Underlying().(*types.Struct); ok {
 				for i := 0; i < st.NumFields(); i++ {
 					fl := st.Field(i)
-					if fl.Embedded() {
-						continue
+					if fl.Embedded() || isUIMeta(fl.Type()) {
+						continue // a ui.Meta member describes T's field of its name
 					}
 					other, _, _ := types.LookupFieldOrMethod(vt, true, fl.Pkg(), fl.Name())
 					if v, ok := other.(*types.Var); ok && v.IsField() {
@@ -781,8 +781,8 @@ func (e *engine) formValueField(sel *ast.SelectorExpr) bool {
 	if vt == nil {
 		return false
 	}
-	if obj, _, _ := types.LookupFieldOrMethod(tv.Type, true, e.pkg, sel.Sel.Name); obj != nil {
-		return false
+	if obj, _, _ := types.LookupFieldOrMethod(tv.Type, true, e.pkg, sel.Sel.Name); obj != nil && !isUIMeta(obj.Type()) {
+		return false // the form's own member; a ui.Meta one stands for T's field
 	}
 	obj, _, _ := types.LookupFieldOrMethod(vt, true, e.pkg, sel.Sel.Name)
 	v, ok := obj.(*types.Var)
@@ -794,7 +794,7 @@ func (e *engine) formValueField(sel *ast.SelectorExpr) bool {
 func (e *engine) resolveFormFields(f *fileState) {
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || !f.lowerable(sel.Pos()) || e.info.Selections[sel] != nil {
+		if !ok || !f.lowerable(sel.Pos()) || e.info.Selections[sel] != nil && !isUIMeta(e.info.Selections[sel].Type()) {
 			return true
 		}
 		at := f.orig(sel.Sel.Pos())
