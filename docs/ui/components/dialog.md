@@ -22,7 +22,7 @@ A &lt;dialog&gt; over the page, shown while a browser state holds.
 vuka ui add dialog
 ```
 
-It writes `components/ui/dialog.vuka.html`, with what it uses: [Button](/ui/components/button), [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `c2870b7828d7` or newer.
+It writes `components/ui/dialog.vuka.html`, with what it uses: [Button](/ui/components/button), [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `d82a0590bd58` or newer.
 
 ## Using It
 
@@ -63,6 +63,12 @@ skips; it remembers what had the focus and focuses the first control (one
 marked `autofocus` first), and hiding gives the focus back. That is a
 [watch](/ui/state#watching) in the component's script, so it runs however
 the state was written. A live render while it is shown keeps it shown.
+
+The dialog renders in a [`<ui.Teleport>`](/ui/components#teleport): the
+runtime moves it to the end of `<body>`, so it covers the page even when it
+is written inside an ancestor with a `mask-image`, `transform` or `filter`,
+which would otherwise clip it to that ancestor. Its handlers, state and
+form stay those of the place it is written in.
 
 ## Three Ways to Show It {#tiers}
 
@@ -169,6 +175,10 @@ import (
 //	  </slot:footer>
 //	</design.Dialog>
 //
+// It renders in a ui.Teleport, at the end of <body> once the runtime
+// runs, so an ancestor with a mask-image, transform or filter can't clip
+// it.
+//
 // Showing remembers what had the focus and focuses the dialog's first
 // control (one marked autofocus first); hiding gives the focus back.
 // Escape, a click on the backdrop and the close button write false into
@@ -252,60 +262,62 @@ var closeLabel = []ui.Attr{{Name: "aria-label", Value: "Close"}}
 const dialogTime = 150 * time.Millisecond
 </script>
 
-<dialog
-  id={d.id()}
-  open
-  show={Show || Open}
-  transition={ui.Fade(dialogTime)}
-  aria-modal="true"
-  aria-label={d.label()}
-  aria-labelledby={d.part("title", d.Title)}
-  aria-describedby={d.part("description", d.Description)}
-  class="fixed inset-0 z-50 m-0 size-full max-h-none max-w-none border-0 bg-transparent p-0 text-foreground"
-  onDialogOpen={Show = true}
-  onDialogClose={Show = false}
-  onKeyDown={d.escape()}
->
-  <div aria-hidden="true" class="absolute inset-0 bg-black/50" onClick={d.close()}></div>
-  <div
+<ui.Teleport>
+  <dialog
+    id={d.id()}
+    open
     show={Show || Open}
-    transition={ui.Scale(dialogTime)}
-    class={cn("absolute top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg", d.Class)}
+    transition={ui.Fade(dialogTime)}
+    aria-modal="true"
+    aria-label={d.label()}
+    aria-labelledby={d.part("title", d.Title)}
+    aria-describedby={d.part("description", d.Description)}
+    class="fixed inset-0 z-50 m-0 size-full max-h-none max-w-none border-0 bg-transparent p-0 text-foreground"
+    onDialogOpen={Show = true}
+    onDialogClose={Show = false}
+    onKeyDown={d.escape()}
   >
-    if d.Title != "" || d.Description != "" {
-      <div class="flex flex-col gap-2 pr-6 text-center sm:text-left">
-        if d.Title != "" {
-          <h2 id={d.part("title", d.Title)} class="text-lg leading-none font-semibold">{d.Title}</h2>
-        }
-        if d.Description != "" {
-          <p id={d.part("description", d.Description)} class="text-sm text-muted-foreground">{d.Description}</p>
-        }
-      </div>
-    }
-    {d.Children}
-    if ui.Has(d.Footer) {
-      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{d.Footer}</div>
-    }
-    <Button
-      variant={ButtonGhost}
-      size={SizeIcon}
-      class="absolute top-3 right-3 size-7 opacity-70 hover:opacity-100"
-      on={d.close()}
-      attrs={closeLabel}
+    <div aria-hidden="true" class="absolute inset-0 bg-black/50" onClick={d.close()}></div>
+    <div
+      show={Show || Open}
+      transition={ui.Scale(dialogTime)}
+      class={cn("absolute top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg", d.Class)}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-    </Button>
-  </div>
-</dialog>
+      if d.Title != "" || d.Description != "" {
+        <div class="flex flex-col gap-2 pr-6 text-center sm:text-left">
+          if d.Title != "" {
+            <h2 id={d.part("title", d.Title)} class="text-lg leading-none font-semibold">{d.Title}</h2>
+          }
+          if d.Description != "" {
+            <p id={d.part("description", d.Description)} class="text-sm text-muted-foreground">{d.Description}</p>
+          }
+        </div>
+      }
+      {d.Children}
+      if ui.Has(d.Footer) {
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{d.Footer}</div>
+      }
+      <Button
+        variant={ButtonGhost}
+        size={SizeIcon}
+        class="absolute top-3 right-3 size-7 opacity-70 hover:opacity-100"
+        on={d.close()}
+        attrs={closeLabel}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        ><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+      </Button>
+    </div>
+  </dialog>
+</ui.Teleport>
 
 <script lang="ts">
 import { component, state } from 'vuka:component'
@@ -353,6 +365,10 @@ import (
 //	    <design.Button variant={design.ButtonOutline} onClick={open = false}>Cancel</design.Button>
 //	  </slot:footer>
 //	</design.Dialog>
+//
+// It renders in a ui.Teleport, at the end of <body> once the runtime
+// runs, so an ancestor with a mask-image, transform or filter can't clip
+// it.
 //
 // Showing remembers what had the focus and focuses the dialog's first
 // control (one marked autofocus first); hiding gives the focus back.
@@ -464,8 +480,8 @@ func (d *Dialog) View() ui.Node {
   <path d="M18 6 6 18"/>
   <path d="m6 6 12 12"/>
 </svg>`)}
-	return ui.HTML(`
-<dialog data-vk-p={ui.Props(d)} data-vk-st={ui.States(d)} id={d.id()} open show={uigen.Or(d.Show, d.Open)} transition={ui.Fade(dialogTime)} aria-modal="true" aria-label={d.label()} aria-labelledby={d.part("title", d.Title)} aria-describedby={d.part("description", d.Description)} class="fixed inset-0 z-50 m-0 size-full max-h-none max-w-none border-0 bg-transparent p-0 text-foreground" onDialogOpen={ui.JS.Set(d.Show, true)} onDialogClose={ui.JS.Set(d.Show, false)} onKeyDown={d.escape()}>
+	teleport := ui.Teleport{Children: ui.HTML(`
+<dialog id={d.id()} open show={uigen.Or(d.Show, d.Open)} transition={ui.Fade(dialogTime)} aria-modal="true" aria-label={d.label()} aria-labelledby={d.part("title", d.Title)} aria-describedby={d.part("description", d.Description)} class="fixed inset-0 z-50 m-0 size-full max-h-none max-w-none border-0 bg-transparent p-0 text-foreground" onDialogOpen={ui.JS.Set(d.Show, true)} onDialogClose={ui.JS.Set(d.Show, false)} onKeyDown={d.escape()}>
   <div aria-hidden="true" class="absolute inset-0 bg-black/50" onClick={d.close()}/>
   <div show={value2} transition={ui.Scale(dialogTime)} class={cn("absolute top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg", d.Class)}>
     {div}
@@ -474,8 +490,6 @@ func (d *Dialog) View() ui.Node {
     {button}
   </div>
 </dialog>`,
-		ui.Props(d),
-		ui.States(d),
 		d.id(),
 		uigen.Or(d.Show, d.Open),
 		ui.Fade(dialogTime),
@@ -493,7 +507,8 @@ func (d *Dialog) View() ui.Node {
 		d.Children,
 		div2,
 		button,
-	)
+	)}
+	return ui.HTML(`<vk-c style="display:contents" data-vk-p={ui.Props(d)} data-vk-st={ui.States(d)}>{teleport}</vk-c>`, ui.Props(d), ui.States(d), teleport)
 }
 
 func (d *Dialog) Render(ctx context.Context, w io.Writer) error { return d.View().Render(ctx, w) }
