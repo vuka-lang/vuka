@@ -1,0 +1,2 @@
+err_lazy.vuka:22:10: <Panel lazy> renders its children the first time its show holds, and it takes no show={…}: lazy goes on a component taking show, or wrap the children in <ui.Lazy when={…}>
+err_lazy.vuka:23:22: <Sheet lazy> takes no value, or "each" (lazy="each": the children render again each time it shows)
