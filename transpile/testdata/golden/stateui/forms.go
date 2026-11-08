@@ -108,6 +108,10 @@ type Form struct {
 	Key          any
 	OnSubmit     any
 	OnChange     any
+	OnSuccess    any
+	OnError      any
+	OnInvalid    any
+	OnReset      any
 	NoSummary    bool
 	Bound        []string
 	ID           string

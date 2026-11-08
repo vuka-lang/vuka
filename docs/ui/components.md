@@ -104,6 +104,85 @@ logical item across renders, preserving its live instance.
 > [!WARNING]
 > Array positions are unsuitable when items can be reordered.
 
+## Overlays Outside Clipping Ancestors {#teleport}
+
+A `position: fixed` element is fixed to the viewport only while no ancestor
+creates a containing block or a clip for it. A `mask-image`, a `transform`,
+a `filter`, `contain`, `will-change: transform` or a `backdrop-filter` on
+any ancestor confines it to that ancestor: a layout that fades its scroll
+area with a mask shows a modal's backdrop and a toast inside the scroll area
+only, and no `z-index` lifts them out of the ancestor's stacking context.
+
+`<ui.Teleport>` renders its content where it is written and has the runtime
+move it to the end of `<body>`, out of reach of every ancestor:
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Products struct {
+	ui.Live
+	editing bool
+}
+
+func (p *Products) Edit()  { p.editing = true }
+func (p *Products) Close() { p.editing = false }
+</script>
+
+<main class="[mask-image:linear-gradient(black_90%,transparent)] overflow-auto">
+  <button onClick={Edit()}>Edit product</button>
+  if editing {
+    <ui.Teleport>
+      <div class="fixed inset-0 z-50 grid place-items-center bg-black/50" onKeyDown.esc={Close()}>
+        <div role="dialog" aria-modal="true" class="rounded-lg bg-white p-6">
+          …
+          <button onClick={Close()}>Done</button>
+        </div>
+      </div>
+    </ui.Teleport>
+  }
+</main>
+```
+
+`to="#id"` moves it to the end of an element the layout owns instead, a
+region for overlays:
+
+```html
+<ui.Teleport to="#overlays">…</ui.Teleport>
+```
+
+The content is the page's markup as any other: it has the same scope, the
+same state and the same handlers, and a field in it still belongs to the
+form around it, so a `model=` in it binds to the enclosing `for={Form}`.
+The runtime keeps treating it as written in place:
+
+- **Live patches** apply to it where it was moved. A re-render never moves
+  it back, and it goes when the server stops rendering the `<ui.Teleport>`
+  (the `if` above turning false) or the component holding it.
+- **Events** reach vuka's handlers as if they came from where the content
+  is written: an `onKeyDown.esc` on an ancestor still sees a key pressed in
+  a teleported field. A script's own `addEventListener` sees the DOM's
+  bubbling, which follows where the content is, at the end of the body.
+- **Commands** find it in its component: `ui.Ref("panel")` from a button on
+  the page reaches an element with `ref="panel"` inside the teleport.
+- **Forms**: fields teleported out of a `<form>` get a `form` attribute that
+  keeps them its fields, sent with its submit; a form written entirely
+  inside a teleport works as any form.
+- **Focus**: a focused field keeps its focus and what it shows when it is
+  moved, and across patches, since it is moved only once.
+
+Without JavaScript, and until the runtime starts, the content renders in
+place: the `<vk-teleport>` element holding it has `display: contents`, so it
+adds no box to the layout. A component can teleport itself by making
+`<ui.Teleport>` the root of its markup. The kit's `<ui.Modal>` and
+`<ui.ToastContainer>` render in one, and so does the vendored
+[Dialog](/ui/components/dialog).
+
+Give a teleport an `id` when teleports around it come and go, as you key
+repeated components: it keeps the same element across renders.
+
 ## The Component Kit {#kit}
 
 The ui kit exposes components as tags, such as `<ui.Card>` and `<ui.Button>`.

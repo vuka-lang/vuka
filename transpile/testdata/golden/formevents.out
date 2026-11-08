@@ -1,0 +1,1 @@
+<main><div data-element class="" data-validate=""><form data-for="{Checkout.Form}" data-key="&lt;nil&gt;"><input data-model="Order.Name tag=input own=onInput"><fieldset data-fieldset="Order.Address"><input data-model="Address.City tag=input"></fieldset></form></div><button form="id:Checkout.Form">Save</button></main> <nil>

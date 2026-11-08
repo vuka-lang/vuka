@@ -36,6 +36,12 @@ marked `autofocus` first), and hiding gives the focus back. That is a
 [watch](/ui/state#watching) in the component's script, so it runs however
 the state was written. A live render while it is shown keeps it shown.
 
+The dialog renders in a [`<ui.Teleport>`](/ui/components#teleport): the
+runtime moves it to the end of `<body>`, so it covers the page even when it
+is written inside an ancestor with a `mask-image`, `transform` or `filter`,
+which would otherwise clip it to that ancestor. Its handlers, state and
+form stay those of the place it is written in.
+
 ## Three Ways to Show It {#tiers}
 
 | | Shows it | Hides it | For |
