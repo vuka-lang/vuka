@@ -223,8 +223,11 @@ func shownEverywhere(code diag.Code) bool {
 
 // shownInEditor reports whether the editor shows a transpiler warning:
 // those shownEverywhere, and a GraphQL argument's attribute above its
-// declaration (W0803), whose quick fix moves it before the parameter.
-func shownInEditor(code diag.Code) bool { return shownEverywhere(code) || code == "W0803" }
+// declaration (W0803), whose quick fix moves it before the parameter, and
+// model on a hidden input (W0115).
+func shownInEditor(code diag.Code) bool {
+	return shownEverywhere(code) || code == "W0803" || code == "W0115"
+}
 
 // transpileWarnings are the warnings the transpiler found in gens' sources,
 // which vuka vet reports: about the context processors' variables a file

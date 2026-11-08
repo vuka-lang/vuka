@@ -1054,7 +1054,14 @@ var formOptions = []string{"for", "key", "validate", "submit", "keep", "confirmL
 func (p *jsxParser) formTag(el *jsxElem) bool {
 	if el.tag == "input" && el.comp == nil {
 		if t, m := attrNamed(el, "type"), modelOf(el); m != nil && t != nil && t.kind == 's' && strings.EqualFold(t.val, "hidden") {
-			p.failCode("E0187", m.off, "model on an <input type=\"hidden\">: a form takes no value the visitor can't see or change (an id, an owner); take it from the route or the session, and leave the field out of the form with form:\"-\"")
+			if !p.f.hiddenSeen[m.off] {
+				if p.f.hiddenSeen == nil {
+					p.f.hiddenSeen = map[int]bool{}
+				}
+				p.f.hiddenSeen[m.off] = true
+				w := p.f.hiddenWarns.add("W0115", p.f.at(m.off), "model on an <input type=\"hidden\">: the visitor's browser can send any value back for it")
+				w.Help = "an id or an owner comes from the route or the session (form:\"-\"), an upload is a ui.File; a value the page's own script writes is fine here"
+			}
 		}
 	}
 	if el.tag != "form" || el.comp != nil {
