@@ -40,8 +40,12 @@ type Meta struct{ Table string }
 func (m Meta) ApplyModel(t *string) { *t = m.Table }
 
 type (
-	PK     struct{}
-	Char   struct{ Max int }
+	PK   struct{}
+	Char struct {
+		Max, Min int
+		Choices  []string
+		Unique   bool
+	}
 	Column string
 )
 

@@ -1,0 +1,12 @@
+err_formspec.vuka:10:67: Product.Name: ui.Spec's Required is the message of a required field, and is empty; write its message, Required: "Enter a name", or @ui.Required for the default one
+err_formspec.vuka:10:94: Product.Name: ui.Spec's Msg "uniq" names no rule; did you mean "unique"? the rules are required, min, max, len, pattern, oneof, choice, email, unique, number, whole, format, digits, file
+err_formspec.vuka:11:93: Product.Status: ui.Spec has Required and Optional: a field is one or the other; drop one of them
+err_formspec.vuka:12:30: Product.Code's label is set by its tag (label) and by @ui.Spec: a setting has one source; drop it from the tag, or drop the attribute
+err_formspec.vuka:12:63: Product.Code's max is set by @ui.Spec and by @ui.Max: a setting has one source; keep one of them: a ui.Spec's member, or the single attribute
+err_formspec.vuka:13:48: Product.Note's placeholder is set by @ui.Placeholder and by @ui.Spec: a setting has one source; keep one of them: a ui.Spec's member, or the single attribute
+err_formspec.vuka:13:123: Product.Note's message for max is set by @ui.Spec and by @ui.Msg: a setting has one source; keep one of them: a ui.Spec's member, or the single attribute
+err_formspec.vuka:18:26: ProductForm.Name: ui.Spec's Max 120 is above the model's 100: a form may tighten a field's limits, not loosen them; write a Max of 100 or less, or raise the model's
+err_formspec.vuka:18:36: ProductForm.Name: ui.Spec's Min 1 is below the model's 2: a form may tighten a field's limits, not loosen them; write a Min of 2 or more, or lower the model's
+err_formspec.vuka:19:26: ProductForm.Status: ui.Spec's choice "gone" isn't one of the model's: a form may narrow a field's choices, not add to them; the model's choices are draft, live
+err_formspec.vuka:20:2: ProductForm.Nmae is a ui.Meta describing Product's field of the same name, and Product has no field Nmae; did you mean Name?; name the member as Product's field: Name ui.Meta
+err_formspec.vuka:24:2: Stray.Name is a ui.Meta, which describes a field of a form type's T, and Stray embeds no ui.FormFor; embed ui.FormFor[T] in Stray, or give Name a type

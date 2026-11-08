@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"maps"
 	"reflect"
 	"regexp"
 	"slices"
@@ -923,7 +924,10 @@ func (e *engine) checkFormSaves() {
 // member.
 var (
 	uiTagSettings = map[string]string{"Label": "label", "Help": "help", "Placeholder": "placeholder", "Widget": "input", "Autocomplete": "autocomplete",
-		"Required": "validate:required", "Email": "validate:email", "Min": "validate:min", "Max": "validate:max", "OneOf": "validate:oneof"}
+		"Required": "validate:required", "Email": "validate:email", "Min": "validate:min", "Max": "validate:max", "OneOf": "validate:oneof",
+		// a ui.Spec's members
+		".Label": "label", ".Help": "help", ".Placeholder": "placeholder", ".Widget": "input", ".Autocomplete": "autocomplete",
+		".Required": "validate:required", ".Optional": "validate:required", ".Min": "validate:min", ".Max": "validate:max", ".Choices": "validate:oneof"}
 	ormTagSettings = map[string]string{"LongText": "input", ".Label": "label", ".Help": "help", ".Max": "validate:max", ".Min": "validate:min", ".Choices": "validate:oneof"}
 )
 
@@ -973,6 +977,11 @@ func (e *engine) checkTagAttrs() {
 							if kv, ok := el.(*ast.KeyValueExpr); ok {
 								if id, ok := kv.Key.(*ast.Ident); ok && table["."+id.Name] != "" {
 									sets = append(sets, table["."+id.Name])
+								}
+								if id, ok := kv.Key.(*ast.Ident); ok && id.Name == "Msg" && name == "Spec" {
+									for _, r := range slices.Sorted(maps.Keys(msgKeys(kv.Value, 0))) {
+										sets = append(sets, "msg:"+r)
+									}
 								}
 							}
 						}
