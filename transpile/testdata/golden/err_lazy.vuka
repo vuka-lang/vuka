@@ -1,0 +1,25 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+type Panel struct {
+	Title    string
+	Children ui.Node
+}
+
+func (p Panel) Render() ui.Node { return <section>{p.Children}</section> }
+
+type Sheet struct {
+	Show     ui.State[bool]
+	Children ui.Node
+}
+
+func (s Sheet) Render() ui.Node { return <div hidden={!s.Show}>{s.Children}</div> }
+
+func Page() ui.Node {
+	open := ui.State(false)
+	return <main>
+		<Panel lazy title="Orders"><p>orders</p></Panel>
+		<Sheet show={open} lazy="later"><p>products</p></Sheet>
+	</main>
+}
