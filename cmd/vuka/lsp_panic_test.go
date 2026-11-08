@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -46,20 +47,83 @@ func TestSyntaxMidEdit(t *testing.T) {
 	}
 }
 
-// TestRouteFolderTidy: gopls's go.mod complaints about route folders'
-// import paths are dropped; others are kept.
+// TestRouteFolderTidy: gopls's go.mod complaints about the module's route
+// folders' import paths are dropped; others, and the rest of a message that
+// also reports something else, are kept.
 func TestRouteFolderTidy(t *testing.T) {
+	dir := t.TempDir()
+	mod := filepath.Join(dir, "go.mod")
+	os.WriteFile(mod, []byte("module example.com/shop\n\ngo 1.25\n"), 0o644)
 	ds := []any{
-		map[string]any{"message": `example.com/app/pages/(admin): malformed import path "example.com/app/pages/(admin)": invalid char '('`},
-		map[string]any{"message": `malformed import path "example.com/app/pages/orgs/[org]/permits": invalid char '['`},
+		map[string]any{"message": `example.com/shop/pages/(admin): malformed import path "example.com/shop/pages/(admin)": invalid char '('`},
+		map[string]any{"message": `malformed import path "example.com/shop/pages/orders/[order]/items": invalid char '['`},
 		map[string]any{"message": `example.com/x is not used in this module`},
+		map[string]any{"message": `malformed import path "example.com/other/pages/[id]": invalid char '['`},
+		map[string]any{"message": "go: example.com/shop/pages/products/[id]: malformed import path \"example.com/shop/pages/products/[id]\": invalid char '['\ngo: example.com/shop imports\n\texample.org/missing: cannot find module"},
 	}
-	kept, ok := withoutRouteFolderPaths(ds)
-	if !ok || len(kept) != 1 || !strings.Contains(kept[0].(map[string]any)["message"].(string), "not used") {
-		t.Errorf("kept %v", kept)
+	kept, ok := withoutRouteFolderPaths(mod, ds)
+	var msgs []string
+	for _, d := range kept {
+		msgs = append(msgs, d.(map[string]any)["message"].(string))
 	}
-	if _, ok := withoutRouteFolderPaths(ds[2:]); ok {
+	want := []string{`example.com/x is not used in this module`, `malformed import path "example.com/other/pages/[id]": invalid char '['`,
+		"go: example.com/shop imports\n\texample.org/missing: cannot find module"}
+	if !ok || !slices.Equal(msgs, want) {
+		t.Errorf("kept %q", msgs)
+	}
+	if _, ok := withoutRouteFolderPaths(mod, ds[2:4]); ok {
 		t.Error("dropped one about something else")
+	}
+	if _, ok := withoutRouteFolderPaths(filepath.Join(dir, "main.go"), ds); ok {
+		t.Error("dropped one on a file other than go.mod")
+	}
+
+	logged := func(stderr string) json.RawMessage {
+		b, _ := json.Marshal(map[string]any{"type": 1, "message": "2026/11/08 10:00:00 tidy: diagnosing " + pathToURI(mod) + ": err: exit status 1: stderr: " + stderr})
+		return b
+	}
+	route := "go: example.com/shop/pages/products/[id]: malformed import path \"example.com/shop/pages/products/[id]\": invalid char '['\n"
+	if _, drop := withoutRouteTidy(logged(route + "\n")); !drop {
+		t.Error("a tidy run failing only on route folders is still shown")
+	}
+	other := "go: example.com/shop imports\n\texample.org/missing: cannot find module\n"
+	out, drop := withoutRouteTidy(logged(route + other))
+	var got struct{ Message string }
+	json.Unmarshal(out, &got)
+	if drop || strings.Contains(got.Message, "[id]") || !strings.HasSuffix(got.Message, "stderr: "+other) {
+		t.Errorf("mixed failure: drop %v, message %q", drop, got.Message)
+	}
+	for _, params := range []json.RawMessage{logged(other), []byte(`{"type":3,"message":"Finished loading packages."}`)} {
+		if out, drop := withoutRouteTidy(params); drop || string(out) != string(params) {
+			t.Errorf("changed %s: %s", params, out)
+		}
+	}
+}
+
+// TestLSPRouteFolderTidy: in an app with a [param] folder, gopls's failed
+// tidy run never reaches the editor and go.mod has no diagnostic, while a
+// genuine go.mod problem is still reported.
+func TestLSPRouteFolderTidy(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{
+		"main.go":                        "package main\n\nfunc main() {}\n",
+		"pages/products/[id]/product.go": "package id\n\nconst Name = \"product\"\n",
+	})
+	mod := filepath.Join(dir, "go.mod")
+	uri := pathToURI(mod)
+	src, _ := os.ReadFile(mod)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "go.mod", "version": 1, "text": string(src)}})
+	if ds := c.waitDiags(uri, func([]any) bool { return true }); len(ds) != 0 {
+		t.Errorf("go.mod diagnostics: %v", ds)
+	}
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": string(src) + "\nbogus directive\n"}}})
+	c.waitDiagsAt(uri, 2, func(ds []any) bool { return len(ds) > 0 })
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, m := range c.shown {
+		if strings.Contains(m, "malformed import path") {
+			t.Errorf("shown: %s", m)
+		}
 	}
 }
 

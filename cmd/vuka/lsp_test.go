@@ -58,6 +58,7 @@ type lspClient struct {
 	applyEdit func(params json.RawMessage) any
 	log       *syncBuffer // what the proxy and gopls logged; nil for none
 	published []string    // each publication's uri and diagnostics, as received
+	shown     []string    // window/logMessage and showMessage messages, as received
 }
 
 func (c *lspClient) loop() {
@@ -82,6 +83,12 @@ func (c *lspClient) loop() {
 			var p map[string]any
 			_ = json.Unmarshal(m.Params, &p)
 			c.diags <- p
+		case m.Method == "window/logMessage" || m.Method == "window/showMessage":
+			var p struct{ Message string }
+			_ = json.Unmarshal(m.Params, &p)
+			c.mu.Lock()
+			c.shown = append(c.shown, p.Message)
+			c.mu.Unlock()
 		case m.isRequest():
 			var result any
 			if m.Method == "workspace/applyEdit" && c.applyEdit != nil {
