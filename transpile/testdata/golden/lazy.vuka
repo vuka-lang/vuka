@@ -1,0 +1,36 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+// Drawer is a component taking show: its lazy attribute is the tag's.
+type Drawer struct {
+	Show     ui.State[bool]
+	Title    string
+	Children ui.Node
+}
+
+func (d Drawer) Render() ui.Node {
+	return <aside hidden={!d.Show}><h2>{d.Title}</h2>{d.Children}</aside>
+}
+
+func Products() ui.Node {
+	open := ui.State(false)
+	return <main>
+		<Drawer show={open} lazy title="Edit product"><p>editor</p></Drawer>
+		<Drawer show={open} lazy="each" title="Orders">
+			<slot:loading><p>counting…</p></slot:loading>
+			<p>orders</p>
+		</Drawer>
+		<ui.Lazy when={open}><p>details</p></ui.Lazy>
+	</main>
+}
+
+func main() {
+	out, err := ui.String(context.Background(), Products())
+	fmt.Println(out, err)
+}

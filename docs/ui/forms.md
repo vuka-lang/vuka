@@ -856,8 +856,11 @@ func (p *Products) save(ctx context.Context) error {
   (`JS.Set(open, true).Push(Edit)`, `Edit` calling `Load`) runs `Init`
   there, once: the form comes back without the marker, and the runtime
   sends nothing. `<ui.Form for={Form} eager>` runs `Init` at the first
-  render, hidden or not. A page that isn't live runs it at the first
-  render.
+  render, hidden or not. On a page that isn't live the hidden form is a
+  [lazy region](/ui/state#lazy): when the browser first shows it the
+  runtime asks the page for it over HTTP, and the page renders again for
+  that form alone, `Init` run. A form inside a `<ui.Lazy>` runs `Init` as
+  the region's content renders, in the same event or request.
 - **`Clean`, `Clean<Field>` and `<Field>Choices`** declared on the form type
   are the form's, exactly as on `T` or on a form struct (see
   [Declaring a Form](#declaring)): dependencies injected, `forms.Live(ctx)`

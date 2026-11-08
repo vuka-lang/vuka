@@ -52,6 +52,9 @@ type jsxComp struct {
 	unfilled   []string      // the fields tagged vuka:"required" nothing sets
 	elem       bool          // a repeated slot's element: its struct's fields bound like a tag's
 	methods    []*methodProp // a stateful tag's func props set to method values
+	lazy       *jsxAttr      // a lazy attribute no field takes: the children go in a ui.Lazy shown by show (lazyattr.go)
+	lazyShow   *compArg      // the show attribute it follows
+	lazyLoad   *jsxElem      // a <slot:loading> no field takes: the ui.Lazy's Loading
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
@@ -242,10 +245,16 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.inCtx++
 				defer func() { w.inCtx-- }()
 			}
+			if c.lazy != nil {
+				w.lazyOpen(c)
+			}
 			if c.rest != nil {
 				w.piece(c.rest)
 			} else {
 				w.piece(el.kids)
+			}
+			if c.lazy != nil {
+				w.gen("})")
 			}
 			if c.kidsCtx {
 				w.gen(" })")

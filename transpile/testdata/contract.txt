@@ -105,6 +105,8 @@ public github.com/vuka-lang/ui/v2.JSON
 public github.com/vuka-lang/ui/v2.Keep
 public github.com/vuka-lang/ui/v2.Key
 public github.com/vuka-lang/ui/v2.Layout
+public github.com/vuka-lang/ui/v2.Lazy
+public github.com/vuka-lang/ui/v2.LazyProps
 public github.com/vuka-lang/ui/v2.Live
 public github.com/vuka-lang/ui/v2.Load
 public github.com/vuka-lang/ui/v2.Media
