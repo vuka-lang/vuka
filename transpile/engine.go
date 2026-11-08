@@ -196,6 +196,7 @@ func (e *engine) run() {
 			e.resolveStatics(f)
 			e.resolveFieldRefs(f)
 			e.resolveFormFields(f)
+			e.attachForms(f)
 			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
@@ -254,6 +255,7 @@ func (e *engine) run() {
 		e.checkGoTracked()
 		e.checkFormOf()
 		e.checkFormSaves()
+		e.checkFormTypes()
 		e.checkTagAttrs()
 		e.checkStreams()
 	}

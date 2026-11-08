@@ -399,7 +399,7 @@ it, held to the field's checks:
 That holds in every kind of form: a `FormFor[Product]` (`Form.Notes` is its
 `Form.Value.Notes`), a struct embedding `ui.FormState`, and a
 `ui.ModelForm[Product]` through `Form.Value.Notes`. After
-`Form.Load(Product{Notes: Some("fragile")})` the input shows `fragile`;
+`Form.Load(ctx, Product{Notes: Some("fragile")})` the input shows `fragile`;
 submitting it empty gives `None`, and `gift wrap` gives `Some("gift wrap")`.
 
 `model` takes modifiers, which change what the server binds, not only the
@@ -648,11 +648,9 @@ type Products struct {
 @ui.Mount
 func (p *Products) load(ctx context.Context) error {
     if p.ID == 0 {
-        p.Form.Load(Product{})
-        return nil
+        return p.Form.Load(ctx, Product{})
     }
-    p.Form.Load(Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
-    return nil
+    return p.Form.Load(ctx, Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
 }
 
 func (p *Products) save(ctx context.Context) error {
@@ -674,9 +672,11 @@ if Form.IsNew() {
 </ui.Form>
 ```
 
-- `Load(row)` edits that row; `Load(Product{})` starts a new one. The
-  loaded record, its primary key included, stays on the server: the key is
-  never a field.
+- `Load(ctx, row)` edits that row; `Load(ctx, Product{})` starts a new
+  one. The loaded record, its primary key included, stays on the server:
+  the key is never a field. `Load` takes the ctx and returns an error for
+  a [form type's](#formfor-types) `Init`, which it runs; on a plain
+  `FormFor` it returns nil (or the form's declaration error).
 - `Save(ctx)` runs the form's checks when no submit did, copies the form's
   fields onto the record, inserts it when it is new and otherwise updates
   **only the form's fields** (`SaveFields`), so a change another request
@@ -734,6 +734,130 @@ func (p *SignupPage) submit(ctx context.Context, in Signup, users *Users) error 
   search, filters). A model's form that saved itself keeps the saved row.
 - `<Field>Choices(ctx, deps…)`, `Clean` and `Clean<Field>` on `T` are the
   form's, as on a form struct.
+
+### Form Types: a FormFor with Code of Its Own {#formfor-types}
+
+A struct embedding `ui.FormFor[T]` is a **form type**: a form of `T`, as
+the `FormFor` is, with methods of its own. It may be declared in a `.go`
+file or in the page's `<script lang="go">` beside the page's struct —
+like a struct embedding `ui.FormState`, it is data, never the struct the
+markup renders.
+
+```html
+<script lang="go">
+package products
+
+import (
+    "context"
+
+    "github.com/vuka-lang/ui/v2"
+)
+
+type ProductForm struct {
+    ui.FormFor[Product]
+}
+
+// Init runs when the form is created (before its first render) and on
+// every Load.
+func (f *ProductForm) Init(ctx context.Context) error {
+    if f.IsNew() {
+        f.Status = "draft"
+    }
+    return nil
+}
+
+// Clean checks the form as a whole, as T's Clean would.
+func (f *ProductForm) Clean(ctx context.Context) error {
+    if f.Status == "live" && f.Notes.IsNone() {
+        return ui.FieldError(Product.Notes, "A live product needs notes.")
+    }
+    return nil
+}
+
+type Products struct {
+    ui.Live
+    ID   int64
+    Form ProductForm
+}
+
+@ui.Mount
+func (p *Products) load(ctx context.Context) error {
+    if p.ID != 0 {
+        return p.Form.Load(ctx, Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
+    }
+    return nil // a new product: the form's first render runs Init
+}
+
+func (p *Products) save(ctx context.Context) error {
+    return p.Form.Save(ctx)
+}
+</script>
+
+<ui.Form for={Form} onSubmit={save}>
+  <ui.Field for={Form.Name}/>
+  <ui.Field for={Form.Status}/>
+  <ui.Field for={Form.Notes}/>
+</ui.Form>
+```
+
+- **Everything a `FormFor` does, a form type does.** `Load`, `Save` and
+  `IsNew` are promoted through the embedding; `Form.Name` is
+  `Form.Value.Name` in markup and in Go, inside the form type's own
+  methods too (`f.Status` above); `@ui.Fields`, the bound fields, what is
+  required by type, the field attributes and [E0182](/errors/E0182) apply
+  unchanged.
+- **`Init(ctx, deps…) error`** runs when the form is created and on every
+  Load: once for each instance of the form, and the page never calls it.
+  - A new form runs it **just before its first render**: the
+    `<ui.Form for={Form}>` shows what `Init` set on first paint, with no
+    `Load` (`IsNew()` is true). The page's `@ui.Mount` runs before it.
+  - `Load(ctx, row)` makes a new instance: it runs `Init` there, after the
+    row is copied in (so `Init` sees it), and returns its error.
+  - `Form.Reset()`, and a plain form emptied by its successful submit, make
+    a new instance too: the next render runs `Init` again.
+  - A `Save(ctx)` of a form never rendered runs it before the checks.
+  - A change or a submit never runs it: what the visitor typed is never
+    overwritten.
+  - What `Init` sets is the form's starting point: the form is not dirty.
+  - An error from `Init` leaves the form uninitialised: the render fails
+    with it (the page's error), `Save` and `Load` return it, and the next
+    trigger tries again.
+  - Its dependencies are injected, as an event handler's are.
+- **A form the page renders hidden runs `Init` when the browser first shows
+  it.** On a live page, a `<ui.Form for={Form}>` inside an element rendered
+  hidden — a closed `ui.Modal`, `<ui.Show when>` or `show={…}` not holding,
+  the `hidden` attribute, `display: none`, a `<dialog>` without `open`, a
+  popover — renders `data-vk-init` and `aria-busy="true"` instead. When the
+  browser first shows it (the modal opens, the tab is chosen) the runtime
+  sends one `vkinit` event; the server runs `Init` and renders the form
+  again, busy until the reply. A `Load` in the event that shows the form
+  (`JS.Set(open, true).Push(Edit)`, `Edit` calling `Load`) runs `Init`
+  there, once: the form comes back without the marker, and the runtime
+  sends nothing. `<ui.Form for={Form} eager>` runs `Init` at the first
+  render, hidden or not. A page that isn't live runs it at the first
+  render.
+- **`Clean`, `Clean<Field>` and `<Field>Choices`** declared on the form type
+  are the form's, exactly as on `T` or on a form struct (see
+  [Declaring a Form](#declaring)): dependencies injected, `forms.Live(ctx)`
+  for checks run while the visitor types, `ui.FieldError` and
+  `forms.Errorf` for their errors. `Clean` runs after every field's checks,
+  before the submit handler or `Save`'s write, and a failed check stops
+  both. A method of these that `T` declares too is a compile error
+  ([E0185](/errors/E0185)): keep one.
+- **Fields the form type declares itself are not form fields.** They are
+  the page's own state of the form (a mode, a lookup); one named as a field
+  of `T` is a compile error ([E0185](/errors/E0185)), since `Form.Name`
+  names `T`'s.
+- An `Init` that doesn't take a ctx first and return an error, or a Clean
+  method that doesn't return an error, is a compile error
+  ([E0184](/errors/E0184)).
+- Embed the `FormFor` by value, and use it through its form type: a copy of
+  the inner `FormFor` taken out of it is not a form.
+
+Go code using a form type that no page holds — a test, a job — calls
+`ui.Attach(&f)` first, which makes the struct the form its `FormFor`
+belongs to: `ui.Attach(&f).Load(ctx, row)`. In a `.vuka` file the compiler
+writes it at each `Load` and `Save` of a form type.
 
 ### What Is Required {#formfor-required}
 
