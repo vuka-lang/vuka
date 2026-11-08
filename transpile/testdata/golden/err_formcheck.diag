@@ -1,0 +1,26 @@
+error[E0159]: for={j.Form.Emial}: Signup has no field Emial; did you mean Email?
+  --> err_formcheck.vuka:20:26
+   |
+20 |             <fieldset for={j.Form.Emial}><legend/></fieldset>
+   |                                   ^^^^^
+   |
+   = help: write for={…Email}
+
+error[E0159]: form={j.From}: Join has no field From; did you mean Form?
+  --> err_formcheck.vuka:22:19
+   |
+22 |         <button form={j.From}>Save</button>
+   |                         ^^^^
+   |
+   = help: write form={…Form}
+
+error[E0188]: form={j.count} on a <button>: j.count is of type int, not a form
+  --> err_formcheck.vuka:23:11
+   |
+23 |         <button form={j.count}>Count</button>
+   |                 ^^^^
+   |
+   = help: name the form, form={Form} (a struct embedding ui.FormState, or a ui.FormFor), or the id of a form element, form="product-form"
+
+Some errors have detailed explanations: E0159, E0188.
+For more information about an error, try `vuka explain E0159`.

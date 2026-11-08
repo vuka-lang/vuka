@@ -123,6 +123,22 @@ type slotElem struct {
 	unfilled []string
 }
 
+// tagName writes a component tag's name: kept (copied, when it is
+// written out of the source's order), or, for a <form for>, the target's
+// FormElement in the tag's place, so that it resolves as <ui.FormElement>.
+func (w *jsxWriter) tagName(el *jsxElem, tag span, copied bool) {
+	switch {
+	case el.formFor:
+		w.keep(span{tag.start, tag.start})
+		w.gen(w.q + "FormElement")
+		w.keep(span{tag.end, tag.end})
+	case copied:
+		w.copy(tag)
+	default:
+		w.keep(tag)
+	}
+}
+
 func (w *jsxWriter) comp(c *jsxComp) {
 	if c.island {
 		w.island(c)
@@ -132,7 +148,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	tag := span{el.start + 1, el.tagEnd}
 	if !c.resolved {
 		w.gen(q + "Fragment(" + q + "Child(")
-		w.keep(tag)
+		w.tagName(el, tag, false)
 		w.gen("), ")
 		for _, a := range el.attrs {
 			if a.kind == 'e' {
@@ -286,9 +302,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen("&")
 		if c.key != nil {
-			w.copy(tag) // ui.Key(key, &T{…}) writes the key before the tag
+			w.tagName(el, tag, true) // ui.Key(key, &T{…}) writes the key before the tag
 		} else {
-			w.keep(tag)
+			w.tagName(el, tag, false)
 		}
 		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
@@ -299,10 +315,10 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case c.ptrRender:
 			w.gen("(&")
 		}
-		w.keep(tag)
+		w.tagName(el, tag, false)
 		w.gen(c.targText + "{")
 	} else {
-		w.keep(tag)
+		w.tagName(el, tag, false)
 		w.gen("(")
 		if c.ctx != nil {
 			w.gen("ctx, ")
@@ -467,6 +483,9 @@ func (e *engine) compExpr(f *fileState, c *jsxComp) ast.Expr {
 	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrigEnd(el.tagEnd)
 	var expr ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok && el.formFor && expr == nil && f.off(sel.Pos()) == at && sel.Sel.Name == "FormElement" {
+			expr = sel // a <form for>'s: written in the tag's place (comp)
+		}
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
 			switch x.(type) {
 			case *ast.Ident, *ast.SelectorExpr, *ast.IndexExpr, *ast.IndexListExpr:

@@ -52,8 +52,8 @@ github.com/vuka-lang/ui/v2 v2.16.2-0.20261105134038-adc37d03920d h1:5BfnXSONC0ZR
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261105134038-adc37d03920d/go.mod h1:nPG/DLI2hN0NoFDeqj0rGK9qkOkmBRhXfpkNu6HkS4A=
 github.com/vuka-lang/ui/v2 v2.17.0 h1:iQTjwPd8VY/r+F07+xx/n8Bs1jiv8PUEo5ChUUuF3Bo=
 github.com/vuka-lang/ui/v2 v2.17.0/go.mod h1:dEtqh17rdvURnhdB4QNtmwCQlLLRKhv4vcTFOaVR9/k=
-github.com/vuka-lang/ui/v2 v2.17.1-0.20261107180209-aa9f6d59a4c4 h1:zS7oA2L7MQ3xWTho79Xzkndo2aQH5LWb1Hu7fy9ele8=
-github.com/vuka-lang/ui/v2 v2.17.1-0.20261107180209-aa9f6d59a4c4/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261107181706-bfe8e487e980 h1:F8T1m1QcHiE/2IoOGNvzQLA/dA8ag0P4TcDVPoU2QiE=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261107181706-bfe8e487e980/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348 h1:8x1CeJOb6kaNQ3rgCC75M2f3bW4b6zBAbZJXhi0F/KQ=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818 h1:zsu1nUA1Tdw4CAbAMdCFc6WIsu2UusNf/oc5U5qpvBc=
@@ -194,6 +194,8 @@ github.com/vuka-lang/web/v2 v2.16.2-0.20261105134554-b3db7a32b3f4 h1:qKP4Uox7eke
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105134554-b3db7a32b3f4/go.mod h1:W5WH7ADy/l/dcJ75fK0k60NuEe2lEMhaW7yZVOVzoCU=
 github.com/vuka-lang/web/v2 v2.17.0 h1:xEVs8W2wEdiOpi/AZst47ZTIHsC42wAtGehFpuVLrhI=
 github.com/vuka-lang/web/v2 v2.17.0/go.mod h1:y/pqrwt6gQd3WxXySWMuVrMonY3aOKs8koXpTNQe5NM=
+github.com/vuka-lang/web/v2 v2.17.1-0.20261107182730-97a7cd9b4901 h1:PDcxehbJrpFUBhnaWp3o08uyaFHAh9FdvdiRPYuYpVU=
+github.com/vuka-lang/web/v2 v2.17.1-0.20261107182730-97a7cd9b4901/go.mod h1:NGz8oYMNsPi6+hMMc0JeerdvHbqXLJq5AeslG+oO/Q4=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
