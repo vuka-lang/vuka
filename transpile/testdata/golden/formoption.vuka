@@ -47,7 +47,7 @@ func (e *Edit) View() ui.Node {
 
 func main() {
 	e := &Edit{Model: ui.FormOf[Product]("Name")}
-	e.Form.Load(Product{Name: vuka.Some("Kettle")})
+	e.Form.Load(context.Background(), Product{Name: vuka.Some("Kettle")})
 	out, err := ui.String(context.Background(), e.View())
 	fmt.Println(out, err)
 }

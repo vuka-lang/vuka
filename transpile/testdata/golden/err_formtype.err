@@ -1,0 +1,4 @@
+err_formtype.vuka:18:2: ProductForm.Name and Product.Name share a name: a form type's own fields aren't the form's, and Form.Name names Product.Name; rename ProductForm.Name
+err_formtype.vuka:21:23: ProductForm.Init is the form type's Init: it runs when the form is created and on every Load, and takes a ctx (then any dependencies) and returns an error; declare it func (f *ProductForm) Init(ctx context.Context) error
+err_formtype.vuka:23:23: ProductForm.Clean is a form's check: it returns an error, nil when the form passes; declare it func (f *ProductForm) Clean(ctx context.Context) error
+err_formtype.vuka:25:23: ProductForm.CleanName and Product.CleanName: the form type and its Product both declare the form's method CleanName; keep one: the form type's, or Product's

@@ -66,6 +66,7 @@ public github.com/vuka-lang/vuka/v2.TypeAttrs
 public github.com/vuka-lang/vuka/v2.TypeFor
 public github.com/vuka-lang/vuka/v2.Wrap
 
+public github.com/vuka-lang/ui/v2.Attach
 public github.com/vuka-lang/ui/v2.Attr
 public github.com/vuka-lang/ui/v2.Bind
 public github.com/vuka-lang/ui/v2.BindAttr

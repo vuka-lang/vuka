@@ -84,7 +84,7 @@ func TestUIRequiresPseudo(t *testing.T) {
 	mustUI(t, old, "init")
 	mustUI(t, old, "add", "badge")
 	_, err := runUI(t, old, "add", "dialog")
-	if want := "go get github.com/vuka-lang/ui/v2@v2.16.2-0.20261106081042-c2870b7828d7"; err == nil || !strings.Contains(err.Error(), want) {
+	if want := "go get github.com/vuka-lang/ui/v2@v2.17.1-0.20261107182035-d82a0590bd58"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("an older main: %v, want %q", err, want)
 	}
 }

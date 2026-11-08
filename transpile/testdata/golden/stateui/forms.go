@@ -143,16 +143,42 @@ func (f Form) View() Node {
 	return El("form", attrs, f.Children)
 }
 
-// FormFor is a form of a T, its values in Value.
+// FormFor is a form of a T, its values in Value; a form type embedding it
+// has its hooks run once Attach made it the FormFor's form.
 type FormFor[T any] struct {
 	FormState
 	Value T
+	owner any
 }
 
 func (FormFor[T]) vukaFormFor() {}
 
-func (f *FormFor[T]) Load(v T)                       { f.Value = v }
-func (f *FormFor[T]) Save(ctx context.Context) error { return nil }
+func (f *FormFor[T]) setOwner(o any) { f.owner = o }
+
+func (f *FormFor[T]) Load(ctx context.Context, v T) error {
+	f.Value = v
+	if h, ok := f.owner.(interface{ Init(context.Context) error }); ok {
+		return h.Init(ctx)
+	}
+	return nil
+}
+
+func (f *FormFor[T]) Save(ctx context.Context) error {
+	if h, ok := f.owner.(interface{ Clean(context.Context) error }); ok {
+		return h.Clean(ctx)
+	}
+	return nil
+}
+
+func (f *FormFor[T]) IsNew() bool { return true }
+
+// Attach makes form, a form type, its FormFor's form.
+func Attach[F any](form *F) *F {
+	if o, ok := any(form).(interface{ setOwner(any) }); ok {
+		o.setOwner(form)
+	}
+	return form
+}
 
 // The form field attributes.
 type (

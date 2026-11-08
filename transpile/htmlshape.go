@@ -330,7 +330,7 @@ type shapeError struct {
 
 // renderedStruct is which of a template file's structs its markup renders,
 // and the others, the file's helpers: the only struct; else, a form set
-// aside (a struct embedding ui.FormState is data) and type aliases too, the
+// aside (a struct embedding ui.FormState or a ui.FormFor is data) and type aliases too, the
 // only one left; else the one named after the file. name is the file's name,
 // "" when it isn't known.
 func renderedStruct(name string, structs []*ast.TypeSpec, f *ast.File) (*ast.TypeSpec, []string, *shapeError) {
@@ -383,7 +383,7 @@ func twoStructs(name string, structs, named []*ast.TypeSpec) *shapeError {
 	switch {
 	case name == "":
 		e.Msg = "the template file declares " + list + ": a .vuka.html file renders one struct"
-		e.Help = "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)"
+		e.Help = "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState or a ui.FormFor, may stay)"
 	case len(named) > 1:
 		second = named[1]
 		e.Msg = "the template file declares " + named[0].Name.Name + " and " + second.Name.Name + ", and both are named after " + fileBase(name) + ": it renders the one struct named after it"
@@ -989,21 +989,29 @@ func (s *Shape) hasRole(r FieldRole) bool {
 // States until the engine knows which package that is.
 const statesCall = "vukaStates__"
 
-// embedsFormState reports whether st embeds ui.FormState (the ui package
-// by its import in f, or FormState unqualified, as the ui package's own
-// files write it).
+// embedsFormState reports whether st embeds ui.FormState or a
+// ui.FormFor[T] — a form, data — (the ui package by its import in f, or
+// the names unqualified, as the ui package's own files write them).
 func embedsFormState(st *ast.StructType, f *ast.File) bool {
 	for _, fl := range st.Fields.List {
 		if len(fl.Names) > 0 {
 			continue
 		}
-		switch t := fl.Type.(type) {
+		t, generic := fl.Type, false
+		if ix, ok := t.(*ast.IndexExpr); ok {
+			t, generic = ix.X, true
+		}
+		name := "FormState"
+		if generic {
+			name = "FormFor"
+		}
+		switch t := t.(type) {
 		case *ast.Ident:
-			if t.Name == "FormState" {
+			if t.Name == name {
 				return true
 			}
 		case *ast.SelectorExpr:
-			if x, ok := t.X.(*ast.Ident); ok && t.Sel.Name == "FormState" && importsUIAs(f, x.Name) {
+			if x, ok := t.X.(*ast.Ident); ok && t.Sel.Name == name && importsUIAs(f, x.Name) {
 				return true
 			}
 		}
