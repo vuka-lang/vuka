@@ -110,6 +110,8 @@ public github.com/vuka-lang/ui/v2.Media
 public github.com/vuka-lang/ui/v2.Model
 public github.com/vuka-lang/ui/v2.ModelForm
 public github.com/vuka-lang/ui/v2.ModelID
+public github.com/vuka-lang/ui/v2.ModelLabel
+public github.com/vuka-lang/ui/v2.FieldsetAttrs
 public github.com/vuka-lang/ui/v2.ModelOptions
 public github.com/vuka-lang/ui/v2.ModelSelected
 public github.com/vuka-lang/ui/v2.ModelSpec
