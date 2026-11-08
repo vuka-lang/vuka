@@ -23,7 +23,7 @@ import (
 
 func main() {
 	p := &Edit{Model: ui.FormOf[Product]("Name", "Notes")}
-	p.Form.Load(Product{Name: "Kettle", Notes: vuka.Some("fragile")})
+	p.Form.Load(context.Background(), Product{Name: "Kettle", Notes: vuka.Some("fragile")})
 	p.Order.Note = vuka.Some("gift wrap")
 	p.Model.Load(Product{Name: "Lamp", Notes: vuka.Some("brass")})
 	s, err := ui.String(context.Background(), p)

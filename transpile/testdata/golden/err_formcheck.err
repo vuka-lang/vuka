@@ -1,0 +1,3 @@
+err_formcheck.vuka:20:26: for={j.Form.Emial}: Signup has no field Emial; did you mean Email?; write for={…Email}
+err_formcheck.vuka:22:19: form={j.From}: Join has no field From; did you mean Form?; write form={…Form}
+err_formcheck.vuka:23:11: form={j.count} on a <button>: j.count is of type int, not a form; name the form, form={Form} (a struct embedding ui.FormState, or a ui.FormFor), or the id of a form element, form="product-form"

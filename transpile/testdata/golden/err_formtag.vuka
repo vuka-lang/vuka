@@ -1,0 +1,28 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+type Signup struct {
+	ui.FormState
+	Email string
+	Owner int
+}
+
+type Join struct {
+	Form  Signup
+	count int
+}
+
+func (j *Join) Plain() ui.Node {
+	return <form for="signup"></form>
+}
+
+func (j *Join) Spread(attrs []ui.Attr) ui.Node {
+	return <form for={j.Form} {attrs...}></form>
+}
+
+func (j *Join) Hidden() ui.Node {
+	return <form for={j.Form}><input type="hidden" model={j.Form.Owner}/></form>
+}
+
+func main() {}

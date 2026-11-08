@@ -63,6 +63,12 @@ func Model(spec ModelSpec, field any, outer ...any) []Attr {
 
 func ModelID(field any, outer ...any) any { return "id:" + path(field, outer) }
 
+func ModelLabel(field any, outer ...any) Node { return Child("label of " + path(field, outer)) }
+
+func FieldsetAttrs(field any, outer ...any) []Attr {
+	return []Attr{{Name: "data-fieldset", Value: path(field, outer)}}
+}
+
 func ModelText(field any, outer ...any) string {
 	return fmt.Sprint(reflect.ValueOf(field).Elem().Interface())
 }
@@ -98,14 +104,32 @@ func (f Field) Render(ctx context.Context, w io.Writer) error { return f.View().
 
 // Form takes a key, as a form's identity, and its handlers.
 type Form struct {
-	For       any
-	Key       any
-	OnSubmit  any
-	OnChange  any
-	NoSummary bool
-	Bound     []string
-	Children  Node
+	For          any
+	Key          any
+	OnSubmit     any
+	OnChange     any
+	NoSummary    bool
+	Bound        []string
+	ID           string
+	Class        string
+	Validate     string
+	Keep         bool
+	Eager        bool
+	ConfirmLeave bool
+	Attrs        []Attr
+	Children     Node
 }
+
+// FormElement is what a <form for={…}> is: Form, its class the page's.
+type FormElement Form
+
+func (f FormElement) View() Node {
+	attrs := []Attr{{Name: "data-element", Value: true}, {Name: "class", Value: f.Class}, {Name: "data-validate", Value: f.Validate}, {Name: "data-keep", Value: f.Keep}}
+	attrs = append(attrs, f.Attrs...)
+	return El("div", attrs, Form(f).View())
+}
+
+func (f FormElement) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
 
 func (f Form) View() Node {
 	attrs := []Attr{{Name: "data-for", Value: fmt.Sprint(f.For)}, {Name: "data-key", Value: fmt.Sprint(f.Key)}}

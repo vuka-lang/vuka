@@ -1,0 +1,55 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Address struct {
+	Street string
+	City   string
+}
+
+type Order struct {
+	ui.FormState
+	Name    string
+	Plan    string
+	Address Address
+}
+
+type Checkout struct {
+	Form Order
+	ID   int
+	id   string
+}
+
+func (c *Checkout) View() ui.Node {
+	return <main>
+		<form for={c.Form} key={c.ID} id="order-form" class="space-y-4" validate="submit" keep>
+			<label for={c.Form.Name}/>
+			<label for={c.Form.Name}>Your name</label>
+			<input model={c.Form.Name} class="input"/>
+			<fieldset for={c.Form.Plan}>
+				<legend/>
+				<input type="radio" model={c.Form.Plan} value="free"/>
+			</fieldset>
+			<fieldset for={c.Form.Address}>
+				<legend></legend>
+				<label for={Street}/>
+				<input model={Street}/>
+				<ui.Field for={City}/>
+				<input model={c.Form.Address.City}/>
+			</fieldset>
+		</form>
+		<button form={c.Form}>Save</button>
+		<button form={c.id}>Other</button>
+	</main>
+}
+
+func main() {
+	c := &Checkout{ID: 3, id: "other"}
+	out, err := ui.String(context.Background(), c.View())
+	fmt.Println(out, err)
+}
