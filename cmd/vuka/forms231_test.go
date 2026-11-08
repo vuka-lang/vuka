@@ -93,7 +93,7 @@ func TestForms231(t *testing.T) {
 	for _, want := range []string{
 		`<form class="vk-form" method="post" id="signup" novalidate data-vk-form="signup"`, `autocomplete="off"`, `data-shop="join"`, `aria-label="Join"`,
 		`<div class="app-field"><label class="app-label" for="signup-email">Email</label>`,
-		`<input name="email" id="signup-email" type="email" value="" autocomplete="email" class="app-input">`,
+		`<input name="email" id="signup-email" type="email" value="" autocomplete="email" aria-required="true" class="app-input">`,
 		`<div class="app-field" data-x="1"><label class="app-label" for="signup-name">Name</label>`,
 		`name="name" id="signup-name"`, `data-kind="primary"`, `value="email,name.`,
 	} {
