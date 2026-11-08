@@ -1,0 +1,17 @@
+error[E0195]: <NameBox model={p.Form.Name}>: its Value is of type int, and p.Form.Name of type string
+  --> err_widget.vuka:61:19
+   |
+61 |         <NameBox model={p.Form.Name}/>
+   |                         ^^^^^^^^^^^
+   |
+   = help: make the widget's Value a string, or give model a field of type int
+
+error[E0195]: <Picker model={p.Form.Main}>: its Choices' Row is of type Item, and the rows of p.Form.Main are Category
+  --> err_widget.vuka:63:18
+   |
+63 |         <Picker model={p.Form.Main}/>
+   |                        ^^^^^^^^^^^
+   |
+   = help: make the widget's Choices a []widget.Choice[Category]
+
+For more information about this error, try `vuka explain E0195`.

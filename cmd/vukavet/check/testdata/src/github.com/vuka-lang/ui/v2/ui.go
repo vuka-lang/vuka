@@ -122,3 +122,12 @@ type Variants struct {
 }
 
 func (v Variants) Class(pairs ...string) string { return "" }
+
+// The form components package widget holds now, by their former names.
+type (
+	Field    struct{ For any }
+	Error    struct{ For any }
+	Summary  struct{}
+	Fieldset struct{ Legend string }
+	Choices  struct{ For any }
+)

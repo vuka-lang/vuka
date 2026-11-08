@@ -104,6 +104,7 @@ export default defineConfig({
           { text: 'Live Pages', link: '/web/live' },
           { text: 'Streams', link: '/web/streams' },
           { text: 'Forms', link: '/ui/forms' },
+          { text: 'Widgets', link: '/ui/widgets' },
           { text: 'GraphQL', link: '/web/graphql' },
           { text: 'Events', link: '/ui/events' },
           { text: 'Client State', link: '/ui/state' },
