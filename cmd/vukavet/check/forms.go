@@ -1,6 +1,7 @@
 package check
 
 import (
+	"go/ast"
 	"go/types"
 	"reflect"
 	"sort"
@@ -33,6 +34,7 @@ func init() {
 }
 
 func runForms(pass *analysis.Pass) (any, error) {
+	formerNames(pass)
 	scope := pass.Pkg.Scope()
 	for _, name := range scope.Names() {
 		tn, ok := scope.Lookup(name).(*types.TypeName)
@@ -243,4 +245,32 @@ func skippedAttrs(t types.Type, tag reflect.StructTag) []skipped {
 		}
 	}
 	return out
+}
+
+// movedToWidget are the form components package widget holds now, by
+// their former names in package ui.
+var movedToWidget = map[string]bool{"Field": true, "Error": true, "Summary": true, "Fieldset": true, "Choices": true}
+
+// formerNames notes each use of a form component by its former name,
+// ui.Field for widget.Field (W0320): the same component, its ui name kept
+// for compatibility.
+func formerNames(pass *analysis.Pass) {
+	if p := pass.Pkg.Path(); p == uiPath || strings.HasPrefix(p, uiPath+"/") {
+		return
+	}
+	for _, file := range pass.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			tn, ok := pass.TypesInfo.Uses[sel.Sel].(*types.TypeName)
+			if !ok || tn.Pkg() == nil || tn.Pkg().Path() != uiPath || !movedToWidget[tn.Name()] {
+				return true
+			}
+			report(pass, sel, "W0320", "write widget."+tn.Name()+", importing github.com/vuka-lang/ui/v2/widget",
+				"ui.%s is widget.%[1]s now: a form's components come from package widget", tn.Name())
+			return true
+		})
+	}
 }
