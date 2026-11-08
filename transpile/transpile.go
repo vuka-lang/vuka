@@ -270,15 +270,17 @@ type fileState struct {
 	susBindings map[int]*jsxElem
 	partStmts   map[int]bool // statements binding a deferred method inside a <ui.Suspense>, by offset (parts.go)
 	susWarnings ErrorList
-	ambigWarns  ErrorList  // markup calls both fits compile for (W0108, implicit.go)
-	attrWarns   ErrorList  // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
-	pushWarns   ErrorList  // pushes losing their writes, reads that write (W0113, W0114, push.go)
-	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)
-	awaitDone   bool       // its <ui.Await>s are checked (await.go)
-	rt          string     // the name the runtime is imported as; "" until needed
-	target      *jsxTarget // what its JSX lowers to; nil until its first JSX
-	scope       string     // the scope id of the declaration being scanned (Options.Scopes)
-	declOff     int        // the top-level declaration being scanned: where it starts
+	ambigWarns  ErrorList    // markup calls both fits compile for (W0108, implicit.go)
+	attrWarns   ErrorList    // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
+	pushWarns   ErrorList    // pushes losing their writes, reads that write (W0113, W0114, push.go)
+	hiddenWarns ErrorList    // model on an <input type="hidden"> (W0115, forms.go)
+	hiddenSeen  map[int]bool // the offsets hiddenWarns holds, so a second parse adds none
+	susChecked  bool         // its <ui.Suspense>s are checked (suspense.go)
+	awaitDone   bool         // its <ui.Await>s are checked (await.go)
+	rt          string       // the name the runtime is imported as; "" until needed
+	target      *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope       string       // the scope id of the declaration being scanned (Options.Scopes)
+	declOff     int          // the top-level declaration being scanned: where it starts
 	eng         *engine
 	pkgEnd      int // offset just after the package clause's name
 	dotImps     bool
