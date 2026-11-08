@@ -913,39 +913,112 @@ type Products struct {
 
 ### Field Attributes {#field-attributes}
 
-A field's attributes are the typed form of its tags; a form reads them
-(`field.Describer`) whatever library declares them. The same setting in a
-tag and an attribute is a compile error ([E0183](/errors/E0183)): each has
-one source.
+A model holds a field's data rules; a form holds how the field is shown
+and what its messages say. Both are the field's attributes, which a form
+reads (`field.Describer`) whatever library declares them.
 
-| ui attribute | Tag | |
+**`@ui.Spec{…}`** gives a field's details in one attribute, a struct
+literal like `@orm.Char{…}`:
+
+```vuka
+type Product struct {
+    orm.Base
+    ID   int64          @orm.PK
+    Name Option[string] @orm.Char{Max: 100, Unique: true, IgnoreCase: true, Trim: true} @ui.Spec{
+        Placeholder: "e.g. Blue mug",
+        Msg:         ui.Msgs{"unique": "A product with this name already exists."},
+    }
+}
+```
+
+| `ui.Spec` member | |
+|---|---|
+| `Label`, `Help`, `Placeholder` | the label (the field's name in words otherwise), the hint, an example value |
+| `Widget` | the control: `"textarea"`, `"radio"`, `"password"`, `"email"`, `"date"`, … |
+| `Autocomplete` | the autocomplete token |
+| `Required: "…"` | the message of a required field; it also makes an optional one required |
+| `Optional: true` | makes a field its type or model requires optional |
+| `Min`, `Max` | a text's length, a number's value: may only tighten the model's |
+| `Choices` | the values it takes: may only narrow the model's, whose labels stay |
+| `Msg: ui.Msgs{rule: "…"}` | a rule's own message: `required`, `min`, `max`, `len`, `pattern`, `oneof`, `choice`, `email`, `unique`, `number`, `whole`, `format`, `digits`, `file` |
+| `Disabled`, `ReadOnly` | the value shown, not edited: a submit never sets it |
+
+A key the struct hasn't is Go's own compile error; a `Msg` key that is no
+rule (with the one it most likely meant), an empty `Required`, `Required`
+beside `Optional`, a `Max` above or a `Min` below the model's, and
+`Choices` the model hasn't are [E0189](/errors/E0189).
+
+The single attributes are shorthand for one member each; one setting given
+by a `Spec` and a single attribute, or by a tag and an attribute, is
+[E0183](/errors/E0183):
+
+| ui attribute | `ui.Spec` member | Tag |
 |---|---|---|
-| `@ui.Label("…")` | `label:` | the label; the field's name in words otherwise |
-| `@ui.Help("…")` | `help:` | the hint |
-| `@ui.Placeholder("…")` | `placeholder:` | an example value |
-| `@ui.Widget("radio")` | `input:` | the control: `textarea`, `radio`, `password`, `email`, `date`, … |
-| `@ui.Autocomplete("…")` | `autocomplete:` | the autocomplete token |
-| `@ui.Msg("max", "…")` | `msg:` | a rule's own message |
-| `@ui.Required`, `@ui.Required("…")` | `validate:"required"` | required, with its message |
-| `@ui.Min(n)`, `@ui.Max(n)` | `validate:"min=n"` | a text's length, a number's value |
-| `@ui.Email`, `@ui.Email("…")` | `validate:"email"` | an email address |
-| `@ui.Pattern("…")` | | a regular expression the whole value matches |
-| `@ui.OneOf("a", "b")` | `validate:"oneof=a b"` | the values it takes: a select (radios with `@ui.Widget("radio")`) |
+| `@ui.Label("…")` | `Label` | `label:` |
+| `@ui.Help("…")` | `Help` | `help:` |
+| `@ui.Placeholder("…")` | `Placeholder` | `placeholder:` |
+| `@ui.Widget("radio")` | `Widget` | `input:` |
+| `@ui.Autocomplete("…")` | `Autocomplete` | `autocomplete:` |
+| `@ui.Msg("max", "…")` | `Msg` | `msg:` |
+| `@ui.Required`, `@ui.Required("…")` | `Required` | `validate:"required"` |
+| `@ui.Min(n)`, `@ui.Max(n)` | `Min`, `Max` | `validate:"min=n"` |
+| `@ui.OneOf("a", "b")` | `Choices` | `validate:"oneof=a b"` |
+| `@ui.Email`, `@ui.Email("…")` | | `validate:"email"` |
+| `@ui.Pattern("…")` | | |
 | `@ui.Fields(T.A, T.B)` | | on a `FormFor` field: the fields it edits |
+
+#### On the Form: `ui.Meta` {#field-meta}
+
+A form type (a struct embedding `ui.FormFor[T]`) says how *its* form shows
+T's fields: a member of type `ui.Meta` describes T's field of the same
+name, with the attributes written after it. Different forms of one model
+word the same field their own way, and the model keeps only its data
+rules:
+
+```vuka
+type ProductForm struct {
+    ui.FormFor[Product]
+
+    Name ui.Meta @ui.Spec{
+        Required:    "Name is required.",
+        Placeholder: "e.g. Blue mug",
+        Msg:         ui.Msgs{"unique": "A product with this name already exists."},
+    }
+    Notes ui.Meta @ui.Widget("textarea")
+}
+```
+
+`ui.Meta` holds nothing: it is not the form's field, `Form.Name` is still
+`Form.Value.Name`, and T's field must exist — a `ui.Meta` naming no field
+of T, or in a struct that is no form type, is [E0190](/errors/E0190).
+
+#### What the Model Implies {#field-orm}
+
+A form takes the rest from the model's `@orm` attributes. What applies,
+first to last, a later one's setting winning: what `@orm` implies, the
+model's `@ui` attributes, then the form's (`ui.Meta`) — whatever order they
+are written in.
 
 | orm attribute or type | In a form |
 |---|---|
 | a plain field type | required |
-| `Option[T]`, `@orm.Null` | optional; empty is `None` |
-| `@orm.Char{Max, Min}`, `@orm.Int{Min, Max}` | length and range rules |
-| `Pattern` | a pattern rule |
-| `Trim`, `Lower` | normalized as it is bound |
-| `Choices` | a select's options |
-| `@orm.LongText` | a textarea |
+| `Option[T]`, `Null` (`@orm.Null`, `Rel{Null: true}`) | optional; empty is `None` |
+| `Max`, `Min` (`Char`, `Slug`, `Int`) | length and range rules, messages from the label; a numeric text's `maxlength` |
+| `Unique`, `IgnoreCase` (`Char`, `Slug`, `Int`, `DateField`, `Datetime`, `@orm.Unique`) | a database check on submit (`field.Checker`), the record's own row left out |
+| `Choices` | a select's options (radios with `Widget: "radio"`), the `oneof` rule |
+| `Pattern` | a pattern rule, on the server |
+| `Trim`, `Lower` | the text normalized as it is bound, before the checks |
 | `Label`, `Help` | the label and the hint |
-| `@orm.PK`, `AutoNow`, `AutoNowAdd` | never form fields |
+| `Default`, `@orm.DefaultTo(v)` | a new record's starting value, set before `Init` (not a change) |
+| `@orm.LongText` | a textarea, no length limit |
+| `@orm.PK`, `AutoNow`, `AutoNowAdd`, `DefaultNow` | never form fields |
+| `Column`, `Index`, `Collation`, `Comment` | nothing |
 | an attribute with `Validate(v) error` | a check of the field |
-| `@orm.Char{Unique: true}` | a database check on submit (`field.Checker`), the record's own row left out |
+
+The default messages are built from the field's label — "Name must be 100
+characters or less", "Enter name", "Name is already taken" — so most
+fields need no `Msg` at all; an app's own wording or translations replace
+them through the [message catalogue](#messages).
 
 ## Choices {#choices}
 

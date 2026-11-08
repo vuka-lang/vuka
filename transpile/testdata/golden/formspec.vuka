@@ -1,0 +1,52 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"vukatest.local/orm"
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	orm.Base
+	Name   string @orm.Char{Max: 100, Unique: true} @ui.Spec{Placeholder: "e.g. Blue mug"}
+	Status string @orm.Char{Choices: []string{"draft", "live", "gone"}}
+	Note   string
+}
+
+func (p *Product) Save(ctx context.Context) error                     { return nil }
+func (p *Product) SaveFields(ctx context.Context, fields ...any) error { return nil }
+
+// ProductForm words Product's fields its own way: ui.Meta members.
+type ProductForm struct {
+	ui.FormFor[Product]
+
+	Name ui.Meta @ui.Spec{
+		Required: "Name is required.",
+		Max:      60,
+		Msg:      ui.Msgs{"unique": "A product with this name already exists."},
+	}
+	Status ui.Meta @ui.Spec{Choices: []string{"draft", "live"}, Widget: "radio"}
+	Note   ui.Meta @ui.Placeholder("For the courier")
+}
+
+type Products struct {
+	Form ProductForm
+}
+
+func (p *Products) View() ui.Node {
+	return <ui.Form for={p.Form}>
+		<ui.Field for={p.Form.Name}/>
+		<input model={p.Form.Status}/>
+	</ui.Form>
+}
+
+func main() {
+	ctx := context.Background()
+	p := &Products{}
+	p.Form.Name = "Kettle"
+	fmt.Println(p.Form.Value.Name, p.Form.Save(ctx))
+	out, err := ui.String(ctx, p.View())
+	fmt.Println(out, err)
+}

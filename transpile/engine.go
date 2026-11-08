@@ -257,6 +257,7 @@ func (e *engine) run() {
 		e.checkFormSaves()
 		e.checkFormTypes()
 		e.checkTagAttrs()
+		e.checkFieldSpecs()
 		e.checkStreams()
 	}
 	if len(*e.errs) == 0 && e.info != nil {

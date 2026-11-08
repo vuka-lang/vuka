@@ -110,6 +110,7 @@ public github.com/vuka-lang/ui/v2.LazyProps
 public github.com/vuka-lang/ui/v2.Live
 public github.com/vuka-lang/ui/v2.Load
 public github.com/vuka-lang/ui/v2.Media
+public github.com/vuka-lang/ui/v2.Meta
 public github.com/vuka-lang/ui/v2.Model
 public github.com/vuka-lang/ui/v2.ModelForm
 public github.com/vuka-lang/ui/v2.ModelID
@@ -119,6 +120,7 @@ public github.com/vuka-lang/ui/v2.ModelOptions
 public github.com/vuka-lang/ui/v2.ModelSelected
 public github.com/vuka-lang/ui/v2.ModelSpec
 public github.com/vuka-lang/ui/v2.ModelText
+public github.com/vuka-lang/ui/v2.Msgs
 public github.com/vuka-lang/ui/v2.Mount
 public github.com/vuka-lang/ui/v2.Must
 public github.com/vuka-lang/ui/v2.Node
@@ -126,6 +128,7 @@ public github.com/vuka-lang/ui/v2.Notify
 public github.com/vuka-lang/ui/v2.On
 public github.com/vuka-lang/ui/v2.Once
 public github.com/vuka-lang/ui/v2.PageLayout
+public github.com/vuka-lang/ui/v2.Placeholder
 public github.com/vuka-lang/ui/v2.Part
 public github.com/vuka-lang/ui/v2.PartFallback
 public github.com/vuka-lang/ui/v2.Props
@@ -136,6 +139,7 @@ public github.com/vuka-lang/ui/v2.Shared
 public github.com/vuka-lang/ui/v2.Show
 public github.com/vuka-lang/ui/v2.ShowProps
 public github.com/vuka-lang/ui/v2.Slot
+public github.com/vuka-lang/ui/v2.Spec
 public github.com/vuka-lang/ui/v2.State
 public github.com/vuka-lang/ui/v2.StateProp
 public github.com/vuka-lang/ui/v2.States

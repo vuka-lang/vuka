@@ -1,0 +1,27 @@
+package main
+
+import (
+	"vukatest.local/orm"
+	ui "vukatest.local/stateui"
+)
+
+type Product struct {
+	orm.Base
+	Name   string @orm.Char{Max: 100, Min: 2, Unique: true} @ui.Spec{Required: "", Msg: ui.Msgs{"uniq": "Taken"}}
+	Status string @orm.Char{Choices: []string{"draft", "live"}} @ui.Spec{Required: "Pick one", Optional: true}
+	Code   string `label:"SKU"` @ui.Spec{Label: "Code", Max: 20} @ui.Max(10)
+	Note   string @ui.Placeholder("e.g. Fragile") @ui.Spec{Placeholder: "Handle with care", Msg: ui.Msgs{"max": "Too long"}} @ui.Msg("max", "Shorter")
+}
+
+type ProductForm struct {
+	ui.FormFor[Product]
+	Name   ui.Meta @ui.Spec{Max: 120, Min: 1}
+	Status ui.Meta @ui.Spec{Choices: []string{"draft", "gone"}}
+	Nmae   ui.Meta
+}
+
+type Stray struct {
+	Name ui.Meta
+}
+
+func main() {}

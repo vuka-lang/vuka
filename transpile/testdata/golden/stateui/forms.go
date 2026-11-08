@@ -182,9 +182,30 @@ func Attach[F any](form *F) *F {
 
 // The form field attributes.
 type (
-	Label string
-	Max   float64
+	Label       string
+	Max         float64
+	Min         float64
+	Placeholder string
+	Required    string
+	Msgs        map[string]string
+	// Meta is a form type's member describing T's field of its name.
+	Meta struct{}
+	// Spec is a field's details in one attribute.
+	Spec struct {
+		Label, Help, Placeholder string
+		Widget                   any
+		Autocomplete             string
+		Required                 string
+		Optional                 bool
+		Min, Max                 int
+		Choices                  []string
+		Msg                      Msgs
+		Disabled, ReadOnly       bool
+	}
+	MsgAttr struct{ Rule, Text string }
 )
+
+func Msg(rule, text string) MsgAttr { return MsgAttr{rule, text} }
 
 func (f Form) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
 
