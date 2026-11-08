@@ -291,7 +291,7 @@ What each tag does with a field:
 | `<fieldset for={Form.Plan}>` | a field with choices: its radios take the fieldset's legend, the fieldset carries the field's error state and the `aria-describedby` of its hint and error |
 | `<legend/>` | empty, in a `<fieldset for>`: the field's label, as an empty `<label for/>` |
 | `<button form={Form}>`, `<input form={Form}>` | a control outside the form (a modal's footer, a toolbar) that belongs to it: `form` is the form element's id. A submit button attached so is busy while its submit is on its way, as one inside |
-| `<input type="hidden" model>` | a compile error ([E0187](/errors/E0187)): an id or an owner comes from the route or the session, and the field is `form:"-"` |
+| `<input type="hidden" model>` | a warning ([W0115](/errors/W0115)): the browser can send any value back, so an id or an owner comes from the route or the session (`form:"-"`) and an upload is a `ui.File`; a value the page's own script writes is fine |
 
 While a submit is on its way, the button that sent it has `aria-busy` and
 `data-vk-busy` (style it with `[data-vk-busy]`), and the form's other

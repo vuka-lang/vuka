@@ -96,7 +96,7 @@ same page in the terminal.
 | [E0184](./E0184) | A form type method of the wrong shape |
 | [E0185](./E0185) | A form type and its T sharing a field or a method |
 | [E0186](./E0186) | A plain form tag's for= that names no form or field |
-| [E0187](./E0187) | model on a hidden input |
+| [E0187](./E0187) | model on a hidden input (now the warning W0115) |
 | [E0188](./E0188) | form= on a control naming a value that isn't a form |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
@@ -111,6 +111,7 @@ same page in the terminal.
 | [W0112](./W0112) | An on… handler in templ.Attributes binds no event |
 | [W0113](./W0113) | A pushed method assigning the fields of a page that is not live |
 | [W0114](./W0114) | A read naming a method that writes |
+| [W0115](./W0115) | model on a hidden input |
 
 ## Decorators and attributes
 
