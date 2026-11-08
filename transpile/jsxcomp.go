@@ -428,6 +428,7 @@ func (e *engine) lowerJSX(f *fileState) {
 		}
 		if all && e.bindTree(f, t) && e.bindComps(f, t) && !pendingWrites(f, t) && e.checkFallbacks(f, t) {
 			e.checkModels(f, t)
+			e.checkWidgets(f, t)
 			e.boundFields(f, t)
 			for _, c := range t.comps {
 				e.findMethodProps(f, c)

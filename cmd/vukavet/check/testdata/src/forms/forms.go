@@ -5,6 +5,7 @@ import (
 
 	"github.com/vuka-lang/orm/v2"
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/ui/v2/widget"
 )
 
 type Address struct {
@@ -51,3 +52,11 @@ type Profile struct {
 type NotAForm struct{ Name string }
 
 func (n *NotAForm) CleanNothing() error { return nil }
+
+// The form components by their former names in ui, and by widget's.
+var (
+	_ = ui.Field{}   // want `W0320: ui.Field is widget.Field now: a form's components come from package widget`
+	_ = []ui.Error{} // want `W0320: ui.Error is widget.Error now`
+	_ = widget.Error{}
+	_ = widget.Summary{}
+)

@@ -1,0 +1,67 @@
+package main
+
+import (
+	"context"
+	"io"
+
+	"github.com/vuka-lang/vuka/v2"
+	ui "vukatest.local/stateui"
+)
+
+type Category struct{ ID int64 }
+
+// Ref refers to a Category, as an orm.FK does.
+type Ref struct{ row *Category }
+
+func (r Ref) Related() *Category { return r.row }
+
+type Item struct {
+	ui.FormState
+	Name string
+	Main Ref
+	Note vuka.Option[string]
+}
+
+type Choice[T any] struct {
+	Value, Label string
+	Row          T
+}
+
+type NameBox struct {
+	Model ui.FieldRef
+	Value int
+}
+
+func (b NameBox) Render(ctx context.Context, w io.Writer) error { return b.View().Render(ctx, w) }
+
+func (b NameBox) View() ui.Node { return <input model={b.Model}/> }
+
+type NoteBox struct {
+	Model ui.FieldRef
+	Value string
+}
+
+func (b NoteBox) Render(ctx context.Context, w io.Writer) error { return b.View().Render(ctx, w) }
+
+func (b NoteBox) View() ui.Node { return <input model={b.Model}/> }
+
+type Picker struct {
+	Model   ui.FieldRef
+	Choices []Choice[Item]
+}
+
+func (p Picker) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }
+
+func (p Picker) View() ui.Node { return <div></div> }
+
+type Page struct{ Form Item }
+
+func (p *Page) View() ui.Node {
+	return <ui.Form for={p.Form}>
+		<NameBox model={p.Form.Name}/>
+		<NoteBox model={p.Form.Note}/>
+		<Picker model={p.Form.Main}/>
+	</ui.Form>
+}
+
+func main() {}
