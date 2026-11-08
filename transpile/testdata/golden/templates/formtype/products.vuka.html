@@ -1,0 +1,34 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+// ProductForm, a form type beside the page's struct, is data: the markup
+// renders Products.
+type ProductForm struct {
+	ui.FormFor[Product]
+}
+
+func (f *ProductForm) Init(ctx context.Context) error {
+	f.Price = 10
+	return nil
+}
+
+type Products struct {
+	ui.Live
+	Form ProductForm
+}
+
+func (p *Products) edit(ctx context.Context) error {
+	return p.Form.Load(ctx, Product{Name: "Kettle"})
+}
+</script>
+
+<ui.Form for={Form}>
+  <ui.Field for={Form.Name}/>
+  <input model={Form.Price}/>
+</ui.Form>

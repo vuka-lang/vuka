@@ -63,6 +63,12 @@ func Model(spec ModelSpec, field any, outer ...any) []Attr {
 
 func ModelID(field any, outer ...any) any { return "id:" + path(field, outer) }
 
+func ModelLabel(field any, outer ...any) Node { return Child("label of " + path(field, outer)) }
+
+func FieldsetAttrs(field any, outer ...any) []Attr {
+	return []Attr{{Name: "data-fieldset", Value: path(field, outer)}}
+}
+
 func ModelText(field any, outer ...any) string {
 	return fmt.Sprint(reflect.ValueOf(field).Elem().Interface())
 }
@@ -98,14 +104,32 @@ func (f Field) Render(ctx context.Context, w io.Writer) error { return f.View().
 
 // Form takes a key, as a form's identity, and its handlers.
 type Form struct {
-	For       any
-	Key       any
-	OnSubmit  any
-	OnChange  any
-	NoSummary bool
-	Bound     []string
-	Children  Node
+	For          any
+	Key          any
+	OnSubmit     any
+	OnChange     any
+	NoSummary    bool
+	Bound        []string
+	ID           string
+	Class        string
+	Validate     string
+	Keep         bool
+	Eager        bool
+	ConfirmLeave bool
+	Attrs        []Attr
+	Children     Node
 }
+
+// FormElement is what a <form for={…}> is: Form, its class the page's.
+type FormElement Form
+
+func (f FormElement) View() Node {
+	attrs := []Attr{{Name: "data-element", Value: true}, {Name: "class", Value: f.Class}, {Name: "data-validate", Value: f.Validate}, {Name: "data-keep", Value: f.Keep}}
+	attrs = append(attrs, f.Attrs...)
+	return El("div", attrs, Form(f).View())
+}
+
+func (f FormElement) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
 
 func (f Form) View() Node {
 	attrs := []Attr{{Name: "data-for", Value: fmt.Sprint(f.For)}, {Name: "data-key", Value: fmt.Sprint(f.Key)}}
@@ -115,16 +139,42 @@ func (f Form) View() Node {
 	return El("form", attrs, f.Children)
 }
 
-// FormFor is a form of a T, its values in Value.
+// FormFor is a form of a T, its values in Value; a form type embedding it
+// has its hooks run once Attach made it the FormFor's form.
 type FormFor[T any] struct {
 	FormState
 	Value T
+	owner any
 }
 
 func (FormFor[T]) vukaFormFor() {}
 
-func (f *FormFor[T]) Load(v T)                       { f.Value = v }
-func (f *FormFor[T]) Save(ctx context.Context) error { return nil }
+func (f *FormFor[T]) setOwner(o any) { f.owner = o }
+
+func (f *FormFor[T]) Load(ctx context.Context, v T) error {
+	f.Value = v
+	if h, ok := f.owner.(interface{ Init(context.Context) error }); ok {
+		return h.Init(ctx)
+	}
+	return nil
+}
+
+func (f *FormFor[T]) Save(ctx context.Context) error {
+	if h, ok := f.owner.(interface{ Clean(context.Context) error }); ok {
+		return h.Clean(ctx)
+	}
+	return nil
+}
+
+func (f *FormFor[T]) IsNew() bool { return true }
+
+// Attach makes form, a form type, its FormFor's form.
+func Attach[F any](form *F) *F {
+	if o, ok := any(form).(interface{ setOwner(any) }); ok {
+		o.setOwner(form)
+	}
+	return form
+}
 
 // The form field attributes.
 type (

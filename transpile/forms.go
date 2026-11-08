@@ -69,10 +69,85 @@ func (p *jsxParser) formAttr(el *jsxElem, a *jsxAttr, comp bool) {
 			mods = append(mods, m)
 		}
 		a.model, a.mods = true, strings.Join(mods, ",")
+		a.scope = p.scopeOf(text)
 		return
 	}
-	if !comp && el.tag == "label" && (a.name == "for" || a.name == "htmlFor") && a.kind == 'e' && strings.Contains(text, ".") && chainRe.MatchString(text) && p.f.target.has("ModelID") {
-		a.ref = true
+	if comp {
+		if a.name == "for" && a.kind == 'e' && chainRe.MatchString(text) {
+			// <ui.Field for={Street}/> in a <fieldset for={Form.Address}>: a
+			// reference, whatever the component makes of it
+			if a.scope = p.scopeOf(text); a.scope != nil {
+				a.ref = true
+			}
+		}
+		return
+	}
+	isFor := a.name == "for" || a.name == "htmlFor"
+	switch {
+	case el.tag == "label" && isFor && a.kind == 'e' && chainRe.MatchString(text) && p.f.target.has("ModelID") && (strings.Contains(text, ".") || len(p.scopes) > 0):
+		a.ref, a.scope = true, p.scopeOf(text)
+	case el.tag == "fieldset" && isFor:
+		switch {
+		case a.kind != 'e' || !chainRe.MatchString(text):
+			p.failCode("E0186", a.off, "for on a <fieldset> takes a field of a form: <fieldset for={Form.Address}>")
+		case !p.f.target.has("FieldsetAttrs"):
+			p.failCode("E0186", a.off, "<fieldset for={…}> needs a target with plain form tags: github.com/vuka-lang/ui/v2 v2.18 or later")
+		}
+		a.ref, a.scope = true, p.scopeOf(text)
+	case a.name == "form" && a.kind == 'e' && formControls[el.tag] && chainRe.MatchString(text) && p.f.target.has("ModelID"):
+		a.ref, a.of, a.scope = true, true, nil
+	}
+}
+
+// formControls are the elements a form={…} attribute associates with a
+// form outside them.
+var formControls = map[string]bool{"button": true, "input": true, "select": true, "textarea": true, "fieldset": true, "output": true, "object": true}
+
+// scopeOf is the <fieldset for> a field reference's text is relative to:
+// the innermost one around it, unless the text starts with that
+// fieldset's first name (Form.Address.Street, written in full).
+func (p *jsxParser) scopeOf(text string) *jsxAttr {
+	if len(p.scopes) == 0 {
+		return nil
+	}
+	s := p.scopes[len(p.scopes)-1]
+	first, _, _ := strings.Cut(text, ".")
+	if root, _, _ := strings.Cut(p.f.chainText(s), "."); first == root {
+		return nil
+	}
+	return s
+}
+
+// chainText is a field reference's text in full: its fieldset's first,
+// then its own (Form.Address.Street for model={Street}).
+func (f *fileState) chainText(a *jsxAttr) string {
+	text := strings.TrimSpace(string(f.src[a.expr.start:a.expr.end]))
+	if a.scope != nil {
+		return f.chainText(a.scope) + "." + text
+	}
+	return text
+}
+
+// fieldsetScope opens the scope of a <fieldset for>: the field references
+// inside it are relative to its field. It reports whether it opened one.
+func (p *jsxParser) fieldsetScope(el *jsxElem) bool {
+	if el.tag != "fieldset" || el.comp != nil {
+		return false
+	}
+	for _, a := range el.attrs {
+		if a.ref && !a.of {
+			p.scopes = append(p.scopes, a)
+			return true
+		}
+	}
+	return false
+}
+
+// legend notes an empty <legend> in a <fieldset for>, which shows the
+// field's label as an empty <label for/> does.
+func (p *jsxParser) legend(el *jsxElem) {
+	if el.tag == "legend" && el.comp == nil && len(p.scopes) > 0 && !hasContent(el.kids) {
+		el.legendOf = p.scopes[len(p.scopes)-1]
 	}
 }
 
@@ -105,34 +180,53 @@ func (e *engine) isFieldRef(f *fileState, el *jsxElem, a *jsxAttr) bool {
 // refArgs writes the pointers a field reference lowers to: the field, then
 // each value holding it, innermost first, then a template's receiver.
 func (w *jsxWriter) refArgs(a *jsxAttr) {
-	text := string(w.f.src[a.expr.start:a.expr.end])
-	lead := len(text) - len(strings.TrimLeft(text, " \t\n"))
-	start := a.expr.start + lead
-	chain := strings.TrimSpace(text)
+	// the reference's spans, outermost first: a <fieldset for>'s, then
+	// its own (model={Street} in <fieldset for={Form.Address}>)
+	var spans []span
+	for x := a; x != nil; x = x.scope {
+		text := string(w.f.src[x.expr.start:x.expr.end])
+		lead := len(text) - len(strings.TrimLeft(text, " \t\n"))
+		start := x.expr.start + lead
+		spans = append([]span{{start, start + len(strings.TrimSpace(text))}}, spans...)
+	}
+	// the value at a dot: the spans before it, and the one it is in up to it
+	upTo := func(si, at int) {
+		for i := 0; i < si; i++ {
+			w.copy(spans[i])
+			w.gen(".")
+		}
+		w.copy(span{spans[si].start, at})
+	}
 	w.gen("&")
-	w.copy(a.expr)
-	var dots []int // the dots outside brackets: rows[i].Form's one
-	depth := 0
-	for i := 0; i < len(chain); i++ {
-		switch chain[i] {
-		case '[', '(':
-			depth++
-		case ']', ')':
-			depth--
-		case '.':
-			if depth == 0 {
-				dots = append(dots, i)
+	upTo(len(spans)-1, spans[len(spans)-1].end)
+	type dot struct{ si, at int }
+	var dots []dot // the dots outside brackets: rows[i].Form's one
+	for si, sp := range spans {
+		if si > 0 {
+			dots = append(dots, dot{si - 1, spans[si-1].end}) // the dot joining two spans
+		}
+		depth := 0
+		for i := sp.start; i < sp.end; i++ {
+			switch w.f.src[i] {
+			case '[', '(':
+				depth++
+			case ']', ')':
+				depth--
+			case '.':
+				if depth == 0 {
+					dots = append(dots, dot{si, i})
+				}
 			}
 		}
 	}
 	for i := len(dots) - 1; i >= 0; i-- {
 		w.gen(", &")
-		w.copy(span{start, start + dots[i]})
+		upTo(dots[i].si, dots[i].at)
 	}
 	if h := w.f.html; h != nil && h.recv != "" {
-		first := chain
+		first := string(w.f.src[spans[0].start:spans[0].end])
 		if len(dots) > 0 {
-			first = chain[:dots[0]]
+			first = string(w.f.src[spans[0].start:dots[0].at])
 		}
 		if first != h.recv {
 			w.gen(", " + h.recv)
@@ -273,6 +367,9 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 					if a.model || a.ref || n.comp != nil && (a.name == "for" || a.name == "model") && a.kind == 'e' {
 						check(n, a)
 					}
+					if a.of {
+						e.checkFormAttr(f, n, a)
+					}
 				}
 				walk(n.kids)
 			case *jsxBlock:
@@ -288,7 +385,27 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 	walk([]jsxNode{t.root})
 }
 
+// checkFormAttr reports a form={…} on a control naming a value that is
+// neither a form nor an id (E0188): form={Form} names the form's element,
+// form={id} or form="id" an element's id.
+func (e *engine) checkFormAttr(f *fileState, el *jsxElem, a *jsxAttr) {
+	x := e.chainAt(f, a)
+	tv, ok := e.info.Types[x]
+	if x == nil || !ok || isInvalid(tv.Type) || isFormType(tv.Type) {
+		return
+	}
+	if b, ok := tv.Type.Underlying().(*types.Basic); ok && b.Info()&types.IsString != 0 {
+		return
+	}
+	text := strings.TrimSpace(string(f.src[a.expr.start:a.expr.end]))
+	e.errs.add("E0188", f.at(a.off), "form={%s} on a <%s>: %s is of type %s, not a form", text, el.tag, text, e.display(tv.Type)).
+		help("name the form, form={Form} (a struct embedding ui.FormState, or a ui.FormFor), or the id of a form element, form=\"product-form\"")
+}
+
 func attrName(a *jsxAttr) string {
+	if a.of {
+		return "form"
+	}
 	if a.model || a.name == "model" {
 		return "model"
 	}
@@ -424,10 +541,51 @@ func missingField(t types.Type, path string) (string, int, types.Type, []string)
 //
 //	<ui.Field for={Form.Name}/>  →  ui.Field{For: ui.For(&p.Form.Value.Name, &p.Form, p)}
 //	p.Form.Price = 0             →  p.Form.Value.Price = 0
+//
+// A struct embedding a FormFor[T] (by value) is a form type, a form of T
+// as the FormFor is, its fields reached through it the same way. Its own
+// Init, Clean, Clean<Field> and <Field>Choices are the form's (formMethods),
+// which Load and Save run: a call of either on a form type with Init or a
+// Clean method is given ui.Attach, which makes the form type the form its
+// FormFor's methods are of before a render does.
+//
+//	p.Form.Load(ctx, row)  →  ui.Attach(&p.Form).Load(ctx, row)
 
-// formValueType is T of a FormFor[T] (or a pointer to one); nil for any
-// other type.
+// formValueType is T of a FormFor[T] or of a form type (or a pointer to
+// either); nil for any other type.
 func formValueType(t types.Type) types.Type {
+	vt, _ := formForOf(t)
+	return vt
+}
+
+// formForOf is T of a FormFor[T] or of a form type, and the FormFor's
+// type; nil for any other type.
+func formForOf(t types.Type) (types.Type, *types.Named) {
+	if n := uiFormFor(t); n != nil {
+		return n.TypeArgs().At(0), n
+	}
+	if namedOf(t) == nil {
+		return nil, nil
+	}
+	st, ok := derefPtr(t).Underlying().(*types.Struct)
+	if !ok {
+		return nil, nil
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		fl := st.Field(i)
+		if _, ptr := types.Unalias(fl.Type()).(*types.Pointer); !fl.Embedded() || ptr {
+			continue
+		}
+		if n := uiFormFor(fl.Type()); n != nil {
+			return n.TypeArgs().At(0), n
+		}
+	}
+	return nil, nil
+}
+
+// uiFormFor is t, or what t points to, when it is a FormFor of the ui
+// target.
+func uiFormFor(t types.Type) *types.Named {
 	n := namedOf(t)
 	if n == nil || n.TypeArgs().Len() != 1 || n.Obj().Pkg() == nil {
 		return nil
@@ -435,7 +593,180 @@ func formValueType(t types.Type) types.Type {
 	if _, ok := pkgMethod(types.NewPointer(n), n.Obj().Pkg(), "vukaFormFor"); !ok {
 		return nil
 	}
-	return n.TypeArgs().At(0)
+	return n
+}
+
+// formType is the form type t is (or points to), and its FormFor; nil for
+// a FormFor itself or any type that isn't a form.
+func formType(t types.Type) (*types.Named, *types.Named) {
+	if uiFormFor(t) != nil {
+		return nil, nil
+	}
+	_, ff := formForOf(t)
+	if ff == nil {
+		return nil, nil
+	}
+	return namedOf(t), ff
+}
+
+// ownMethod reports whether m is declared by n, not promoted from what it
+// embeds.
+func ownMethod(n *types.Named, m *types.Func) bool {
+	sig, ok := m.Type().(*types.Signature)
+	return ok && sig.Recv() != nil && namedOf(sig.Recv().Type()) != nil && namedOf(sig.Recv().Type()).Obj() == n.Obj()
+}
+
+// formMethods are a form type's own methods of a form's: Init, Clean,
+// Clean<Field> and <Field>Choices.
+func formMethods(n *types.Named) []*types.Func {
+	var out []*types.Func
+	ms := types.NewMethodSet(types.NewPointer(n))
+	for i := 0; i < ms.Len(); i++ {
+		m, ok := ms.At(i).Obj().(*types.Func)
+		if !ok || !ownMethod(n, m) {
+			continue
+		}
+		if name := m.Name(); name == "Init" || strings.HasPrefix(name, "Clean") || strings.HasSuffix(name, "Choices") {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// runsHooks reports whether a form type has methods Load or Save run:
+// Init, or a Clean method.
+func runsHooks(n *types.Named) bool {
+	for _, m := range formMethods(n) {
+		if !strings.HasSuffix(m.Name(), "Choices") {
+			return true
+		}
+	}
+	return false
+}
+
+// attachForms gives each Load and Save of a form type with hooks
+// ui.Attach, so a Load before its page attached the form runs its Init.
+func (e *engine) attachForms(f *fileState) {
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Load" && sel.Sel.Name != "Save" || !f.lowerable(sel.Pos()) {
+			return true
+		}
+		s := e.info.Selections[sel]
+		if s == nil || s.Kind() != types.MethodVal || len(s.Index()) < 2 {
+			return true // not promoted: the form type's own method, or a FormFor's
+		}
+		ft, ff := formType(s.Recv())
+		if ft == nil || s.Obj().Pkg() != ff.Obj().Pkg() || !runsHooks(ft) {
+			return true
+		}
+		attach := ff.Obj().Pkg().Scope().Lookup("Attach")
+		if attach == nil {
+			return true // a ui before form types' hooks
+		}
+		tv, ok := e.info.Types[sel.X]
+		_, ptr := types.Unalias(tv.Type).(*types.Pointer)
+		if !ok || !ptr && !tv.Addressable() {
+			return true
+		}
+		start, end := f.orig(sel.X.Pos()), f.orig(sel.X.End())
+		if f.attached[start] {
+			return true
+		}
+		if f.attached == nil {
+			f.attached = map[int]bool{}
+		}
+		f.attached[start] = true
+		missing := ""
+		q := e.qualifier(f, &missing)(attach.Pkg())
+		if missing != "" {
+			q = f.importAs(attach.Pkg().Path(), "__ui")
+		}
+		lead := q + ".Attach("
+		if !ptr {
+			lead += "&"
+		}
+		f.insert(start, lead, 0)
+		f.insert(end, ")", 0)
+		e.progress = true
+		return true
+	})
+}
+
+// checkFormTypes reports, of each form type a .vuka file declares, an
+// Init or Clean method of another shape than a form's (E0184), and a field
+// or form method of its own that T has too (E0185): Form.Name names T's
+// field through the form, and a form's method has one place.
+func (e *engine) checkFormTypes() {
+	for _, f := range e.vuka {
+		if f.ast == nil {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok || !f.lowerable(spec.Pos()) {
+				return true
+			}
+			obj, ok := e.info.Defs[spec.Name].(*types.TypeName)
+			if !ok {
+				return false
+			}
+			ft, ff := formType(obj.Type())
+			if ft == nil {
+				return false
+			}
+			vt := ff.TypeArgs().At(0)
+			name, tName := ft.Obj().Name(), e.display(vt)
+			at := func(p token.Pos) (*fileState, bool) {
+				pf := e.fileOf(p)
+				return pf, pf != nil && pf.vuka
+			}
+			if st, ok := ft.Underlying().(*types.Struct); ok {
+				for i := 0; i < st.NumFields(); i++ {
+					fl := st.Field(i)
+					if fl.Embedded() {
+						continue
+					}
+					other, _, _ := types.LookupFieldOrMethod(vt, true, fl.Pkg(), fl.Name())
+					if v, ok := other.(*types.Var); ok && v.IsField() {
+						if pf, ok := at(fl.Pos()); ok {
+							e.errs.add("E0185", pf.nodePos(fl.Pos()), "%s.%s and %s.%s share a name: a form type's own fields aren't the form's, and Form.%s names %s.%[4]s", name, fl.Name(), tName, fl.Name(), fl.Name(), tName).
+								help("rename %s.%s", name, fl.Name())
+						}
+					}
+				}
+			}
+			for _, m := range formMethods(ft) {
+				pf, ok := at(m.Pos())
+				if !ok {
+					continue
+				}
+				if m.Name() != "Init" {
+					other, _, _ := types.LookupFieldOrMethod(types.NewPointer(vt), true, m.Pkg(), m.Name())
+					if _, ok := other.(*types.Func); ok {
+						e.errs.add("E0185", pf.nodePos(m.Pos()), "%s.%s and %s.%s: the form type and its %s both declare the form's method %s", name, m.Name(), tName, m.Name(), tName, m.Name()).
+							help("keep one: the form type's, or %s's", tName)
+						continue
+					}
+				}
+				sig := m.Type().(*types.Signature)
+				errRes := sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), types.Universe.Lookup("error").Type())
+				switch {
+				case m.Name() == "Init" && (!errRes || sig.Params().Len() == 0 || !isContext(sig.Params().At(0).Type())):
+					e.errs.add("E0184", pf.nodePos(m.Pos()), "%s.Init is the form type's Init: it runs when the form is created and on every Load, and takes a ctx (then any dependencies) and returns an error", name).
+						help("declare it func (f *%s) Init(ctx context.Context) error", name)
+				case strings.HasPrefix(m.Name(), "Clean") && !errRes:
+					e.errs.add("E0184", pf.nodePos(m.Pos()), "%s.%s is a form's check: it returns an error, nil when the form passes", name, m.Name()).
+						help("declare it func (f *%s) %s(ctx context.Context) error", name, m.Name())
+				}
+			}
+			return false
+		})
+	}
 }
 
 // formValueField reports whether sel is a FormFor's X naming a field of T
@@ -490,7 +821,7 @@ func (e *engine) resolveFormFields(f *fileState) {
 func (e *engine) boundFields(f *fileState, t *jsxTree) {
 	for _, c := range t.comps {
 		n := namedOf(c.propsTyp)
-		if !c.resolved || c.dead || n == nil || n.Obj().Name() != "Form" || n.Obj().Pkg() == nil || c.target == nil || n.Obj().Pkg().Path() != c.target.path {
+		if !c.resolved || c.dead || n == nil || !isFormComp(n.Obj().Name()) || n.Obj().Pkg() == nil || c.target == nil || n.Obj().Pkg().Path() != c.target.path {
 			continue
 		}
 		if obj, _, _ := types.LookupFieldOrMethod(n, false, n.Obj().Pkg(), "Bound"); obj == nil || attrNamed(c.el, "bound") != nil || !hasElems(c.el.kids) {
@@ -518,7 +849,7 @@ func (e *engine) boundFields(f *fileState, t *jsxTree) {
 						if a.kind != 'e' || !(a.model || a.ref || nd.comp != nil && (a.name == "for" || a.name == "model")) {
 							continue
 						}
-						text := strings.TrimSpace(string(f.src[a.expr.start:a.expr.end]))
+						text := f.chainText(a)
 						if rest, ok := strings.CutPrefix(text, prefix); ok && chainRe.MatchString(rest) {
 							rest = strings.TrimPrefix(rest, "Value.")
 							if !slices.Contains(names, rest) {
@@ -545,6 +876,10 @@ func (e *engine) boundFields(f *fileState, t *jsxTree) {
 		c.args = append(c.args, &compArg{key: "Bound: ", text: "[]string{" + strings.Join(quoted, ", ") + "}"})
 	}
 }
+
+// isFormComp reports whether a target's type is a form component:
+// <ui.Form>, or the FormElement a <form for> is.
+func isFormComp(name string) bool { return name == "Form" || name == "FormElement" }
 
 // checkFormSaves reports a FormFor's Save whose T has no SaveFields method
 // to save the form's fields with: a plain struct's form hands its value to
@@ -705,4 +1040,106 @@ func (f *fileState) fieldTag(typeName, name string) reflect.StructTag {
 		}
 	}
 	return ""
+}
+
+// formAttrs are the attributes a <form for={Form}> consumes, as
+// <ui.Form>'s options: every other attribute passes through to the
+// element.
+var formOptions = []string{"for", "key", "validate", "submit", "keep", "confirmLeave", "noSummary", "eager", "onSubmit", "onChange", "error", "submitLabel", "bound"}
+
+// formTag makes a <form> with for={Form} the target's FormElement: the
+// form <ui.Form> renders, bound, checked and submitted by ui, its options
+// attributes and every other attribute the element's own. It reports
+// whether el became a component.
+func (p *jsxParser) formTag(el *jsxElem) bool {
+	if el.tag == "input" && el.comp == nil {
+		if t, m := attrNamed(el, "type"), modelOf(el); m != nil && t != nil && t.kind == 's' && strings.EqualFold(t.val, "hidden") {
+			p.failCode("E0187", m.off, "model on an <input type=\"hidden\">: a form takes no value the visitor can't see or change (an id, an owner); take it from the route or the session, and leave the field out of the form with form:\"-\"")
+		}
+	}
+	if el.tag != "form" || el.comp != nil {
+		return false
+	}
+	forA := attrNamed(el, "for")
+	if forA == nil {
+		return false
+	}
+	text := ""
+	if forA.kind == 'e' {
+		text = strings.TrimSpace(string(p.src[forA.expr.start:forA.expr.end]))
+	}
+	switch {
+	case forA.kind != 'e' || !chainRe.MatchString(text):
+		p.failCode("E0186", forA.off, "for on a <form> takes the form it renders: <form for={Form}>")
+	case !p.f.target.has("FormElement"):
+		p.failCode("E0186", forA.off, "<form for={…}> needs a target with plain form tags: github.com/vuka-lang/ui/v2 v2.18 or later")
+	}
+	for _, a := range el.attrs {
+		switch {
+		case a.kind == 'r':
+			p.failCode("E0186", a.off, "an attribute set on a <form for={…}>: pass them as attrs={…}, a []%sAttr", p.f.target.q)
+		case a.name == "model" || strings.HasPrefix(a.name, "model."):
+			p.fail(a.off, "model goes on <input>, <textarea> or <select>, not <form>")
+		case a.name == "class:" || strings.HasPrefix(a.name, "class:"):
+			p.failCode("E0186", a.off, "%s on a <form for={…}>: write the form's classes as class={…}", a.name)
+		}
+		if a.event {
+			a.event = false
+			for i, ev := range p.cur.events {
+				if ev.attr == a {
+					p.cur.events = append(p.cur.events[:i], p.cur.events[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+	el.formFor = true
+	el.comp = &jsxComp{el: el, target: p.f.target}
+	p.cur.comps = append(p.cur.comps, el.comp)
+	return true
+}
+
+// labelRef is the field an empty <label for={Form.Name}/> or an empty
+// <legend/> in a <fieldset for> shows the label of; nil for any other
+// element.
+func (w *jsxWriter) labelRef(el *jsxElem, kids []jsxNode) *jsxAttr {
+	if hasContent(kids) || !w.f.target.has("ModelLabel") {
+		return nil
+	}
+	if el.legendOf != nil {
+		return el.legendOf
+	}
+	if el.tag != "label" {
+		return nil
+	}
+	for _, a := range el.attrs {
+		if a.ref && !a.of && (w.addressable(a) || a.scope != nil) {
+			return a
+		}
+	}
+	return nil
+}
+
+// isFormRef reports whether a form={…} names a form (a struct embedding
+// the target's FormState): it is the form's element id then, and the
+// value's own text otherwise.
+func (e *engine) isFormRef(f *fileState, a *jsxAttr) bool {
+	if e.info == nil || !e.addressable(f, a) {
+		return false
+	}
+	tv, ok := e.info.Types[e.chainAt(f, a)]
+	return ok && isFormType(tv.Type)
+}
+
+// isFormType reports whether t (or what it points to) is a form: a
+// struct with an embedded FormState, its own or promoted (FormFor[T], a
+// form type embedding one).
+func isFormType(t types.Type) bool {
+	obj, _, _ := types.LookupFieldOrMethod(derefPtr(t), true, nil, "FormState")
+	v, ok := obj.(*types.Var)
+	if !ok || !v.Embedded() {
+		return false
+	}
+	n := namedOf(v.Type())
+	return n != nil && n.Obj().Name() == "FormState"
 }

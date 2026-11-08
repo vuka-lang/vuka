@@ -93,6 +93,11 @@ same page in the terminal.
 | [E0181](./E0181) | A generic component's type arguments can't be inferred |
 | [E0182](./E0182) | A FormFor saved whose type is not a model |
 | [E0183](./E0183) | A field setting given by its tag and by an attribute |
+| [E0184](./E0184) | A form type method of the wrong shape |
+| [E0185](./E0185) | A form type and its T sharing a field or a method |
+| [E0186](./E0186) | A plain form tag's for= that names no form or field |
+| [E0187](./E0187) | model on a hidden input |
+| [E0188](./E0188) | form= on a control naming a value that isn't a form |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |

@@ -135,9 +135,9 @@ changes. A field of a group is named by its path without dots:
 
 ## Rendering a Form {#rendering}
 
-A page holds the form as an exported field and renders it with
-`<ui.Form for>`. With no children, the form renders every field in order,
-then a submit button:
+A page holds the form as an exported field and renders it on a plain
+`<form>` tag: `for={Form}` makes the element the form, bound, checked and
+submitted by vuka:
 
 ```html
 <script lang="go">
@@ -166,14 +166,56 @@ func (j *Join) Save(ctx context.Context, f account.Signup, users *account.Users)
 
 <main>
   <h1>Create an account</h1>
-  <ui.Form for={Form} onSubmit={Save} submitLabel="Create account"/>
+  <form for={Form} onSubmit={Save} class="stack">
+    <label for={Form.Name}/>
+    <input model={Form.Name} class="input"/>
+    <ui.Error for={Form.Name}/>
+
+    <label for={Form.Email}/>
+    <input model={Form.Email} class="input"/>
+    <ui.Error for={Form.Email}/>
+
+    <button>Create account</button>
+  </form>
 </main>
 ```
 
-`<ui.Form>` passes the attributes that aren't its own to the `<form>`
-element: `<ui.Form for={Form} autocomplete="off" data-step="2"
-aria-label="Create an account">`. (`class` and `id` are its fields, and
-land there too.)
+`<form for>` gets everything a form needs from vuka: the binding of each
+`model`, the checks as the visitor goes and on submit, the submit policy and
+busy state, CSRF, the error summary and the form's hooks (`Init`). Its
+options are attributes the compiler consumes; every other attribute —
+`class`, `autocomplete`, `aria-label`, `data-*` — is the element's:
+
+| Attribute | |
+|---|---|
+| `for={Form}` | the form: a struct embedding `ui.FormState`, a `ui.FormFor[T]`, or a form type embedding one |
+| `onSubmit={Save}` | runs once every rule and Clean method passed, with the checked value |
+| `onChange={Check}` | runs as fields change, for checks of your own |
+| `key={…}` | tells forms of one type apart ([Several Forms on a Page](#several)) |
+| `validate="submit"` / `"off"` | checks only on submit, or never ([When Checks Run](#timing)) |
+| `submit="abort"` / `"allow"` | what a second submit does while one is on its way (`"prevent"` drops it) |
+| `keep` | a FormFor keeps its values after a submit that didn't save it (a search) |
+| `confirmLeave` | asks before the visitor leaves with changes not saved |
+| `noSummary` | no error summary: focus goes to the first field in error |
+| `eager` | runs the form's `Init` on the first render even when the form is hidden |
+| `error={msg}` | a message of the form's own, above its fields |
+
+A misspelt option is a compile error with the one it most likely meant
+(`<form> has no attribute confirmLeav; did you mean ConfirmLeave?`), and
+`for` takes the form itself, never text ([E0186](/errors/E0186)).
+
+The element's `id` is the form's identity — its type's name in kebab case
+(`Signup` is `signup`), then `-` and its key when it has one — so a form
+never needs one written. A written `id` wins for the element; the controls'
+ids keep starting with the identity either way.
+
+`<ui.Form for={Form}>` is the same form with the kit's styles (the
+`vk-form` class) and the same attributes. Childless, it renders every field
+in order and a submit button, which is the quickest way to a working form:
+
+```html
+<ui.Form for={Form} onSubmit={Save} submitLabel="Create account"/>
+```
 
 `Save` runs only when every rule and Clean method passed, with `f` the
 checked value. What it returns decides what the visitor sees next:
@@ -207,14 +249,14 @@ patch. A script reads a value from its field
 
 ## Writing the Markup {#markup}
 
-To lay the form out yourself, give `<ui.Form>` children. `model` on a
-control and `for` on a label name a field; the compiler checks the name and
-writes the control's `name`, `id`, `value`, `type`, `inputmode`,
-`autocomplete` and ARIA links for you:
+Inside `<form for>` (or `<ui.Form for>` with children) the markup is
+yours. `model` on a control and `for` on a label name a field; the
+compiler checks the name and writes the control's `name`, `id`, `value`,
+`type`, `inputmode`, `autocomplete` and ARIA links for you:
 
 ```html
-<ui.Form for={Form} onSubmit={Save}>
-  <label for={Form.Email}>Email</label>
+<form for={Form} onSubmit={Save}>
+  <label for={Form.Email}/>
   <ui.Error for={Form.Email}/>
   <input model={Form.Email} class="input"/>
 
@@ -223,9 +265,40 @@ writes the control's `name`, `id`, `value`, `type`, `inputmode`,
   <label for={Form.Plan}>Plan</label>
   <select model={Form.Plan}></select>
 
+  <fieldset for={Form.Address}>
+    <legend/>
+    <label for={Street}/>
+    <input model={Street}/>
+    <label for={City}/>
+    <input model={City}/>
+  </fieldset>
+
   <button>Create account</button>
-</ui.Form>
+</form>
 ```
+
+What each tag does with a field:
+
+| Tag | |
+|---|---|
+| `<form for={Form}>` | the form, as [above](#rendering) |
+| `<label for={Form.Email}/>` | empty or self-closing: the field's label (`@ui.Label`, `label:`, else its name in words) and "(optional)" or "(required)" as [configured](#accessibility); with text, the text. Either way `for` is the control's id |
+| `<label><input model={Form.Agree}/> I accept</label>` | a label around its control needs no `for` |
+| `<input model={…}>`, `<textarea model>`, `<select model>` | the control, from the field's type and tags (table below); `aria-required` on a required field, safe under `novalidate` |
+| `<select model>` with no options | the field's choices, after an empty "Choose…" option (`@ui.Placeholder` changes the text) when the field may be empty or has no value yet; options with a `ui.Option.Group` go under an `<optgroup label>` |
+| `<input type="number" model>`, `type="range"` | `min` and `max` from the field's rules |
+| `<fieldset for={Form.Address}>` | scopes its children to a struct field: `model={Street}` is `Form.Address.Street`. A reference starting with the form's own name (`Form.Address.City`) is taken as written |
+| `<fieldset for={Form.Plan}>` | a field with choices: its radios take the fieldset's legend, the fieldset carries the field's error state and the `aria-describedby` of its hint and error |
+| `<legend/>` | empty, in a `<fieldset for>`: the field's label, as an empty `<label for/>` |
+| `<button form={Form}>`, `<input form={Form}>` | a control outside the form (a modal's footer, a toolbar) that belongs to it: `form` is the form element's id. A submit button attached so is busy while its submit is on its way, as one inside |
+| `<input type="hidden" model>` | a compile error ([E0187](/errors/E0187)): an id or an owner comes from the route or the session, and the field is `form:"-"` |
+
+While a submit is on its way, the button that sent it has `aria-busy` and
+`data-vk-busy` (style it with `[data-vk-busy]`), and the form's other
+controls `aria-disabled` — not `disabled`, which would leave them out of the
+post.
+
+The form's components fill in what the tags don't:
 
 - `<ui.Field for={Form.Email}/>` is one whole field: label, hint, error and
   control. Its attributes (`label`, `help`, `placeholder`, `class`) override
@@ -273,11 +346,11 @@ type TextField struct {
 ```
 
 ```html
-<ui.Form for={Form} onSubmit={Save}>
+<form for={Form} onSubmit={Save}>
   <components.TextField model={Form.Email} label="Email"/>
   <components.TextField model={Form.Name} label="Full name" data-hint="as on your ID"/>
   <button>Create account</button>
-</ui.Form>
+</form>
 ```
 
 The compiler checks the field as it does on a control, and refuses
@@ -289,6 +362,12 @@ The compiler checks the field as it does on a control, and refuses
 A misspelt field is a compile error naming the one it most likely meant:
 `model={Form.Emial}: Signup has no field Emial; did you mean Email?`
 ([E0159](/errors/E0159)).
+
+A component laying out its own label, hint and error reads them from its
+`Model`: `ui.LabelText(Model)` is the field's label, `ui.HelpText(Model)`
+its hint and `ui.ErrorText(Model)` the message of the error it shows
+(nothing while it shows none), each as a node of text, beside
+`ui.ModelID(Model)`, the control's id.
 
 The control follows the field's Go type:
 
@@ -320,7 +399,7 @@ it, held to the field's checks:
 That holds in every kind of form: a `FormFor[Product]` (`Form.Notes` is its
 `Form.Value.Notes`), a struct embedding `ui.FormState`, and a
 `ui.ModelForm[Product]` through `Form.Value.Notes`. After
-`Form.Load(Product{Notes: Some("fragile")})` the input shows `fragile`;
+`Form.Load(ctx, Product{Notes: Some("fragile")})` the input shows `fragile`;
 submitting it empty gives `None`, and `gift wrap` gives `Some("gift wrap")`.
 
 `model` takes modifiers, which change what the server binds, not only the
@@ -569,11 +648,9 @@ type Products struct {
 @ui.Mount
 func (p *Products) load(ctx context.Context) error {
     if p.ID == 0 {
-        p.Form.Load(Product{})
-        return nil
+        return p.Form.Load(ctx, Product{})
     }
-    p.Form.Load(Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
-    return nil
+    return p.Form.Load(ctx, Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
 }
 
 func (p *Products) save(ctx context.Context) error {
@@ -595,9 +672,11 @@ if Form.IsNew() {
 </ui.Form>
 ```
 
-- `Load(row)` edits that row; `Load(Product{})` starts a new one. The
-  loaded record, its primary key included, stays on the server: the key is
-  never a field.
+- `Load(ctx, row)` edits that row; `Load(ctx, Product{})` starts a new
+  one. The loaded record, its primary key included, stays on the server:
+  the key is never a field. `Load` takes the ctx and returns an error for
+  a [form type's](#formfor-types) `Init`, which it runs; on a plain
+  `FormFor` it returns nil (or the form's declaration error).
 - `Save(ctx)` runs the form's checks when no submit did, copies the form's
   fields onto the record, inserts it when it is new and otherwise updates
   **only the form's fields** (`SaveFields`), so a change another request
@@ -655,6 +734,130 @@ func (p *SignupPage) submit(ctx context.Context, in Signup, users *Users) error 
   search, filters). A model's form that saved itself keeps the saved row.
 - `<Field>Choices(ctx, deps…)`, `Clean` and `Clean<Field>` on `T` are the
   form's, as on a form struct.
+
+### Form Types: a FormFor with Code of Its Own {#formfor-types}
+
+A struct embedding `ui.FormFor[T]` is a **form type**: a form of `T`, as
+the `FormFor` is, with methods of its own. It may be declared in a `.go`
+file or in the page's `<script lang="go">` beside the page's struct —
+like a struct embedding `ui.FormState`, it is data, never the struct the
+markup renders.
+
+```html
+<script lang="go">
+package products
+
+import (
+    "context"
+
+    "github.com/vuka-lang/ui/v2"
+)
+
+type ProductForm struct {
+    ui.FormFor[Product]
+}
+
+// Init runs when the form is created (before its first render) and on
+// every Load.
+func (f *ProductForm) Init(ctx context.Context) error {
+    if f.IsNew() {
+        f.Status = "draft"
+    }
+    return nil
+}
+
+// Clean checks the form as a whole, as T's Clean would.
+func (f *ProductForm) Clean(ctx context.Context) error {
+    if f.Status == "live" && f.Notes.IsNone() {
+        return ui.FieldError(Product.Notes, "A live product needs notes.")
+    }
+    return nil
+}
+
+type Products struct {
+    ui.Live
+    ID   int64
+    Form ProductForm
+}
+
+@ui.Mount
+func (p *Products) load(ctx context.Context) error {
+    if p.ID != 0 {
+        return p.Form.Load(ctx, Product.Objects.Get(ctx, Product.ID.Eq(p.ID))?)
+    }
+    return nil // a new product: the form's first render runs Init
+}
+
+func (p *Products) save(ctx context.Context) error {
+    return p.Form.Save(ctx)
+}
+</script>
+
+<ui.Form for={Form} onSubmit={save}>
+  <ui.Field for={Form.Name}/>
+  <ui.Field for={Form.Status}/>
+  <ui.Field for={Form.Notes}/>
+</ui.Form>
+```
+
+- **Everything a `FormFor` does, a form type does.** `Load`, `Save` and
+  `IsNew` are promoted through the embedding; `Form.Name` is
+  `Form.Value.Name` in markup and in Go, inside the form type's own
+  methods too (`f.Status` above); `@ui.Fields`, the bound fields, what is
+  required by type, the field attributes and [E0182](/errors/E0182) apply
+  unchanged.
+- **`Init(ctx, deps…) error`** runs when the form is created and on every
+  Load: once for each instance of the form, and the page never calls it.
+  - A new form runs it **just before its first render**: the
+    `<ui.Form for={Form}>` shows what `Init` set on first paint, with no
+    `Load` (`IsNew()` is true). The page's `@ui.Mount` runs before it.
+  - `Load(ctx, row)` makes a new instance: it runs `Init` there, after the
+    row is copied in (so `Init` sees it), and returns its error.
+  - `Form.Reset()`, and a plain form emptied by its successful submit, make
+    a new instance too: the next render runs `Init` again.
+  - A `Save(ctx)` of a form never rendered runs it before the checks.
+  - A change or a submit never runs it: what the visitor typed is never
+    overwritten.
+  - What `Init` sets is the form's starting point: the form is not dirty.
+  - An error from `Init` leaves the form uninitialised: the render fails
+    with it (the page's error), `Save` and `Load` return it, and the next
+    trigger tries again.
+  - Its dependencies are injected, as an event handler's are.
+- **A form the page renders hidden runs `Init` when the browser first shows
+  it.** On a live page, a `<ui.Form for={Form}>` inside an element rendered
+  hidden — a closed `ui.Modal`, `<ui.Show when>` or `show={…}` not holding,
+  the `hidden` attribute, `display: none`, a `<dialog>` without `open`, a
+  popover — renders `data-vk-init` and `aria-busy="true"` instead. When the
+  browser first shows it (the modal opens, the tab is chosen) the runtime
+  sends one `vkinit` event; the server runs `Init` and renders the form
+  again, busy until the reply. A `Load` in the event that shows the form
+  (`JS.Set(open, true).Push(Edit)`, `Edit` calling `Load`) runs `Init`
+  there, once: the form comes back without the marker, and the runtime
+  sends nothing. `<ui.Form for={Form} eager>` runs `Init` at the first
+  render, hidden or not. A page that isn't live runs it at the first
+  render.
+- **`Clean`, `Clean<Field>` and `<Field>Choices`** declared on the form type
+  are the form's, exactly as on `T` or on a form struct (see
+  [Declaring a Form](#declaring)): dependencies injected, `forms.Live(ctx)`
+  for checks run while the visitor types, `ui.FieldError` and
+  `forms.Errorf` for their errors. `Clean` runs after every field's checks,
+  before the submit handler or `Save`'s write, and a failed check stops
+  both. A method of these that `T` declares too is a compile error
+  ([E0185](/errors/E0185)): keep one.
+- **Fields the form type declares itself are not form fields.** They are
+  the page's own state of the form (a mode, a lookup); one named as a field
+  of `T` is a compile error ([E0185](/errors/E0185)), since `Form.Name`
+  names `T`'s.
+- An `Init` that doesn't take a ctx first and return an error, or a Clean
+  method that doesn't return an error, is a compile error
+  ([E0184](/errors/E0184)).
+- Embed the `FormFor` by value, and use it through its form type: a copy of
+  the inner `FormFor` taken out of it is not a form.
+
+Go code using a form type that no page holds — a test, a job — calls
+`ui.Attach(&f)` first, which makes the struct the form its `FormFor`
+belongs to: `ui.Attach(&f).Load(ctx, row)`. In a `.vuka` file the compiler
+writes it at each `Load` and `Save` of a form type.
 
 ### What Is Required {#formfor-required}
 
@@ -965,8 +1168,10 @@ page keep their submits, errors and ids apart:
 <ui.Form for={Password} onSubmit={ChangePassword}/>
 ```
 
-Two forms of one type need a key each: `<ui.Form for={Billing}
-key="billing"/>` and `<ui.Form for={Shipping} key="shipping"/>`.
+Two forms of one type need a key each: `<form for={Billing}
+key="billing">` and `<form for={Shipping} key="shipping">`, or `key={o.ID}`
+in a list. Without keys they would share their ids, so the page's render
+fails, saying to key them.
 
 ## Accessibility {#accessibility}
 

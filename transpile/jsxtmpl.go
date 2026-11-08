@@ -611,8 +611,15 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			tp.b.WriteString("...}")
 			continue
 		}
-		if a.ref && el.comp == nil && w.addressable(a) {
-			tp.b.WriteString(" for=")
+		if a.ref && el.comp == nil && el.tag == "fieldset" && !a.of {
+			// <fieldset for={Form.Plan}>: no for attribute, the field's group's
+			tp.b.WriteString(" {")
+			tp.label(w.value(tp, "fieldset", func() { w.modelCall("FieldsetAttrs", "", a) }))
+			tp.b.WriteString("...}")
+			continue
+		}
+		if a.ref && el.comp == nil && (a.of && w.f.eng.isFormRef(w.f, a) || !a.of && (w.addressable(a) || a.scope != nil)) {
+			tp.b.WriteString(" " + htmlName(a.name) + "=")
 			w.holeIn(tp, "value", func() { w.modelCall("ModelID", "", a) })
 			continue
 		}
@@ -662,6 +669,13 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		} else {
 			w.holeIn(tp, "options", func() { w.modelCall("ModelOptions", "", m) })
 		}
+		tp.b.WriteString("</" + el.tag + ">")
+		return
+	}
+	if ref := w.labelRef(el, kids); ref != nil {
+		// an empty <label for={Form.Name}/> or <legend/>: the field's label
+		tp.b.WriteString(">")
+		w.holeIn(tp, "label", func() { w.modelCall("ModelLabel", "", ref) })
 		tp.b.WriteString("</" + el.tag + ">")
 		return
 	}
