@@ -305,6 +305,10 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		names = append(names, fl.name)
 		typs = append(typs, fl.typ)
 	}
+	attrs, off, msg := e.lazyAttr(c, names, attrs)
+	if msg != "" {
+		return false, off, msg
+	}
 	used := map[int]bool{}
 	attrsAt, uiAttrs := -1, false
 	if !stateful && !c.elem && c.target.has("TemplAttrs") {
@@ -395,6 +399,11 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		}
 		name := strings.TrimPrefix(sl.tag, "slot:")
 		i, kind := e.slotFor(names, typs, exportName(name), node)
+		if kind == 0 && c.lazy != nil && name == "loading" && c.lazyLoad == nil {
+			c.lazyLoad = sl // the ui.Lazy's Loading
+			slots++
+			continue
+		}
 		if kind == 0 {
 			return false, sl.start, e.noSlot(c, el.tag, name, names, typs, i, node, "field")
 		}
@@ -445,6 +454,16 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 	for i, fl := range fields {
 		if fl.required && !used[i] {
 			c.unfilled = append(c.unfilled, fl.name)
+		}
+	}
+	if c.lazy != nil {
+		for _, a := range c.args {
+			if a.attr != nil && a.attr.name == "show" {
+				c.lazyShow = a
+			}
+		}
+		if c.lazyShow == nil || c.lazyShow.attr.kind != 'e' {
+			return false, c.lazy.off, "<" + el.tag + " lazy> renders its children the first time its show holds, and it takes no show={…}: lazy goes on a component taking show, or wrap the children in <" + c.target.q + "Lazy when={…}>"
 		}
 	}
 	return kids, 0, ""

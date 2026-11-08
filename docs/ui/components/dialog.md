@@ -120,6 +120,23 @@ func (p *Project) Kept() {}
 </div>
 ```
 
+## Rendering the Content When Opened {#lazy}
+
+A dialog's content renders with the page, hidden, unless it has `lazy`:
+then its first render has an empty, busy panel body, and the content
+renders the first time `show` holds — the panel opens at once, its
+transition intact, and the content arrives over the live page's
+connection, or a request to a page that isn't live. It stays rendered for
+the next opening; `lazy="each"` renders it again each time. See
+[Rendering When First Shown](/ui/state#lazy).
+
+```vuka-html
+<design.Dialog show={open} lazy title="Edit product">
+  <ProductEditor id={ProductID} />
+  <slot:loading><design.Skeleton class="h-24" /></slot:loading>
+</design.Dialog>
+```
+
 `onClose` tells a live page when the visitor closed the dialog, in any of
 the three. A dialog without an `id` is named by its title for assistive
 technology; give it an `id` to label it by its title and description

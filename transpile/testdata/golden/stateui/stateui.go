@@ -493,6 +493,24 @@ type ShowProps struct {
 	Children Node
 }
 
+type LazyProps struct {
+	When     any
+	Each     bool
+	Bare     bool
+	Loading  Node
+	Children Node
+}
+
+func Lazy(p LazyProps) Node {
+	w := p.When
+	if s, ok := w.(AnyState); ok {
+		if ex, _, _ := s.node(); ex != nil {
+			w = s.binding()
+		}
+	}
+	return ui.El("vk-lazy", []Attr{{Name: "data-when", Value: fmt.Sprint(w)}, {Name: "data-each", Value: p.Each}, {Name: "data-bare", Value: p.Bare}}, p.Loading, p.Children)
+}
+
 func Show(p ShowProps) Node {
 	w := p.When
 	if s, ok := w.(AnyState); ok {

@@ -1,0 +1,17 @@
+error[E0106]: <Panel lazy> renders its children the first time its show holds, and it takes no show={…}: lazy goes on a component taking show, or wrap the children in <ui.Lazy when={…}>
+  --> err_lazy.vuka:22:10
+   |
+22 |         <Panel lazy title="Orders"><p>orders</p></Panel>
+   |                ^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Sheet lazy> takes no value, or "each" (lazy="each": the children render again each time it shows)
+  --> err_lazy.vuka:23:22
+   |
+23 |         <Sheet show={open} lazy="later"><p>products</p></Sheet>
+   |                            ^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+For more information about this error, try `vuka explain E0106`.

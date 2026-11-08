@@ -89,6 +89,64 @@ The registry's [Dialog](/ui/components/dialog) and
 [Tabs](/ui/components/tabs) a `ui.State[string]`: pass the page's, and any
 write of it shows, hides or switches them.
 
+### Rendering When First Shown {#lazy}
+
+Content that shows by browser state is rendered with the page, only
+hidden: a closed dialog's form, a tab nobody opens, and the server work
+they need (a field's choices, a component's `Mount`) run on every page
+load. `<ui.Lazy when={…}>` holds them back: it shows its children while
+`when` holds, as `ui.Show` does, and renders them only the first time it
+holds.
+
+```html
+<button onClick={open = true}>Orders</button>
+<ui.Lazy when={open}>
+  <OrderHistory userID={UserID}/>
+</ui.Lazy>
+```
+
+On a component taking `show` — the registry's
+[Dialog](/ui/components/dialog), a modal of your own — the `lazy`
+attribute does the same for its children; the component shows and hides
+them as before, its transitions its own:
+
+```html
+<design.Dialog show={open} lazy title="Edit product">
+  <ProductEditor id={ProductID}/>
+  <slot:loading><design.Skeleton class="h-24"/></slot:loading>
+</design.Dialog>
+```
+
+- **The first render** has an empty region in the children's place: busy
+  (`aria-busy`), showing `<slot:loading>` (`<ui.Lazy>`'s `loading`), by
+  default an empty placeholder announced as "Loading…". The children aren't
+  rendered and their server work doesn't run.
+- **The first time it shows** the frame shows at once, the placeholder in
+  it, and the runtime asks for the content: one event over a
+  [live page's](/web/live) connection, one request to a page that isn't
+  live (a GET of the page with `Vk-Lazy` naming the region, which renders
+  the page again for that region alone). The content then takes the
+  placeholder's place.
+- **Afterwards** it stays rendered: reopening is instant, and a live
+  page's renders reach it as they reach the rest of the page.
+  `lazy="each"` (`<ui.Lazy each>`) renders it again each time it shows,
+  for fresh data.
+- **Opened by an event**: a chain that shows it and pushes a handler —
+  `ui.JS.Set(open, true).Push(Edit)` — sends one event, which carries the
+  region; the reply renders it after `Edit` ran, so it shows what `Edit`
+  set. A form type's form inside runs `Init` then, after a `Load` in
+  `Edit`.
+- **Shown at the first render** (`when` already holds), in a static
+  render, with no runtime to ask (`ui.String`), and in a
+  [stream](/web/streams) row, the children render at once. A form posted
+  without script renders them at once too.
+- **An error** rendering the content shows in the region, not as the
+  page's error.
+
+Regions nest: one inside another asks for its content once the outer one
+has rendered it and it shows. `lazy` on a component without `show`, or
+with a value other than `"each"`, is [E0106](/errors/E0106).
+
 ## Derived Values {#derived}
 
 A `ui.Derived[T]` field is a value the browser computes from states and
