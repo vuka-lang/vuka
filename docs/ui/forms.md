@@ -291,7 +291,7 @@ What each tag does with a field:
 | `<fieldset for={Form.Plan}>` | a field with choices: its radios take the fieldset's legend, the fieldset carries the field's error state and the `aria-describedby` of its hint and error |
 | `<legend/>` | empty, in a `<fieldset for>`: the field's label, as an empty `<label for/>` |
 | `<button form={Form}>`, `<input form={Form}>` | a control outside the form (a modal's footer, a toolbar) that belongs to it: `form` is the form element's id. A submit button attached so is busy while its submit is on its way, as one inside |
-| `<input type="hidden" model>` | a compile error ([E0187](/errors/E0187)): an id or an owner comes from the route or the session, and the field is `form:"-"` |
+| `<input type="hidden" model>` | a warning ([W0115](/errors/W0115)): the browser can send any value back, so an id or an owner comes from the route or the session (`form:"-"`) and an upload is a `ui.File`; a value the page's own script writes is fine |
 
 While a submit is on its way, the button that sent it has `aria-busy` and
 `data-vk-busy` (style it with `[data-vk-busy]`), and the form's other
@@ -1073,6 +1073,66 @@ func (f *Address) CityChoices(ctx context.Context, geo *Geo) ([]ui.Option, error
 A field's control is a [widget](./widgets): `<widget.Radios
 model={Form.Plan}/>` in the markup, `@ui.Spec{Widget: widget.Radios{}}` on
 the field, or `widget.Use[T]` for every field of a type.
+
+## Formsets: Many Rows in One Form {#formsets}
+
+A form editing many rows of another type at once — an order's lines, a
+product's variants, a user's addresses — holds them as a `ui.Rows[T]`
+field of its form type. Each row is a form of `T`: its fields, rules,
+`Clean` and `Clean<Field>` methods and errors are its own.
+
+```vuka
+type OrderLine struct {
+	orm.Model[OrderLine]
+	ID       int64
+	Order    orm.FK[Order]
+	Product  orm.FK[Product]
+	Quantity int @ui.Spec{Min: 1}
+}
+
+type OrderForm struct {
+	ui.FormFor[Order]
+	Lines ui.Rows[OrderLine] @ui.Spec{Min: 1, Max: 20}
+}
+```
+
+```html
+<form for={Form} onSubmit={save}>
+  <widget.Field for={Form.Customer}/>
+  for _, r := range Form.Lines.Each() {
+    <widget.Related model={r.Product}/>
+    <widget.Number model={r.Quantity}/>
+    <widget.Error for={r.Quantity}/>
+    <button type="button" onClick={Form.Lines.Remove(r)}>Remove</button>
+  }
+  <button type="button" onClick={Form.Lines.Add()}>Add line</button>
+</form>
+```
+
+- `Each()` is the rows, each a `*ui.FormFor[T]`: markup names a row's field
+  through it (`model={r.Quantity}`), and every widget works inside a row. A
+  row's controls are named `lines.<key>.quantity`, so the rows never mix.
+- The rows bind, check and submit with the form: a row's error shows at its
+  field and in the form's summary, the form's `Clean` sees every row
+  (`Form.Lines.Values()`), and the submit handler runs only when every row
+  passes.
+- `Add()` and `Remove(r)` are events; what was typed in the other rows
+  stays. A new row starts from `T`'s zero value and its fields' defaults,
+  then `T`'s `Init(ctx) error` when it has one.
+- `@ui.Spec{Min, Max}` on the field bounds the rows: a submit with too few
+  or too many shows "Lines must have at least 1", and `Add` beyond `Max`
+  adds none.
+- Rows of a model with an `orm.FK` back to the form's model are the
+  record's related rows: the form's `Load` loads them, and its `Save`
+  writes the record, the rows removed, changed and added (their back
+  reference set) in one transaction. The back reference is never a row's
+  field.
+- Rows of any other struct work the same without saving: a page sets them
+  with `Form.Lines.Load(ctx, rows...)` and reads `Form.Lines.Values()`.
+  Go code adds and removes with `Append(ctx)` and `Delete(row)`.
+
+Formsets need a live page: a form checked over HTTP without a connection
+keeps no rows between requests.
 
 ## Files {#files}
 
