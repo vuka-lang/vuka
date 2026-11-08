@@ -1,0 +1,44 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Address struct{ City string }
+
+type Order struct {
+	ui.FormState
+	Name    string
+	Address Address
+}
+
+type Checkout struct {
+	Form Order
+}
+
+func (c *Checkout) Reset() error   { return nil }
+func (c *Checkout) Check() error   { return nil }
+func (c *Checkout) Search() error  { return nil }
+func (c *Checkout) Changed() error { return nil }
+
+// View puts events beside the form's references: the form's lifecycle,
+// a field's own, a fieldset's and a button's outside the form.
+func (c *Checkout) View() ui.Node {
+	return <main>
+		<form for={c.Form} onSuccess={ui.JS.Push(c.Check)} onReset={c.Reset}>
+			<input model={c.Form.Name} onInput={c.Search}/>
+			<fieldset for={c.Form.Address} onChange={c.Changed}>
+				<input model={City}/>
+			</fieldset>
+		</form>
+		<button form={c.Form} onClick={c.Check}>Save</button>
+	</main>
+}
+
+func main() {
+	out, err := ui.String(context.Background(), (&Checkout{}).View())
+	fmt.Println(out, err)
+}
