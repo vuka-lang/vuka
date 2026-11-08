@@ -96,7 +96,7 @@ same page in the terminal.
 | [E0184](./E0184) | A form type method of the wrong shape |
 | [E0185](./E0185) | A form type and its T sharing a field or a method |
 | [E0186](./E0186) | A plain form tag's for= that names no form or field |
-| [E0187](./E0187) | model on a hidden input (now the warning W0115) |
+| [E0187](./E0187) | model on a hidden input (retired error) |
 | [E0188](./E0188) | form= on a control naming a value that isn't a form |
 | [E0195](./E0195) | A widget whose Value or Choices don't fit its field |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
