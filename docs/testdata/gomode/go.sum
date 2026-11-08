@@ -45,6 +45,8 @@ github.com/vuka-lang/orm/v2 v2.16.2-0.20261103060702-2d676bdb121b h1:NUvlEJOrChd
 github.com/vuka-lang/orm/v2 v2.16.2-0.20261103060702-2d676bdb121b/go.mod h1:kDcqPSfmYMNQmlTqWRObuAYXfsCSvZXkH7uCPAwARkc=
 github.com/vuka-lang/orm/v2 v2.17.1-0.20261108052146-77ecbde403d2 h1:ZWGHsmBn4AYpcYbdHJ+8OIMbnS+Nwfg3LVp1lxrcuOQ=
 github.com/vuka-lang/orm/v2 v2.17.1-0.20261108052146-77ecbde403d2/go.mod h1:ZVBjtzcYM7NonC0ula3k6VoB5HU2Cu5SLbiePSK8R1Y=
+github.com/vuka-lang/orm/v2 v2.17.1-0.20261108075058-3076328ab66f h1:8BRu9EmA7Yw399qDCVGVd9/8eMGY+d/4zOICswaqb0k=
+github.com/vuka-lang/orm/v2 v2.17.1-0.20261108075058-3076328ab66f/go.mod h1:ZVBjtzcYM7NonC0ula3k6VoB5HU2Cu5SLbiePSK8R1Y=
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261106031119-d0334320cb89 h1:OjKRBc91WJWcARnqU2b1dkJ5QxJzY/DAhHO/z4KYIUA=
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261106031119-d0334320cb89/go.mod h1:nPG/DLI2hN0NoFDeqj0rGK9qkOkmBRhXfpkNu6HkS4A=
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261107181706-bfe8e487e980 h1:F8T1m1QcHiE/2IoOGNvzQLA/dA8ag0P4TcDVPoU2QiE=
@@ -53,6 +55,8 @@ github.com/vuka-lang/ui/v2 v2.17.1-0.20261108053612-cc3c52443f3d h1:gCd97xmPpnCG
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108053612-cc3c52443f3d/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108054521-c0991c9516e0 h1:tqd94tiEJb/VHWC9Hlpat8+DTRdRPQe1BzDdT01Q1/A=
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108054521-c0991c9516e0/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261108080333-fd6299cc8d1d h1:I+v8mtRnNF4jTX+asJVqobxd/aZefJ11gMPvvv5Dvqc=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261108080333-fd6299cc8d1d/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105134554-b3db7a32b3f4 h1:qKP4Uox7ekeLJHCJaQonEzptsezTVgAAVuCUS+3faUI=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105134554-b3db7a32b3f4/go.mod h1:W5WH7ADy/l/dcJ75fK0k60NuEe2lEMhaW7yZVOVzoCU=
 github.com/vuka-lang/web/v2 v2.17.1-0.20261107182730-97a7cd9b4901 h1:PDcxehbJrpFUBhnaWp3o08uyaFHAh9FdvdiRPYuYpVU=

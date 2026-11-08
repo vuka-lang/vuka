@@ -58,6 +58,8 @@ github.com/vuka-lang/ui/v2 v2.17.1-0.20261108044526-9149648bc1c3 h1:dmXVCBcuPj/L
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108044526-9149648bc1c3/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108054521-c0991c9516e0 h1:tqd94tiEJb/VHWC9Hlpat8+DTRdRPQe1BzDdT01Q1/A=
 github.com/vuka-lang/ui/v2 v2.17.1-0.20261108054521-c0991c9516e0/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261108080333-fd6299cc8d1d h1:I+v8mtRnNF4jTX+asJVqobxd/aZefJ11gMPvvv5Dvqc=
+github.com/vuka-lang/ui/v2 v2.17.1-0.20261108080333-fd6299cc8d1d/go.mod h1:qj5jMPrSUYRu5SLRIbktjZgyYTkViIEuRzalcH/DTT0=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348 h1:8x1CeJOb6kaNQ3rgCC75M2f3bW4b6zBAbZJXhi0F/KQ=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818 h1:zsu1nUA1Tdw4CAbAMdCFc6WIsu2UusNf/oc5U5qpvBc=
@@ -194,6 +196,8 @@ github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108045632-39c90dcb600f h1:XYfEEu1/iH
 github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108045632-39c90dcb600f/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108082023-fb0596072ab0 h1:qF5BOj3z552rwCZYh9W5aEX6GiGcaDePT6Ta7SwuuTg=
 github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108082023-fb0596072ab0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108082847-48fa3897a96d h1:lHoKihpl03jpbPqEfVhlEL7iH9KdG0c6qZTWW5AqziI=
+github.com/vuka-lang/vuka/v2 v2.17.1-0.20261108082847-48fa3897a96d/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55 h1:tL10drZNfzP/oE8Ee8cDBJ99aq8QP9ef4pvsMbwQqg0=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55/go.mod h1:owktz7Dp3M9s+VTFrfYRnbIetlQ051Lm8KRtsn1m2LI=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105112256-a7ee386c7090 h1:FtuhSkKQt5AnmXsO+TWAqfe3WvwafrKwmZH/w9P2VyQ=
