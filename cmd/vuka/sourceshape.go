@@ -221,7 +221,7 @@ func (s *sourceShapes) localSources(root string) string {
 			}
 			name := d.Name()
 			if d.IsDir() {
-				if path != tree && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "node_modules" || name == "testdata" ||
+				if path != tree && (strings.HasPrefix(name, ".") || privateSkipped(tree, path, name) || name == "node_modules" || name == "testdata" ||
 					fileExists(filepath.Join(path, "go.mod"))) {
 					return filepath.SkipDir
 				}

@@ -43,7 +43,7 @@ func findDecorators(root, modPath string, read func(string) ([]byte, error)) []p
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
+			if path != root && (strings.HasPrefix(name, ".") || privateSkipped(root, path, name) ||
 				name == "testdata" || name == "vendor" || name == "node_modules" || hasEntry(path, load.Marker) || load.HasGoMod(path)) {
 				return filepath.SkipDir
 			}

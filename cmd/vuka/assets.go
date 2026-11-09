@@ -480,7 +480,7 @@ func (pa *pageAssets) importPathOf(dir string) string {
 	if rel == "." {
 		return pa.modPath
 	}
-	return pa.modPath + "/" + filepath.ToSlash(rel)
+	return pa.modPath + "/" + load.GoRel(filepath.ToSlash(rel))
 }
 
 // layoutComp is the component of a layout, the function a web.Layout's

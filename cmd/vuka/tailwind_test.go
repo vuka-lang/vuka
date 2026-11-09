@@ -41,6 +41,8 @@ func TestTailwindFor(t *testing.T) {
 		{"jsx", map[string]string{"go.mod": webMod, "main.vuka": ui}, "", ""},
 		{"templ", map[string]string{"go.mod": webMod, "views/page.templ": "package views\n"}, "", ""},
 		{"html", map[string]string{"go.mod": webMod, "views/page.html": "<p></p>"}, "", ""},
+		{"private folder", map[string]string{"go.mod": webMod, "pages/_parts/card.vuka.html": "<p></p>"}, "", ""},
+		{"_ folder outside pages", map[string]string{"go.mod": webMod, "_drafts/page.html": "<p></p>"}, "", "-"},
 		{"off", map[string]string{"go.mod": webMod, "main.vuka": ui}, "off", "-"},
 		{"NoTailwind", map[string]string{"go.mod": webMod, "main.vuka": ui + "\nvar o = web.NoTailwind()\n"}, "", "-"},
 		{"NoTailwind in a test", map[string]string{"go.mod": webMod, "main.vuka": ui, "main_test.go": "var o = web.NoTailwind()"}, "", ""},
