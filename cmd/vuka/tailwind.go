@@ -110,7 +110,8 @@ func tailwindFor(root string) (*tailwind, error) {
 }
 
 // walkSources calls fn for each file of the module at root, as walkModule
-// does, leaving out _ directories, testdata and examples too.
+// does, leaving out testdata, examples and _ directories too, but for a
+// private folder below pages/ (_parts), whose files are sources.
 func walkSources(root string, fn func(path, name string) error) error {
 	return load.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -121,7 +122,7 @@ func walkSources(root string, fn func(path, name string) error) error {
 			if path == root {
 				return nil
 			}
-			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "node_modules" || name == "testdata" ||
+			if strings.HasPrefix(name, ".") || privateSkipped(root, path, name) || name == "node_modules" || name == "testdata" ||
 				name == "examples" || name == "vendor" || fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)) ||
 				fileExists(filepath.Join(path, "package.json")) { // a frontend's: its .html files aren't views
 				return filepath.SkipDir
@@ -133,6 +134,17 @@ func walkSources(root string, fn func(path, name string) error) error {
 		}
 		return nil
 	})
+}
+
+// privateSkipped reports whether a walk of the module at root leaves out
+// the directory at path named name: a _ directory, but for a private folder
+// below pages/ (_parts), which holds sources.
+func privateSkipped(root, path, name string) bool {
+	if !strings.HasPrefix(name, "_") {
+		return false
+	}
+	rel, err := filepath.Rel(root, path)
+	return err != nil || !load.InPages(rel)
 }
 
 // tailwindBinary finds the Tailwind CLI: tailwindcss on PATH (tailwindcss.exe

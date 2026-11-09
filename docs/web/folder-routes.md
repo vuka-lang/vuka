@@ -849,6 +849,13 @@ As in a group, a `.go` file beside its Vuka source is compiled with it, in
 `private_parts/`. A private folder of Go alone is untouched: the go command
 builds it where it is, as `pages/_parts`.
 
+A private folder's scripts and styles work like any component's: a
+`<script lang="ts">` or `<style scoped>` in `_parts/card.vuka.html` is
+Card's, its elements carry Card's scope, and Tailwind finds the classes
+its markup uses. The scope is named after the package the pages import,
+`pages/private_parts`, so a `Card` there and a `Card` of the page's own
+package don't share one.
+
 ## Handling Several Methods on One Page {#several-methods-on-one-page}
 
 A page answers other methods on its own path with methods named after

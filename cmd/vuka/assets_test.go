@@ -107,6 +107,72 @@ func TestFindAssets(t *testing.T) {
 	}
 }
 
+const privateCounter = `<script lang="go">
+package parts
+
+import "github.com/vuka-lang/ui/v2"
+
+type Counter struct {
+	ui.Live
+	n int
+}
+</script>
+
+<output class="tracking-widest">{n}</output>
+
+<style scoped>
+output { @apply font-bold; }
+</style>
+
+<script lang="ts">
+export default { bump(el: HTMLElement) { el.classList.add("bump") } };
+</script>
+`
+
+const privatePage = `package pages
+
+import (
+	"example.com/app/pages/private_parts"
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Home struct{ ui.Live }
+<main><parts.Counter /></main>
+`
+
+// TestFindAssetsPrivateFolder: a component of a private folder below
+// pages/ (_parts) has its script and scoped stylesheet read, scoped to its
+// Go package, pages/private_parts; a _ directory outside pages/ is no
+// source.
+func TestFindAssetsPrivateFolder(t *testing.T) {
+	root := tempModule(t, map[string]string{"go.mod": webMod, "pages/index.vuka.html": privatePage, "pages/_parts/counter.vuka.html": privateCounter,
+		"_drafts/card.vuka.html": strings.ReplaceAll(privateCounter, "Counter", "Card")})
+	pa, err := findAssets(root, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pa.comps) != 1 {
+		t.Fatalf("components %v, want pages/_parts' Counter alone", pa.comps)
+	}
+	c := pa.comps[0]
+	if c.name != "Counter" || c.dir != filepath.Join(root, "pages", "_parts") || c.id != scopeID("example.com/app/pages/private_parts", "Counter") ||
+		len(c.scripts) != 1 || len(c.styles) != 1 {
+		t.Errorf("Counter: %+v", c)
+	}
+	if sc := pa.scopes()[filepath.Join(root, "pages", "_parts")]; sc["Counter"] != c.id {
+		t.Errorf("scopes: %v", pa.scopes())
+	}
+	var walked []string
+	walkSources(root, func(p, name string) error {
+		rel, _ := filepath.Rel(root, p)
+		walked = append(walked, filepath.ToSlash(rel))
+		return nil
+	})
+	if !slices.Contains(walked, "pages/_parts/counter.vuka.html") || slices.Contains(walked, "_drafts/card.vuka.html") {
+		t.Errorf("walkSources: %q", walked)
+	}
+}
+
 func TestFindAssetsErrors(t *testing.T) {
 	for _, c := range []struct{ name, decl, want string }{
 		{"missing", `web.Style("countr.css")`, "error[E0605]: web.Style(\"countr.css\"): no such file\n --> main.vuka:7\n  = help: did you mean counter.css?"},
@@ -460,6 +526,70 @@ func TestBuildAssets(t *testing.T) {
 		t.Fatalf("go build after vuka gen -inplace: %v\n%s", err, out)
 	}
 	check(serve())
+}
+
+// TestBuildAssetsPrivateFolder: vuka build compiles the script and scoped
+// stylesheet of a component in a private folder below pages/ (_parts),
+// marks its elements with its scope, and Tailwind finds a class used only
+// in its markup; the assets manifest vuka gen writes has its scope.
+func TestBuildAssetsPrivateFolder(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	if _, err := exec.LookPath("tailwindcss"); err != nil {
+		needs(t, "no tailwindcss on PATH")
+	}
+	root := assetsModule(t, map[string]string{"main.go": e2eMain, "pages/index.vuka.html": privatePage, "pages/_parts/counter.vuka.html": privateCounter})
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv(twEnv, "")
+	t.Chdir(root)
+	app := filepath.Join(t.TempDir(), "app")
+	var stderr bytes.Buffer
+	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
+	}
+	counter := scopeID("example.com/app/pages/private_parts", "Counter")
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if mf, err := os.ReadFile(filepath.Join(root, assetsGoName)); err != nil || !strings.Contains(string(mf), counter) {
+		t.Errorf("the assets manifest (%s) has no scope %s: %v\n%s", assetsGoName, counter, err, mf)
+	}
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	cmd := exec.Command(app)
+	cmd.Env = append(os.Environ(), fmt.Sprint("PORT=", port), twCSSEnv+"=", assetsEnv+"=")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	get := func(path string) string {
+		var res *http.Response
+		waitFor(t, func() bool {
+			var err error
+			res, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d%s", port, path))
+			return err == nil
+		})
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	page := get("/")
+	if !regexp.MustCompile(`<output [^>]*data-vk-s="` + counter + `"`).MatchString(page) {
+		t.Errorf("the private folder's component isn't marked with its scope %s: %s", counter, page)
+	}
+	css := get(regexp.MustCompile(`/_vuka/app\.css\?v=[^"]+`).FindString(page))
+	for _, want := range []string{`output\[data-vk-s="?` + counter + `"?\]\{[^}]*font-weight:var\(--font-weight-bold\)`, `\.tracking-widest\{`} {
+		if !regexp.MustCompile(want).MatchString(css) {
+			t.Errorf("app.css lacks %s", want)
+		}
+	}
+	js := get(regexp.MustCompile(`/_vuka/c/loader\.js\?v=[^"]+`).FindString(page))
+	if !regexp.MustCompile(`/_vuka/c/` + counter + `\.[0-9a-f]+\.js`).MatchString(js) {
+		t.Errorf("the page's loader doesn't name the private folder's module: %s", js)
+	}
 }
 
 // TestTemplScopes: a scoped templ component's elements carry its scope —
