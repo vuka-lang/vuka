@@ -70,6 +70,26 @@ slot, or the fallback when the caller left it out; `ui.Has(Actions)` reports
 whether it was filled; `vuka:"required"` on the field makes every tag fill
 it. See [Components and Slots](/ui/templates#components-and-slots).
 
+## Required Props {#required}
+
+Tag any field `vuka:"required"` and every tag must set it, whatever its
+type: a tag that leaves it out is [E0158](/errors/E0158), at the tag. Tag the
+func and handler props a component can't work without, so a missing one
+fails when the page builds, not when the component renders:
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type DeleteModal struct {
+	Title string
+	Func  ui.Action `vuka:"required"`
+}
+</script>
+```
+
 ## What a Hole Accepts {#nodes}
 
 Child holes accept nodes, slices of nodes, escaped strings and numbers,

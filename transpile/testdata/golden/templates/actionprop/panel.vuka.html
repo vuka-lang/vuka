@@ -1,0 +1,14 @@
+package main
+
+// Panel gives the chip browser statements, a closure and a method.
+type Panel struct {
+	manage ui.State[bool]
+	count  ui.State[int]
+}
+
+func (p *Panel) bump() { p.count.Set(p.count.Get() + 1) }
+<section>
+  <Chip label="Manage" onClick={manage = !manage}/>
+  <Chip label="Bump" onClick={func() { count.Set(count.Get() + 1) }}/>
+  <Chip label="Method" onClick={bump}/>
+</section>

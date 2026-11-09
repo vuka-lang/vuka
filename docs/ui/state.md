@@ -437,9 +437,21 @@ type Panel struct {
 </section>
 ```
 
-A prop of type `any` takes them too.
+A prop of type `ui.Action` takes them too, and also a closure or a method
+of the page, so one prop serves every caller:
+
+```html
+<Chip label="Manage" onClick={manage = !manage}/>
+<Chip label="Bump" onClick={func() { count.Set(count.Get() + 1) }}/>
+<Chip label="Reset" onClick={Reset}/>
+```
+
+`ui.Action` is what an event does in any form an `on…` attribute takes, and
+the component forwards it with `onClick={OnClick}`. A prop of type `any`
+takes the same forms, but only as `ui.On(OnClick)`: an `any` can't be given
+to an element's `onClick` directly.
 
 > [!NOTE]
 > A prop of a func type runs Go on the server and can't hold browser
 > commands: statements there are [E0101](/errors/E0101). Declare it
-> `ui.JSChain` to take them.
+> `ui.Action` (or `ui.JSChain`, which takes browser commands only) to take them.
