@@ -1,0 +1,14 @@
+package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+// Page gives the note a literal, a computed string and an option.
+type Page struct {
+	name string
+}
+<div>
+  <Note text="plain"/>
+  <Note text={name + "!"}/>
+  <Note text={vuka.Some("given")}/>
+  <Note text={vuka.None[string]()}/>
+</div>

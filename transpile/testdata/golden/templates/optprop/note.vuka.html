@@ -1,0 +1,9 @@
+package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+// Note shows an optional line.
+type Note struct {
+	Text vuka.Option[string]
+}
+<p>if Text.IsSome() {{Text.Value()}}</p>
