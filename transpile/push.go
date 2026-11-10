@@ -8,7 +8,8 @@ import (
 
 // registerPushes registers each method a Push or Options step of the
 // package's markup names (ui.JS.Push(p.Details, id, ui.Read()),
-// ui.JS.Options(target, c.CitiesOf, args…)) when the page can call it over
+// ui.JS.Options(target, c.CitiesOf, args…)), and each method a push's hook
+// pushes (.Success(p.Refresh)), when the page can call it over
 // HTTP — a method of a page or component that isn't live, any method a
 // read or an Options step names — and checks each step's arguments and
 // Into against its handler's parameters and result:
@@ -53,17 +54,25 @@ func (e *engine) registerPushes() bool {
 				return true
 			}
 			name, on, ok := e.chainStep(f, call)
-			if !ok || name != "Push" && name != "Options" {
+			hook := pushHooks[name]
+			if !ok || name != "Push" && name != "Options" && !hook {
 				return true
 			}
-			at := 0 // Push(handler, args…), CommandsOn.Options(handler, args…)
+			at := 0 // Push(handler, args…), CommandsOn.Options(handler, args…), Success(handler)
 			if name == "Options" && !on {
 				at = 1 // Commands.Options(target, handler, args…)
 			}
 			if len(call.Args) <= at {
 				return true
 			}
-			reg, ok := e.pushMethod(f, call, name == "Options", call.Args[at], call.Args[at+1:], into[call])
+			if hook && !e.funcArg(call.Args[0]) {
+				return true // a chain of commands
+			}
+			var after *ast.CallExpr
+			if !hook {
+				after = into[call]
+			}
+			reg, ok := e.pushMethod(f, call, name == "Options", call.Args[at], call.Args[at+1:], after)
 			if !ok || reg == "" || seen[reg] || name != "Options" && !f.target.has("RegisterPush") {
 				return true // a ui from before Push took results registers Options' methods only
 			}
@@ -129,9 +138,24 @@ func (e *engine) chainStep(f *fileState, call *ast.CallExpr) (name string, on, o
 	return "", false, false
 }
 
+// pushHooks are the steps that give the last Push before them a hook: a
+// chain, or a method or closure pushed as Push(handler) would push it.
+var pushHooks = map[string]bool{"Before": true, "Success": true, "Error": true, "After": true, "OnSuccess": true, "OnError": true}
+
+// funcArg reports whether a hook's argument is a func, a handler to push,
+// rather than a chain of commands.
+func (e *engine) funcArg(x ast.Expr) bool {
+	t := e.info.TypeOf(x)
+	if t == nil {
+		return false
+	}
+	_, ok := t.Underlying().(*types.Signature)
+	return ok
+}
+
 // pushBefore is the Push or Options step an Into applies to: the last
-// before it in its chain, past the steps that change a push (OnError,
-// OnSuccess, Timeout, another Into).
+// before it in its chain, past the steps that change a push (its hooks,
+// Timeout, another Into).
 func (e *engine) pushBefore(f *fileState, into *ast.CallExpr) *ast.CallExpr {
 	x := into.Fun.(*ast.SelectorExpr).X
 	for {
@@ -145,7 +169,7 @@ func (e *engine) pushBefore(f *fileState, into *ast.CallExpr) *ast.CallExpr {
 			return nil
 		case name == "Push" || name == "Options":
 			return call
-		case name == "OnError" || name == "OnSuccess" || name == "Timeout" || name == "Into":
+		case pushHooks[name] || name == "Timeout" || name == "Into":
 			x = call.Fun.(*ast.SelectorExpr).X
 		default:
 			return nil

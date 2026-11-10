@@ -369,6 +369,8 @@ TestOptions248Errors
 TestPush252
 TestPush252Errors
 TestPush252Warnings
+# pushhooks_test.go
+TestPushHooks
 # reuse_test.go
 TestCutFresh
 TestParseModFile

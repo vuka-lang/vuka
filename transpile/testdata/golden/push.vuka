@@ -28,6 +28,8 @@ func (p *Orders) Lookup(postcode string) (Place, error)                   { retu
 func (p *Orders) Check(name string) opttarget.Commands                    { return opttarget.JS }
 func (p *Orders) Remove(id int64) error                                   { return nil }
 func (p *Orders) When() time.Time                                         { return time.Time{} }
+func (p *Orders) Refresh()                                                 {}
+func (p *Orders) Done() error                                              { return nil }
 
 func (p *Orders) Render() opttarget.Node {
 	return <div>
@@ -39,6 +41,7 @@ func (p *Orders) Render() opttarget.Node {
 		<input name="username" onInput={opttarget.JS.Push(p.Check, opttarget.This.Value(), opttarget.Read())} />
 		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("3"))}>Remove</button>
 		<button onClick={opttarget.JS.Push(p.When).Into(opttarget.Sel("#when"))}>When</button>
+		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("4")).Before(opttarget.JS.Show("#x")).Success(p.Refresh).OnError(opttarget.JS.Show("#err")).After(p.Done)}>Hooks</button>
 	</div>
 }
 
@@ -50,12 +53,14 @@ type Feed struct {
 
 func (p *Feed) Older(before int) opttarget.Node { return nil }
 func (p *Feed) Bump(by int) (string, error)     { p.n += by; return "", nil }
+func (p *Feed) Reset()                          { p.n = 0 }
 
 func (p *Feed) Render() opttarget.Node {
 	return <div>
 		<button onClick={opttarget.JS.Push(p.Older, 5, opttarget.Read()).Into(opttarget.Sel("#posts"), opttarget.Append())}>Older</button>
 		<button onClick={opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n"))}>Bump</button>
 		<button onClick={opttarget.JS.Push(func() {})}>Nothing</button>
+		<button onClick={opttarget.JS.Push(p.Bump, 1).Success(p.Reset).After(func() {})}>Hooks</button>
 	</div>
 }
 

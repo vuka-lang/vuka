@@ -31,6 +31,8 @@ func (p *Orders) Lookup(postcode string) (Place, error)                    { ret
 func (p *Orders) Check(name string) opttarget.Commands                     { return opttarget.JS }
 func (p *Orders) Remove(id int64) error                                    { return nil }
 func (p *Orders) When() time.Time                                          { return time.Time{} }
+func (p *Orders) Refresh()                                                 {}
+func (p *Orders) Done() error                                              { return nil }
 
 func (p *Orders) Render() opttarget.Node {
 	return opttarget.HTML(`
@@ -43,6 +45,7 @@ func (p *Orders) Render() opttarget.Node {
   <input name="username" onInput={opttarget.JS.Push(p.Check, opttarget.This.Value(), opttarget.Read())}/>
   <button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("3"))}>Remove</button>
   <button onClick={opttarget.JS.Push(p.When).Into(opttarget.Sel("#when"))}>When</button>
+  <button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("4")).Before(opttarget.JS.Show("#x")).Success(p.Refresh).OnError(opttarget.JS.Show("#err")).After(p.Done)}>Hooks</button>
 </div>`,
 		opttarget.JS.Push(p.Details, opttarget.Value(int64(7)), opttarget.Read()).Into(opttarget.Sel("#details")),
 		opttarget.JS.Push(p.Details, int64(7)).Into(opttarget.Sel("#posts"), opttarget.Append()),
@@ -52,12 +55,13 @@ func (p *Orders) Render() opttarget.Node {
 		opttarget.JS.Push(p.Check, opttarget.This.Value(), opttarget.Read()),
 		opttarget.JS.Push(p.Remove, opttarget.Value("3")),
 		opttarget.JS.Push(p.When).Into(opttarget.Sel("#when")),
+		opttarget.JS.Push(p.Remove, opttarget.Value("4")).Before(opttarget.JS.Show("#x")).Success(p.Refresh).OnError(opttarget.JS.Show("#err")).After(p.Done),
 	)
 }
 
 // Feed is live: its pushes go over its socket, but for a read.
 //
-//line push.vuka:46
+//line push.vuka:49
 type Feed struct {
 	opttarget.Live
 	n int
@@ -65,6 +69,7 @@ type Feed struct {
 
 func (p *Feed) Older(before int) opttarget.Node { return nil }
 func (p *Feed) Bump(by int) (string, error)     { p.n += by; return "", nil }
+func (p *Feed) Reset()                          { p.n = 0 }
 
 func (p *Feed) Render() opttarget.Node {
 	return opttarget.HTML(`
@@ -72,10 +77,11 @@ func (p *Feed) Render() opttarget.Node {
   <button onClick={opttarget.JS.Push(p.Older, 5, opttarget.Read()).Into(opttarget.Sel("#posts"), opttarget.Append())}>Older</button>
   <button onClick={opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n"))}>Bump</button>
   <button onClick={opttarget.JS.Push(func() {})}>Nothing</button>
-</div>`, opttarget.JS.Push(p.Older, 5, opttarget.Read()).Into(opttarget.Sel("#posts"), opttarget.Append()), opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n")), opttarget.JS.Push(func() {}))
+  <button onClick={opttarget.JS.Push(p.Bump, 1).Success(p.Reset).After(func() {})}>Hooks</button>
+</div>`, opttarget.JS.Push(p.Older, 5, opttarget.Read()).Into(opttarget.Sel("#posts"), opttarget.Append()), opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n")), opttarget.JS.Push(func() {}), opttarget.JS.Push(p.Bump, 1).Success(p.Reset).After(func() {}))
 }
 
-//line push.vuka:62
+//line push.vuka:67
 func main() {
 	fmt.Println((&Orders{}).Render())
 	fmt.Println((&Feed{}).Render())
@@ -89,5 +95,7 @@ func init() {
 	opttarget.RegisterPush((*Orders).Check)
 	opttarget.RegisterPush((*Orders).Remove)
 	opttarget.RegisterPush((*Orders).When)
+	opttarget.RegisterPush((*Orders).Done)
+	opttarget.RegisterPush((*Orders).Refresh)
 	opttarget.RegisterPush((*Feed).Older)
 }

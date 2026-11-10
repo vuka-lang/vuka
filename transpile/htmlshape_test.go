@@ -119,6 +119,8 @@ func TestShapeLive(t *testing.T) {
 		{"selector event", "type P struct{ n int }\n\nfunc (p *P) Inc() {}\n<button onClick={p.Inc}/>", "the markup sends the event Inc"},
 		{"pushed event", "type P struct{ n int }\n\nfunc (p *P) Save() {}\n<form onSubmit={ui.JS.Busy().Push(p.Save)}/>", ""},
 		{"pushed closure", "type P struct{ n int }\n\nfunc (p *P) Save() {}\n<form onSubmit={ui.JS.Push(func() { p.Save() })}/>", "the markup sends the event Save"},
+		{"pushed hooks", "type P struct{ n int }\n\nfunc (p *P) Save() {}\nfunc (p *P) Done() {}\n<button onClick={ui.JS.Push(Save).Before(ui.JS.Confirm(\"?\")).Success(Done).OnError(p.Done).After(Done)}/>", ""},
+		{"a hook's closure", "type P struct{ n int }\n\nfunc (p *P) Save() {}\nfunc (p *P) Done() {}\n<button onClick={ui.JS.Push(Save).After(func() { p.Done() })}/>", "the markup sends the event Done"},
 		{"options", "type P struct{ n int }\n\nfunc (p *P) Cities(c string) []ui.Option { return nil }\n<select onChange={ui.JS.Options(ui.Sel(\"#c\"), Cities, ui.This.Value())}/>", ""},
 		{"written and called", "type P struct{ open ui.State[bool] }\n\nfunc (p *P) Save() {}\n<button onClick={open = false; Save()}/>", "the markup sends the event Save"},
 		{"read method", "type P struct{ n int }\n\nfunc (p P) Label() string { return \"\" }\n<p>{Label()}</p>", ""},
