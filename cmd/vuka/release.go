@@ -526,7 +526,7 @@ func vetTestModule(dir string, replace map[string]string, env []string) error {
 		if err := run(dir, env, "go", "vet", "./..."); err != nil {
 			return err
 		}
-		return run(dir, env, "go", "test", "./...")
+		return run(dir, env, "go", "test", "-timeout", "60m", "./...")
 	})
 }
 
