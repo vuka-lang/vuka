@@ -459,7 +459,7 @@ func (e *engine) bindComps(f *fileState, t *jsxTree) bool {
 			continue
 		}
 		eachArg(c.args, func(a *compArg) {
-			if !e.bindArg(f, c, a) && (e.progress || e.pendingLowering(f)) {
+			if !(e.wrapSome(f, a) && e.bindArg(f, c, a)) && (e.progress || e.pendingLowering(f)) {
 				ok = false
 			}
 		})
@@ -881,6 +881,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 		e.errs.add("E0158", f.at(at.start), "<%s> leaves out %s", at.tag, what).help("%s", fillHelp(fields[0]))
 		return
 	}
+	eachArg(c.args, func(a *compArg) { e.wrapSome(f, a) })
 	if c.target.has("VukaState") {
 		eachArg(c.args, func(a *compArg) { e.bindArg(f, c, a) })
 	}
@@ -1374,4 +1375,41 @@ func splitStmts(rest []jsxNode) (kids, stmts []jsxNode) {
 		kids = append(kids, n)
 	}
 	return kids, stmts
+}
+
+// wrapSome marks a prop's attribute for Some when the prop is a
+// vuka.Option[T] and the attribute is a plain T: desc={name} for a
+// Desc Option[string]. An attribute that is already an Option, or whose type
+// isn't known yet, is left as it is, and reported false to be tried again.
+func (e *engine) wrapSome(f *fileState, a *compArg) bool {
+	at := a.attr
+	if at == nil || at.some != "" || at.stmts || at.event {
+		return true
+	}
+	inner := optionValue(a.typ)
+	if inner == nil {
+		return true
+	}
+	var typ types.Type
+	switch at.kind {
+	case 's':
+		typ = types.Typ[types.UntypedString]
+	case 'e':
+		x := e.attrExpr(f, at)
+		if x == nil {
+			return true
+		}
+		typ = e.info.TypeOf(x)
+		if typ == nil || isInvalid(typ) {
+			return !e.unknownTypes(x) // false: bound again once its names have types
+		}
+	}
+	if typ == nil || types.AssignableTo(typ, a.typ) || !types.AssignableTo(typ, inner) {
+		return true
+	}
+	if b, ok := typ.(*types.Basic); ok && b.Kind() == types.UntypedNil {
+		return true
+	}
+	at.some = f.importAs(RuntimePath, "vuka")
+	return true
 }

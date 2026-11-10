@@ -265,7 +265,7 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 				if prop != nil && !e.takesCommands(prop, pkg) {
 					f.writeDone[a.expr.start] = true
 					e.errs.add("E0101", f.at(a.off), "<%s>'s %s is %s: the statements of %s={…} are browser commands, which it can't hold", el.tag, a.name, e.display(prop), a.name).
-						help("declare the prop as ui.JSChain, the value an element's %s={open = !open} is, and forward it to the element: <button onClick={%s}>", a.name, exportName(a.name))
+						help("declare the prop as ui.Action (it also takes a closure or a method), or ui.JSChain for browser commands only, and forward it to the element: <button onClick={%s}>", exportName(a.name))
 					continue
 				}
 				if a.emods != nil && a.emods.optimistic && !predicts(steps) {

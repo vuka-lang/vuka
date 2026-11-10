@@ -70,6 +70,37 @@ slot, or the fallback when the caller left it out; `ui.Has(Actions)` reports
 whether it was filled; `vuka:"required"` on the field makes every tag fill
 it. See [Components and Slots](/ui/templates#components-and-slots).
 
+## Optional Props {#optional}
+
+A prop declared `Option[T]` takes a plain `T` too, and the tag wraps it:
+`<Note text="plain"/>` and `<Note text={name + "!"}/>` set `Some(…)`. An
+`Option` given as it is stays as it is, and a tag that leaves the prop out
+leaves it `None`.
+
+## Required Props {#required}
+
+Tag any field `vuka:"required"` and every tag must set it, whatever its
+type: a tag that leaves it out is [E0158](/errors/E0158), at the tag. Tag the
+func and handler props a component can't work without, so a missing one
+fails when the page builds, not when the component renders:
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type DeleteModal struct {
+	Title string
+	Func  ui.Action `vuka:"required"`
+}
+</script>
+
+<design.Modal title={Title}>
+  <button onClick={Func}>Yes, delete it</button>
+</design.Modal>
+```
+
 ## What a Hole Accepts {#nodes}
 
 Child holes accept nodes, slices of nodes, escaped strings and numbers,

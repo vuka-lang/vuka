@@ -130,6 +130,7 @@ type jsxAttr struct {
 	ref   bool     // a field reference, lowered to ui.For or ui.ModelID: for={Form.Email}
 	scope *jsxAttr // the <fieldset for={…}> a field reference is relative to: model={Street} (forms.go)
 	of    bool     // form={Form} on a control outside its form: the form's element id
+	some  string   // a T given to an Option[T] prop: the vuka import's name, to wrap it in Some (wrapSome)
 }
 
 // attrPart is a piece of an attribute's text: text, or a hole's expression.
@@ -1103,6 +1104,15 @@ func rawString(s string) string { return "`" + s + "`" }
 // it is (a template's on… hole takes a func or commands), a read of states
 // lowered.
 func (w *jsxWriter) attrValue(a *jsxAttr) {
+	if a.some != "" {
+		some := a.some
+		a.some = ""
+		w.gen(some + ".Some(")
+		w.attrValue(a)
+		w.gen(")")
+		a.some = some
+		return
+	}
 	if a.emods != nil && a.kind == 'e' && isEvent(a.name) {
 		w.modded(a, func() { w.attrValueOf(a) })
 		return

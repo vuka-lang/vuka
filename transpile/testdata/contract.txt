@@ -98,6 +98,7 @@ public github.com/vuka-lang/ui/v2.FormOf
 public github.com/vuka-lang/ui/v2.FormState
 public github.com/vuka-lang/ui/v2.Fragment
 public github.com/vuka-lang/ui/v2.If
+public github.com/vuka-lang/ui/v2.Action
 public github.com/vuka-lang/ui/v2.Island
 public github.com/vuka-lang/ui/v2.JS
 public github.com/vuka-lang/ui/v2.JSChain

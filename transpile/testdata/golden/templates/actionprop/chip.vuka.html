@@ -1,0 +1,8 @@
+package main
+
+// Chip is a button whose click its user decides, in any form.
+type Chip struct {
+	Label   string
+	OnClick ui.Action
+}
+<button class="chip" onClick={OnClick}>{Label}</button>

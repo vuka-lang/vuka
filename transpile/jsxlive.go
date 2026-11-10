@@ -650,16 +650,19 @@ func (e *engine) checkEvents(f *fileState) {
 			if _, call := ast.Unparen(x).(*ast.CallExpr); call && isHandlerCall(tv) {
 				continue // the call is the handler
 			}
-			if msg := e.handlerProblem(tv.Type); msg != "" {
+			if msg := e.handlerProblem(f, tv.Type); msg != "" {
 				e.errs.add("E0107", f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}
 		}
 	}
 }
 
-func (e *engine) handlerProblem(t types.Type) string {
+func (e *engine) handlerProblem(f *fileState, t types.Type) string {
 	if b, ok := t.(*types.Basic); ok && b.Kind() == types.UntypedNil {
 		return ""
+	}
+	if h, ok := e.targetObj(f.target, "Action").(*types.TypeName); ok && types.Identical(t, h.Type()) {
+		return "" // the target's Action holds any form an event takes
 	}
 	if _, ok := t.Underlying().(*types.Signature); ok {
 		return ""

@@ -15,6 +15,9 @@ import (
 
 type JSChain interface{ jsChain() Commands }
 
+// Action is what an event does, in any form an on… attribute takes.
+type Action interface{}
+
 func (c Commands) jsChain() Commands { return c }
 
 var islands = map[reflect.Type]string{}
