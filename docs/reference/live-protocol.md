@@ -403,6 +403,7 @@ The operations, their arguments and what they do:
 | `set_attr` | `to`, `name`, `value` | |
 | `remove_attr` | `to`, `name` | |
 | `toggle_attr` | `to`, `name`, `values` | `[a, b]`: sets `a` unless the attribute is `a`, then `b` |
+| `remove` | `to` | take each element off the page; ahead of a `push` or in its `before`, put back when the push fails ([removals](#removals)) |
 | `show`, `hide`, `toggle` | `to`, `display`?, `transition`?, `time`? | the `display` declaration of the `style` attribute: `show` sets `display` (else removes the declaration, and sets `block` when the element is still hidden) and removes a `hidden` attribute; `hide` sets `display: none`; `toggle` shows a hidden element, else hides it. `transition` is `[during, from, to]`, three class lists (space-separated): `during` and `from` are added, then `from` swapped for `to` on the next frame, all removed after `time` ms (default 200) |
 | `transition` | `to`, `transition`, `time`? | the transition alone, nothing shown or hidden |
 | `focus`, `focus_first` | `to` | focus the element; its first focusable descendant |
@@ -645,7 +646,7 @@ they make — an attribute, a class (as `class`), the `style` display, a
 `hidden` attribute, the text (`set_text`), a field's value or checked state
 (`set_value`) — with, for each, the value before the change, the value it
 set, and the server's value at that moment (what the server's last markup
-renders there).
+renders there) — and every element `remove` takes off ([removals](#removals)).
 
 An `exec`'d list runs within the segment it is called
 in: its changes join that segment, and a push in it closes it. A segment closed by a
@@ -687,6 +688,29 @@ reverted only by its own push's failure.
 
 Server-pushed lists (`"js"` entries) may carry optimistic pushes too, with
 the same semantics, *this* being the entry's instance root.
+
+#### Removals {#removals}
+
+`remove` takes each element `to` finds off the page and records it: the
+element, its parent, its element siblings, and how a render shows it again
+— its `data-vk-key`, else its `id`, else its markup.
+
+- In a push's segment or `before` it is a prediction. On failure, unless
+  `keep`, the element itself goes back before its next sibling (else after
+  its previous one, else at its parent's end), before `on_error` runs; not
+  when the parent has gone, or a render already shows it again. On success
+  the record is dropped before the reply's markup is applied, so what the
+  server renders is the page's. A `before` that stops puts its removals
+  back, the push not being sent.
+- Elsewhere — after the last push, in a `js` entry, in a push's result —
+  it is a plain removal.
+
+While a prediction waits, and for a plain removal for as long as the
+server renders the element, each patch, render or navigation patch over
+HTTP that shows the element again in the region it updates has it taken
+off again; the new element is the one a failure puts back. A plain record
+is dropped once a render of its parent no longer shows the element, and
+every record by a navigation to another page.
 
 ### Busy
 

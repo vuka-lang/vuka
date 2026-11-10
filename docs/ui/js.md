@@ -43,6 +43,7 @@ The commands are:
 |---|---|
 | `AddClass(t, names...)`, `RemoveClass`, `ToggleClass` | classes |
 | `SetAttr(t, name, value)`, `RemoveAttr(t, name)`, `ToggleAttr(t, name, v1, v2)` | attributes; `ToggleAttr` sets `v1`, or `v2` when the attribute is `v1`. Not event handler attributes or `srcdoc`; URL values sanitized ([below](#urls-and-attributes)) |
+| `Remove(t)` | take the elements off the page; ahead of a `Push` or in its `Before` they come back if the push fails ([below](#optimistic-removal)) |
 | `Show(t, opts...)`, `Hide`, `Toggle` | the style's `display`, and a `hidden` attribute: `ui.Display("flex")` is what `Show` sets (else the declaration is removed, `block` when the element would still be hidden); `ui.Transition(during, from, to)` and `ui.Time(d)` animate it |
 | `Transition(t, during, from, to, opts...)` | the transition alone: `during` and `from` added, `from` swapped for `to` on the next frame, all removed after `ui.Time` (200ms) |
 | `Focus(t)`, `FocusFirst(t)` | focus the element, or its first focusable descendant |
@@ -342,7 +343,8 @@ The steps written after a `Push` still run at once, not after its reply:
 `ui.JS.Push(Save).Hide("#form")` hides the form while the save is on its
 way; `ui.JS.Push(Save).Success(ui.JS.Hide("#form"))` hides it once saved.
 `vuka vet` warns of a `Hide`, `Navigate`, `Patch`, `Reload` or a toast
-written straight after a `Push` ([W0116](/errors/W0116)).
+written straight after a `Push`, and of a `Remove` there, which isn't the
+push's prediction ([W0116](/errors/W0116)).
 
 The lifecycle is the same on a live page, whose push goes over its socket,
 and on a page that isn't live, whose push goes over HTTP: the same phases in
@@ -395,6 +397,52 @@ write and validation on the server and provide failure behavior.
 Busy forms
 should prevent accidental repeat submission and restore their state when the
 request finishes.
+
+## Optimistic Removal {#optimistic-removal}
+
+A delete looks done when the row goes at once. `Remove(target)` takes
+elements off the page, and in a push's `Before` (or ahead of the `Push`)
+it is the push's prediction, like the other changes written before it:
+
+```html
+<table>
+  for _, o := range Rows(Page) {
+    <tr key={o.ID}>
+      <td>{o.Number}</td>
+      <td><button onClick={ui.JS.Push(Remove, ui.Value(o.ID)).Before(ui.JS.Remove(ui.Closest("tr"))).Error(ui.JS.Reload())}>Delete</button></td>
+    </tr>
+  }
+</table>
+```
+
+- The row is gone at once, before the request is sent.
+- When the push succeeds, the row stays gone, and what the server renders
+  next is the page's: a live page's reply drops the row from the table.
+- When the push fails — the handler returns an error, a guard refuses it,
+  no reply comes within `Timeout`, the connection is lost — the row goes
+  back in its place, the same element, before `Error` runs. `Reload()`
+  there brings the rest of the page back to the truth too.
+- `ui.KeepOnError()` keeps it removed when the push fails.
+- A `Before` that stops (a declined `Confirm`, an `If` that doesn't hold)
+  puts it back: the push isn't sent.
+
+While the push is on its way, a render of a live page that still shows the
+row (a broadcast, another push's reply) leaves it removed. The runtime
+knows the row again by its `key`, else its `id`, else its markup, so give a
+removed element a key or an id when the server may render it again
+differently. A row put back after a failure is an element like any other:
+the next render, which still shows it, morphs it in place.
+
+Written anywhere else — after the `Push`, in a chain without one, or in
+the commands a handler returns — `Remove` is a plain removal. It isn't put
+back, and it stays off for as long as the server renders the element as
+before; once a render no longer shows the element, the next one that does
+is the server's again. `vuka vet` reports a `Remove` written straight after
+a `Push` ([W0116](/errors/W0116)): it runs at once and isn't the push's
+prediction, so a failure doesn't put it back.
+
+It works the same on a page that isn't live, whose push goes over HTTP;
+there no render comes back, and the success leaves the row removed.
 
 ## Sending Commands From the Server {#from-the-server}
 

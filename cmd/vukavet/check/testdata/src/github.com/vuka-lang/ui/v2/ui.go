@@ -149,6 +149,8 @@ func (c Commands) Show(t Target) Commands           { return c }
 func (c Commands) Navigate(href string) Commands    { return c }
 func (c Commands) Patch(href string) Commands       { return c }
 func (c Commands) Reload() Commands                 { return c }
+func (c Commands) Remove(t Target) Commands         { return c }
+func (c Commands) Before(a any) Commands            { return c }
 func (c Commands) Then(ch JSChain) Commands         { return c }
 func (c Commands) jsChain() Commands                { return c }
 
