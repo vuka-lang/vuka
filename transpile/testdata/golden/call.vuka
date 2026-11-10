@@ -13,6 +13,10 @@ type Products struct{}
 func (p *Products) Reload() {}
 func (p *Products) Seen()   {}
 
+// Count's result goes to Counted, a typed Success.
+func (p *Products) Count() (int, error) { return 3, nil }
+func (p *Products) Counted(n int)       {}
+
 // EditProduct is a component a Call opens.
 type EditProduct struct {
 	ID     int64
@@ -34,6 +38,7 @@ func (p *Products) Render() opttarget.Node {
 		<button onClick={opttarget.JS.Call(Details{ID: 8}).Success(opttarget.JS.Show("#x"))}>More</button>
 		<button onClick={opttarget.JS.Call("confetti", 120)}>Celebrate</button>
 		<button onClick={opttarget.JS.Close()}>Close</button>
+		<button onClick={opttarget.JS.Push(p.Count).Success(p.Counted)}>Count</button>
 	</div>
 }
 

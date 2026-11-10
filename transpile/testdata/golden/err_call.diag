@@ -38,7 +38,7 @@ error[E0191]: NotAComponent isn't a component: it renders no markup
    |
    = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
 
-error[E0191]: 3 follows the component Card{ID: 1}: a Call of a component takes its props in the component's value, and CallOptions after it
+error[E0191]: 3 follows the component Card{ID: 1}: a Call of a component takes its props in the component's value, and CallOptions (or a Size) after it
   --> err_call.vuka:26:51
    |
 26 |         <button onClick={opttarget.JS.Call(Card{ID: 1}, 3)} />

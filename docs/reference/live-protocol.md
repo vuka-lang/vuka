@@ -413,7 +413,7 @@ The operations, their arguments and what they do:
 | `push` | `h`, `value`?, `before`?, `on_ok`?, `on_error`?, `after`?, `timeout`?, `keep`? | send an `event` message whose `target` is `h` (below); the other fields make it [optimistic](#optimistic-pushes) |
 | `debounce`, `throttle` | `ms` | the steps after it run debounced or throttled, per element and event type; a throttled `input` runs its last call at the end of the window |
 | `key` | `keys` | stop unless the event is a keyboard event whose `key` is one of `keys` |
-| `confirm` | `msg` | `window.confirm(msg)`; stop on cancel |
+| `confirm` | `msg`, `yes`?, `no`?, `native`? | ask `msg`: in a ConfirmBox the client builds (a modal `<dialog data-vk-confirm>` in the overlay host, its buttons' words `yes` and `no`) where the page has the host, the steps after it running once accepted; else, and with `native`, and for a submit, a link, a form's submit button or an element with a `data-vk-on-…` for the event, `window.confirm(msg)`; stop on cancel |
 | `if`, `else_if` | `cond` | a branch: the steps after it run while the condition holds, up to its `else_if`, `else` or `end` |
 | `else` | | the branch taken when no `if`/`else_if` before it at its level did |
 | `end` | | ends the `if` at its level; without one, the branch runs to the end of the list (or of the enclosing branch) |
@@ -544,9 +544,23 @@ the overlay host; `{"redirect":url}`; or `{"error":{…}}` with the error's
 status — with `html` too (the error state) and `run` (commands) when the
 component's Mount failed.
 
+An `open` may carry `key` (`ui.CallKey`): the client names the component
+by it, and a second `open` with it while one is open updates that one — on
+a live page the session gives the instance the new props; over HTTP the
+client puts the reply's markup in the open one. It may carry `into`
+(`ui.Into`, `#id`): the session teleports the component there instead, and
+drops it when the instance whose render made the step is unmounted; over
+HTTP the client puts the markup there, removing what another `open` put.
+
+The root's `data-vk-present` says how the client shows it: `modal`
+(`showModal`), `popover` (`show()`, placed below the element the `open`
+ran on, closed by Escape and a press outside it), `toast` (non-modal,
+closed after `data-vk-timeout` ms) or `inline` (as it is). `data-vk-size`
+is its width.
+
 The overlay host is `<div id="vk-overlays" data-vk-overlays>`: the
 document has it after the runtime's script when the page renders an
-`open`; a client without one makes one at the end of `<body>`, kept by
+`open` or a `confirm`; a client without one makes one at the end of `<body>`, kept by
 morphs as a script's element is. An `open` settles as a push does,
 `before` to `after`: it succeeds once the dialog is in the page, which the
 client shows modal (`showModal`). A dialog's `cancel` (Escape) closes it,
@@ -555,6 +569,10 @@ dispatches `vkclose` on it, the session's handler dropping the instance —
 the next render leaves it out — or, on a page that isn't live, removes it.
 When a dialog the client opened leaves the page it gives the focus back to
 what had it when the `open` ran, and runs `closed` there.
+
+In a push's `on_ok`, `{"$read":{"result":true}}` reads its result: the
+`value` of a scalar's, the `fields` of a struct's (`ui.Result`, what a typed
+`Success` sends its method).
 
 A push's reply over HTTP may carry `run`, commands to run after its result
 (the components its method opened, `ui.Call`), and `close: true`, closing

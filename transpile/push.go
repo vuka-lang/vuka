@@ -99,6 +99,11 @@ func (e *engine) registerPushes() bool {
 			if hook && !e.funcArg(call.Args[0]) {
 				return true // a chain of commands
 			}
+			if name == "Success" || name == "OnSuccess" {
+				if !e.typedSuccess(f, call) {
+					return true
+				}
+			}
 			var after *ast.CallExpr
 			if !hook {
 				after = into[call]

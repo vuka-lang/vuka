@@ -55,7 +55,7 @@ The commands are:
 | `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`, `"ctrl+Enter"` with a modifier held) |
 | `Prevent()`, `Stop()`, `Once()` | the event's default action prevented; the event kept from the elements around; the steps after it run the first time only. [Modifiers](/ui/events#modifiers) write them: `onClick.once={…}` |
 | `Then(chain)` | another chain's steps after these |
-| `Confirm(msg)` | stop unless the user confirms |
+| `Confirm(msg, ui.NativeConfirm()?)` | stop unless the user confirms: in a ConfirmBox where the page has an overlay host, else (and with `NativeConfirm`) the browser's dialog ([below](/ui/call#confirm)) |
 | `If(cond)`, `ElseIf(cond)`, `Else()`, `End()` | branches |
 | `When(cond, chain)`, `Else(chain)` | a branch as a block: no `End` ([conditions](#conditions)) |
 | `Busy(t?, ui.Timeout(d)?)` | mark an element busy while a post or push is under way ([busy forms](#busy-forms)) |
@@ -65,7 +65,7 @@ The commands are:
 | `Options(t, method, args...)` | load a select's options from a method of the page: `Push(method, args..., ui.Read()).Into(t)` ([below](#options)) |
 | `SetText(t, text)` | set the element's text, replacing its content: a string, or a read (`ui.LoadError` in an `Error`) |
 | `Call(name, args...)` | call a JavaScript function of the page ([scripts](/web/assets#scripts)) |
-| `Call(component, opts...)` | open a component over the page, in a dialog, until it closes ([below](#calls)) |
+| `Call(component, opts...)` | open a component over the page, in a dialog, until it closes; `ui.As`, `ui.Into`, `ui.CallKey` and a `ui.Size` say how ([below](#calls)) |
 | `Close()` | close the component a `Call` opened that the element is in |
 | `Closed(a)` | run `a` once the component the last `Call` opened has closed |
 | `Before(a)` | run `a` before the last `Push` or `Call` is sent; when `a` stops (a declined `Confirm`, an `If` that doesn't hold) nothing is sent ([lifecycle](#push-lifecycle)) |
@@ -296,6 +296,21 @@ Before → request → Success | Error → After
 
 `OnSuccess` and `OnError` are `Success` and `Error`, under the names they
 had first. A hook given twice runs both, in the order given.
+
+A method given to `Success` that takes one value, after a `Push` whose
+handler returns a scalar or a struct, gets that result — a typed result.
+The compiler checks that the method's parameter takes it
+([E0168](/errors/E0168)); `ui.Result` is the same read, for a step to pass
+explicitly:
+
+```vuka
+func (p *Orders) Create(ctx context.Context, f NewOrder, orders *Store) (int64, error)
+func (p *Orders) Created(id int64) { … }
+```
+
+```html
+<form onSubmit={ui.JS.Push(Create).Success(Created)}>…</form>
+```
 
 ```html
 <button onClick={

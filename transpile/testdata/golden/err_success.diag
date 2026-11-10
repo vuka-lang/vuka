@@ -1,0 +1,17 @@
+error[E0168]: p.Wrong takes Order, and the push before it returns int64: a Success's method gets the push's result
+  --> err_success.vuka:20:56
+   |
+20 |         <button onClick={opttarget.JS.Push(p.Create).Success(p.Wrong)} />
+   |                                                              ^^^^^^^
+   |
+   = help: give the method one parameter of the push's result type, or pass a method taking none
+
+error[E0168]: p.Created takes a value, and the push before it returns opttarget.Node (node): a Success's method gets a scalar or a struct the push returns
+  --> err_success.vuka:21:57
+   |
+21 |         <button onClick={opttarget.JS.Push(p.Details).Success(p.Created)} />
+   |                                                               ^^^^^^^^^
+   |
+   = help: give the method one parameter of the push's result type, or pass a method taking none
+
+For more information about this error, try `vuka explain E0168`.
