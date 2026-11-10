@@ -87,6 +87,9 @@ func TestCodesUsed(t *testing.T) {
 		return
 	}
 	for _, e := range Errors() {
+		if strings.Contains(e.Title, "(retired") {
+			continue
+		}
 		if _, ok := used[e.Code]; !ok {
 			t.Errorf("%s has a page and no use", e.Code)
 		}
