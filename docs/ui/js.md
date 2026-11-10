@@ -63,9 +63,12 @@ The commands are:
 | `ScrollTo(t)` | scroll the element into view |
 | `SetValue(t, v)` | set a field's value — a string, a bool for a checkbox, or a read of another field (`ui.Sel("#x").Value()`) — firing `input` and `change` ([below](#set-value)) |
 | `Options(t, method, args...)` | load a select's options from a method of the page: `Push(method, args..., ui.Read()).Into(t)` ([below](#options)) |
-| `SetText(t, text)` | set the element's text, replacing its content: a string, or a read (`ui.LoadError` in an `OnError`) |
+| `SetText(t, text)` | set the element's text, replacing its content: a string, or a read (`ui.LoadError` in an `Error`) |
 | `Call(name, args...)` | call a JavaScript function of the page ([scripts](/web/assets#scripts)) |
-| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome; `ui.LoadError` reads a failure's message ([below](#push-errors)) |
+| `Before(a)` | run `a` before the last `Push` is sent; when `a` stops (a declined `Confirm`, an `If` that doesn't hold) nothing is sent ([lifecycle](#push-lifecycle)) |
+| `Success(a)`, `Error(a)` | run `a` when the last `Push` succeeds, or fails; `ui.LoadError` reads a failure's message ([below](#push-errors)). `OnSuccess` and `OnError` are the same |
+| `After(a)` | run `a` once the last `Push` has settled, after its `Success` or `Error` ([lifecycle](#push-lifecycle)) |
+| `Timeout(d)` | how long the last `Push` waits for its reply before it fails (10s) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
 
 ### URLs and Attributes {#urls-and-attributes}
@@ -150,7 +153,7 @@ parameter takes the next argument, in order:
   `ui.Sel("[name=coupon]").Value()`, `ui.This.Checked()`, `ui.Sel(…).Attr(n)`.
   A read's text converts to the parameter's type (`"3"` to an `int`,
   `"true"` to a `bool`); one that won't fails the push and runs its
-  `OnError`;
+  `Error`;
 - `ui.Value(x)`, as the first argument.
 
 Options — `ui.Read()`, `ui.Cache(d)`, `ui.Timeout(d)`, `ui.KeepOnError()` —
@@ -222,7 +225,7 @@ func (p *Join) CheckName(ctx context.Context, name string, users *Users) (ui.Com
 <input name="postcode" onChange={ui.JS.Push(Lookup, ui.This.Value(), ui.Read()).Into(ui.Closest("form"))} />
 
 <!-- a row's details, then a dialog -->
-<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").OnSuccess(design.OpenDialog("details"))}>View</button>
+<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").Success(design.OpenDialog("details"))}>View</button>
 
 <!-- a write on a page that isn't live, rendering one list again -->
 <button onClick={ui.JS.Push(Unsubscribe, ui.Value(a.CategoryID)).Into("#alerts")}>Remove</button>
@@ -258,14 +261,76 @@ whose copy is thrown away ([W0113](/errors/W0113)).
 
 A push fails when its handler returns an error, a guard refuses it, a read
 doesn't convert, or no reply comes within `Timeout` (10s). Its predictions
-are taken back and its `OnError` runs; `ui.LoadError` reads the failure's
-message there. Without an `OnError` the error is logged and a `vk:error`
-event fired. `OnSuccess` runs once the result is in place.
+are taken back and its `Error` runs; `ui.LoadError` reads the failure's
+message there. Without an `Error` the error is logged and a `vk:error`
+event fired. `Success` runs once the result is in place.
 
 ```html
-<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").OnError(ui.JS.SetText("#details-error", ui.LoadError))}>View</button>
+<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").Error(ui.JS.SetText("#details-error", ui.LoadError))}>View</button>
 <p id="details-error"></p>
 ```
+
+### Lifecycle {#push-lifecycle}
+
+A push runs in four phases, each with a hook on the chain's last `Push`:
+
+```
+Before → request → Success | Error → After
+```
+
+- `Before(a)` runs in the browser before the request is sent. When it
+  stops — a declined `Confirm`, an `If` that doesn't hold — nothing is
+  sent, no other hook runs, and the `Busy` marks waiting for the push are
+  taken off. What it changes is the push's prediction, as the steps written
+  before the `Push` are.
+- `Success(a)` runs once the reply is applied; `Error(a)` when the push
+  fails: its handler returns an error, a guard refuses it, a read doesn't
+  convert, or no reply comes within `Timeout`. `ui.LoadError` reads the
+  message in it.
+- `After(a)` runs once the push has settled, after `Success` or `Error`:
+  a `finally`. It runs when the hook before it fails too (a failing
+  `Success` doesn't run `Error`), and not when `Before` stopped the push.
+
+`OnSuccess` and `OnError` are `Success` and `Error`, under the names they
+had first. A hook given twice runs both, in the order given.
+
+```html
+<button onClick={
+  ui.JS.Push(Remove, ui.Value(o.ID))
+    .Before(ui.JS.Confirm("Delete order " + o.Number + "?"))
+    .Success(ui.JS.Hide("#order-" + o.Number).Then(ui.JS.Push(RefreshTotals)))
+    .Error(ui.JS.SetText("#error", ui.LoadError))
+    .After(ui.JS.PopFocus())
+}>Delete</button>
+```
+
+Each hook takes a `ui.Action`: a chain of commands, or a method of the page
+or a closure, which is pushed after the browser's steps as `Push(handler)`
+would push it. A chain is a value and each step returns a new one, so a
+chain a function returns can be wrapped where it is used:
+
+```vuka
+func removeProduct(id int64) ui.Commands {
+	return ui.JS.Push(RemoveProduct, ui.Value(id)).After(ui.JS.RemoveClass(ui.This, "pending"))
+}
+```
+
+```html
+<button onClick={removeProduct(p.ID).Before(ui.JS.Confirm("Remove " + p.Name + "?")).Success(ReloadProducts)}>Remove</button>
+```
+
+The steps written after a `Push` still run at once, not after its reply:
+`ui.JS.Push(Save).Hide("#form")` hides the form while the save is on its
+way; `ui.JS.Push(Save).Success(ui.JS.Hide("#form"))` hides it once saved.
+
+The lifecycle is the same on a live page, whose push goes over its socket,
+and on a page that isn't live, whose push goes over HTTP: the same phases in
+the same order, a timeout or a lost connection an `Error`. A method given as
+a hook is its own push after the first. On a live page it runs on the
+instance and sees what the push changed; on a page that isn't live it is
+another request to a fresh copy of the page, with its path and query fields
+bound and its services injected, and none of the first push's field changes:
+what it needs to see must be in a service, a database, or its arguments.
 
 ## Loading Options {#options}
 

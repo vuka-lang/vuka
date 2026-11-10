@@ -92,7 +92,21 @@ func (c Commands) Into(t Target, opts ...IntoOption) Commands {
 	return Commands{append(c.steps, "into "+string(t))}
 }
 
-func (c Commands) OnError(ch Commands) Commands { return c }
+func (c Commands) OnError(a any) Commands   { return c.hook("on_error", a) }
+func (c Commands) OnSuccess(a any) Commands { return c.hook("on_ok", a) }
+func (c Commands) Before(a any) Commands    { return c.hook("before", a) }
+func (c Commands) Success(a any) Commands   { return c.hook("on_ok", a) }
+func (c Commands) Error(a any) Commands     { return c.hook("on_error", a) }
+func (c Commands) After(a any) Commands     { return c.hook("after", a) }
+
+// hook is the chain with a hook of the last push: a func's name, as a
+// push names it, or a chain's steps.
+func (c Commands) hook(name string, a any) Commands {
+	if ch, ok := a.(JSChain); ok {
+		return c.step(name + " [" + ch.jsChain().String() + "]")
+	}
+	return c.step(name + " " + stepName(a))
+}
 
 // JSChain is a chain of commands.
 type JSChain interface{ jsChain() Commands }

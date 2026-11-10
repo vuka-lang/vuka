@@ -410,7 +410,7 @@ The operations, their arguments and what they do:
 | `pop_focus` | | focus the element on the top of the stack, and drop it |
 | `dispatch` | `to`, `event`, `detail`?, `bubbles` | a `CustomEvent` named `event` with `detail` |
 | `exec` | `to`, `attr` | run the commands JSON held in the element's attribute `attr`, *this* being that element |
-| `push` | `h`, `value`?, `on_ok`?, `on_error`?, `timeout`?, `keep`? | send an `event` message whose `target` is `h` (below); the other fields make it [optimistic](#optimistic-pushes) |
+| `push` | `h`, `value`?, `before`?, `on_ok`?, `on_error`?, `after`?, `timeout`?, `keep`? | send an `event` message whose `target` is `h` (below); the other fields make it [optimistic](#optimistic-pushes) |
 | `debounce`, `throttle` | `ms` | the steps after it run debounced or throttled, per element and event type; a throttled `input` runs its last call at the end of the window |
 | `key` | `keys` | stop unless the event is a keyboard event whose `key` is one of `keys` |
 | `confirm` | `msg` | `window.confirm(msg)`; stop on cancel |
@@ -566,8 +566,10 @@ The push takes these fields:
 | `push` field | |
 |---|---|
 | `h`, `value` | as before |
+| `before` | operations run before the push is sent, its predictions as the list's are; when they stop (a declined `confirm`, an `if` whose block doesn't reach their end) the push isn't sent, no other hook runs and the `busy` marks waiting for it are undone |
 | `on_ok` | operations run when the push succeeds, *this* as for the list |
 | `on_error` | operations run when it fails |
+| `after` | operations run once the push settles, after `on_ok` or `on_error` (even when those fail) |
 | `timeout` | ms to wait for the reply before the push fails; default `10000` |
 | `keep` | `true`: a failure reverts nothing (`on_error` still runs) |
 
@@ -614,7 +616,7 @@ command record; to an earlier command's value, keeps that record.
 
 A reply is applied in this order: its markup (and reconciliation), the
 push's reverts on failure, the message's `js` entries, then `on_ok` or
-`on_error`. A reply arriving after its push timed out is applied as usual,
+`on_error`, then `after`. A reply arriving after its push timed out is applied as usual,
 minus the settling: the push was already reverted and its `on_error` run.
 
 Pushes settle independently: a list with two pushes has two segments, each
