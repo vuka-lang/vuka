@@ -131,3 +131,24 @@ type (
 	Fieldset struct{ Legend string }
 	Choices  struct{ For any }
 )
+
+var JS Commands
+
+type Target string
+
+type PushOption func()
+
+func (c Commands) Push(h any, args ...any) Commands { return c }
+func (c Commands) Call(t any, args ...any) Commands { return c }
+func (c Commands) Into(t Target) Commands           { return c }
+func (c Commands) Timeout(d int) Commands           { return c }
+func (c Commands) Success(a any) Commands           { return c }
+func (c Commands) Error(a any) Commands             { return c }
+func (c Commands) Hide(t Target) Commands           { return c }
+func (c Commands) Show(t Target) Commands           { return c }
+func (c Commands) Navigate(href string) Commands    { return c }
+func (c Commands) Patch(href string) Commands       { return c }
+func (c Commands) Then(ch JSChain) Commands         { return c }
+func (c Commands) jsChain() Commands                { return c }
+
+func ShowToast(ref string) Commands { return nil }

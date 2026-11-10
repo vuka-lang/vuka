@@ -14,8 +14,11 @@ func TestLive(t *testing.T)   { analysistest.Run(t, analysistest.TestData(), Liv
 func TestTemplates(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Templates, "templates")
 }
-func TestSchema(t *testing.T)  { analysistest.Run(t, analysistest.TestData(), Schema, "schema") }
-func TestHooks(t *testing.T)   { analysistest.Run(t, analysistest.TestData(), Hooks, "hooks") }
+func TestSchema(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Schema, "schema") }
+func TestHooks(t *testing.T)  { analysistest.Run(t, analysistest.TestData(), Hooks, "hooks") }
+func TestPushSteps(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), PushSteps, "pushsteps")
+}
 func TestQueries(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Queries, "queries") }
 func TestParts(t *testing.T)   { analysistest.Run(t, analysistest.TestData(), Parts, "parts") }
 func TestVariants(t *testing.T) {

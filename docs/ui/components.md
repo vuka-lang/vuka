@@ -214,6 +214,10 @@ adds no box to the layout. A component can teleport itself by making
 Give a teleport an `id` when teleports around it come and go, as you key
 repeated components: it keeps the same element across renders.
 
+A component the page doesn't place at all — an editor a row's button opens,
+a details panel — opens with `ui.JS.Call(component)` instead, in the
+page's overlay host, until it closes ([Opening Components](/ui/call)).
+
 ## The Component Kit {#kit}
 
 The ui kit exposes components as tags, such as `<ui.Card>` and `<ui.Button>`.

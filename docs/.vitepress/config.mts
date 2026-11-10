@@ -109,6 +109,7 @@ export default defineConfig({
           { text: 'Events', link: '/ui/events' },
           { text: 'Client State', link: '/ui/state' },
           { text: 'JS Commands', link: '/ui/js' },
+          { text: 'Opening Components', link: '/ui/call' },
           { text: 'Component Scripts', link: '/ui/scripts' },
           { text: 'Navigation', link: '/web/navigation' },
           { text: 'URL State', link: '/web/url-state' },

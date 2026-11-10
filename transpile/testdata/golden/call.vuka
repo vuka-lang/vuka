@@ -1,0 +1,42 @@
+package main
+
+import (
+	"fmt"
+
+	"vukatest.local/opttarget"
+)
+
+// Products isn't live: the components its Calls name are registered, and
+// the methods their Action props are, as a push's are.
+type Products struct{}
+
+func (p *Products) Reload() {}
+func (p *Products) Seen()   {}
+
+// EditProduct is a component a Call opens.
+type EditProduct struct {
+	ID     int64
+	Query  any
+	OnSave opttarget.Action
+}
+
+func (e EditProduct) Render() opttarget.Node { return <form>{e.ID}</form> }
+
+// Details is one too, opened twice: registered once.
+type Details struct{ ID int64 }
+
+func (d *Details) Render() opttarget.Node { return <p>{d.ID}</p> }
+
+func (p *Products) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Call(EditProduct{ID: 7, Query: opttarget.Sel("#q").Value(), OnSave: p.Reload}).Closed(p.Seen)}>Edit</button>
+		<button onClick={opttarget.JS.Call(&Details{ID: 7})}>Details</button>
+		<button onClick={opttarget.JS.Call(Details{ID: 8}).Success(opttarget.JS.Show("#x"))}>More</button>
+		<button onClick={opttarget.JS.Call("confetti", 120)}>Celebrate</button>
+		<button onClick={opttarget.JS.Close()}>Close</button>
+	</div>
+}
+
+func main() {
+	fmt.Println((&Products{}).Render())
+}

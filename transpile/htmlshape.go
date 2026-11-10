@@ -688,12 +688,13 @@ func openTagEnd(s string, i int) int {
 	return len(s)
 }
 
-var pushStep = regexp.MustCompile(`\.(?:Push|Options|Before|Success|Error|After|OnSuccess|OnError)\(`)
+var pushStep = regexp.MustCompile(`\.(?:Push|Options|Before|Success|Error|After|OnSuccess|OnError|Call|Closed)\(`)
 
 // maskPushSteps is an on… attribute's expression without the arguments of
-// its Push and Options steps and of their hooks: a method a step names
-// doesn't make its page live, the step reaches it over HTTP on a page that
-// isn't. A closure among them does, running only on a live instance.
+// its Push and Options steps, of their hooks, and of its Calls (a
+// component's props): a method a step names doesn't make its page live,
+// the step reaches it over HTTP on a page that isn't. A closure among them
+// does, running only on a live instance.
 func maskPushSteps(hole string) string {
 	for from := 0; ; {
 		loc := pushStep.FindStringIndex(hole[from:])

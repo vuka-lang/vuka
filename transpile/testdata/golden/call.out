@@ -1,0 +1,1 @@
+open main.EditProduct; closed main.(*Products).Seen open main.Details open main.Details; on_ok [show #x] call confetti close

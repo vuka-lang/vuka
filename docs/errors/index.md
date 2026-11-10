@@ -100,6 +100,7 @@ same page in the terminal.
 | [E0188](./E0188) | form= on a control naming a value that isn't a form |
 | [E0189](./E0189) | A ui.Spec the compiler can tell is wrong |
 | [E0190](./E0190) | A ui.Meta that describes no field |
+| [E0191](./E0191) | A Call of a component that cannot be sent |
 | [E0195](./E0195) | A widget whose Value or Choices don't fit its field |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
@@ -115,6 +116,7 @@ same page in the terminal.
 | [W0113](./W0113) | A pushed method assigning the fields of a page that is not live |
 | [W0114](./W0114) | A read naming a method that writes |
 | [W0115](./W0115) | model on a hidden input |
+| [W0116](./W0116) | A step after a Push that runs before its reply |
 
 ## Decorators and attributes
 

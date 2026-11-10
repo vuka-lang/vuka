@@ -65,10 +65,13 @@ The commands are:
 | `Options(t, method, args...)` | load a select's options from a method of the page: `Push(method, args..., ui.Read()).Into(t)` ([below](#options)) |
 | `SetText(t, text)` | set the element's text, replacing its content: a string, or a read (`ui.LoadError` in an `Error`) |
 | `Call(name, args...)` | call a JavaScript function of the page ([scripts](/web/assets#scripts)) |
-| `Before(a)` | run `a` before the last `Push` is sent; when `a` stops (a declined `Confirm`, an `If` that doesn't hold) nothing is sent ([lifecycle](#push-lifecycle)) |
-| `Success(a)`, `Error(a)` | run `a` when the last `Push` succeeds, or fails; `ui.LoadError` reads a failure's message ([below](#push-errors)). `OnSuccess` and `OnError` are the same |
-| `After(a)` | run `a` once the last `Push` has settled, after its `Success` or `Error` ([lifecycle](#push-lifecycle)) |
-| `Timeout(d)` | how long the last `Push` waits for its reply before it fails (10s) |
+| `Call(component, opts...)` | open a component over the page, in a dialog, until it closes ([below](#calls)) |
+| `Close()` | close the component a `Call` opened that the element is in |
+| `Closed(a)` | run `a` once the component the last `Call` opened has closed |
+| `Before(a)` | run `a` before the last `Push` or `Call` is sent; when `a` stops (a declined `Confirm`, an `If` that doesn't hold) nothing is sent ([lifecycle](#push-lifecycle)) |
+| `Success(a)`, `Error(a)` | run `a` when the last `Push` or `Call` succeeds, or fails; `ui.LoadError` reads a failure's message ([below](#push-errors)). `OnSuccess` and `OnError` are the same |
+| `After(a)` | run `a` once the last `Push` or `Call` has settled, after its `Success` or `Error` ([lifecycle](#push-lifecycle)) |
+| `Timeout(d)` | how long the last `Push` or `Call` waits for its reply before it fails (10s) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
 
 ### URLs and Attributes {#urls-and-attributes}
@@ -322,6 +325,8 @@ func removeProduct(id int64) ui.Commands {
 The steps written after a `Push` still run at once, not after its reply:
 `ui.JS.Push(Save).Hide("#form")` hides the form while the save is on its
 way; `ui.JS.Push(Save).Success(ui.JS.Hide("#form"))` hides it once saved.
+`vuka vet` warns of a `Hide`, `Navigate`, `Patch` or a toast written
+straight after a `Push` ([W0116](/errors/W0116)).
 
 The lifecycle is the same on a live page, whose push goes over its socket,
 and on a page that isn't live, whose push goes over HTTP: the same phases in
@@ -395,7 +400,35 @@ it live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
 `Busy` marks an element while a push or post is in progress. Use a timeout
 and failure handling so a failed request cannot leave the form disabled.
 
-## Calling JavaScript
+## Two Kinds of Call {#calls}
 
-`Call` invokes a script function shipped by the page. Pass serializable values
-and clean up instance resources on destroy; see [Scripts](/web/assets#scripts).
+`Call` takes a function's name or a component.
+
+Given a name, it invokes a JavaScript function the page ships. Pass
+serializable values and clean up instance resources on destroy; see
+[Scripts](/web/assets#scripts).
+
+```html
+<button onClick={ui.JS.Call("confetti", 120)}>Celebrate</button>
+```
+
+Given a component's value, it opens the component over the page, in its
+presentation — its root `<ui.Dialog>`, else a dialog frame — with the props
+the value carries, until it closes ([Opening Components](/ui/call)):
+
+```html
+<button onClick={ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})}>Edit</button>
+<button onClick={ui.JS.Call(components.OrderDetails{ID: o.ID}).Closed(RefreshTotals)}>Details</button>
+```
+
+The open is a server operation, with the [lifecycle](#push-lifecycle) a
+push has: `Before`, then the open, then `Success` once the component is on
+screen or `Error` (a refused call, a `Mount` that fails, no reply in
+time), then `After`; and `Closed` once it has closed. Over a live page's
+connection the session mounts it; on a page that isn't live it opens over
+HTTP. Its props are JSON values, element reads in an `any` prop, and
+`ui.Action` props; one holding markup is a compile error
+([E0191](/errors/E0191)). `ui.JS.Close()` in the component closes it, as
+`ui.Close(ctx)` does from its handlers, and `ui.Call(ctx, component)`
+opens one from the server. `Closed`, `Close` and the options go with the
+component form only.

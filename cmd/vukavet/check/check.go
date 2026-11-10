@@ -17,7 +17,7 @@ import (
 )
 
 // Analyzers are vukavet's checks.
-var Analyzers = []*analysis.Analyzer{Routes, Live, Templates, Schema, Hooks, Queries, Context, URLState, Forms, Parts, Variants}
+var Analyzers = []*analysis.Analyzer{Routes, Live, Templates, Schema, Hooks, Queries, Context, URLState, Forms, Parts, Variants, PushSteps}
 
 const (
 	vukaPath  = "github.com/vuka-lang/vuka/v2"
