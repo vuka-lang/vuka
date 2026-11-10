@@ -47,7 +47,7 @@ func runPushSteps(pass *analysis.Pass) (any, error) {
 			return
 		}
 		args := "…"
-		if step == "Reload" {
+		if step == "Reload" && len(call.Args) == 0 {
 			args = ""
 		}
 		help := "move it into the push's Success, .Success(ui.JS." + step + "(" + args + ")), to run it once the push has succeeded"

@@ -14,6 +14,8 @@ func (p *Orders) chains() []ui.Commands {
 		ui.JS.Push(p.Save).Then(ui.ShowToast("saved")),        // want `W0116: the toast runs at once`
 		ui.JS.Push(p.Save).Reload(),                           // want `W0116: Reload runs at once`
 		ui.JS.Push(p.Save).Success(ui.JS.Reload()),
+		ui.JS.Push(p.Save).Reload("#orders"), // want `W0116: Reload runs at once`
+		ui.JS.Push(p.Save).Success(ui.JS.Reload("#orders")),
 		ui.JS.Push(p.Save).Remove("#row-7"), // want `W0116: Remove after a Push isn't its prediction`
 		ui.JS.Push(p.Save).Before(ui.JS.Remove("#row-7")),
 		ui.JS.Remove("#row-7").Push(p.Save),

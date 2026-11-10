@@ -74,7 +74,7 @@ The commands are:
 | `After(a)` | run `a` once the last `Push` or `Call` has settled, after its `Success` or `Error` ([lifecycle](#push-lifecycle)) |
 | `Timeout(d)` | how long the last `Push` or `Call` waits for its reply before it fails (10s) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
-| `Reload()` | render the current page again at its URL, query and `#hash` kept, scroll and focus too ([below](#reload)) |
+| `Reload()`, `Reload("#id")` | render the current page again at its URL, query and `#hash` kept, scroll and focus too ([below](#reload)); with an id, only the part of the page that element is in, the rest keeping its state ([a region](#reload-region)) |
 
 ### URLs and Attributes {#urls-and-attributes}
 
@@ -572,6 +572,111 @@ func (p *Orders) remove(ctx context.Context, id int64) error {
   }
 </table>
 ```
+
+### Reloading a Region {#reload-region}
+
+A whole `Reload()` runs the page's route again: a live page without an
+`Update` taking the URL mounts again, so an open dialog closes and its
+fields start over. When only one part of the page needs fresh data, name
+it by the `id` of an element in it: `Reload("#orders")` renders that part
+again and leaves the rest as it is.
+
+This orders page keeps a filter dialog open while the visitor deletes
+rows; the table is a component, and its root carries the id:
+
+```html
+<script lang="go">
+package orders
+
+import (
+    "example.com/app/components"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Orders struct {
+    ui.Live
+    filter bool
+    status string @ui.Bind
+}
+</script>
+
+<button onClick={filter = true}>Filter</button>
+if filter {
+  <dialog open>
+    <input bind:value={status} placeholder="Status" />
+    <button onClick={filter = false}>Close</button>
+  </dialog>
+}
+<components.OrdersTable status={status} />
+```
+
+```html
+<script lang="go">
+package components
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type OrdersTable struct {
+    ui.Live
+    Status string
+    orders *services.Orders
+}
+
+func (t *OrdersTable) Rows(ctx context.Context, status string) []models.Order {
+    return t.orders.List(ctx, status)
+}
+
+func (t *OrdersTable) remove(ctx context.Context, id int64) error {
+    return t.orders.Delete(ctx, id)
+}
+</script>
+
+<table id="orders">
+  for _, o := range Rows(Status) {
+    <tr key={o.ID}>
+      <td>{o.Number}</td>
+      <td><button onClick={ui.JS.Push(remove, ui.Value(o.ID)).Success(ui.JS.Reload("#orders"))}>Delete</button></td>
+    </tr>
+  }
+</table>
+```
+
+After a delete the table renders again with its rows; the dialog stays
+open with what was typed in it, and the page's `filter` and `status` keep
+their values.
+
+What it runs on the server:
+
+- **Live page.** The browser finds the element with the id and the
+  component instance it is in — the table here, the page itself for an
+  element of the page's own markup — and asks the server to render that
+  instance again. It renders with its state as it is, and so does every
+  component it renders, each mounted as it is: no mount hook, no `Update`,
+  no `@ui.Loads` runs again, and no route runs. What changed is patched,
+  as after an event. The rest of the page isn't rendered.
+- **Page that isn't live.** The browser fetches the page's URL. The
+  route runs as for a load, the page and its layouts render once (their
+  `Load`s, the page's render), and the element with the id alone takes the
+  new markup.
+
+Either way the URL, scroll, focus and the rest of the DOM stay. An id no
+element has is an error in development (`vk:error`, the console) and
+does nothing in production; so is one the new render on a page that
+isn't live doesn't have. `Reload` takes one `"#id"`; anything else panics
+when the chain is built. Like `Reload()`, it works from `Success` and from
+a handler's returned commands, and written straight after a `Push` it runs
+at once ([W0116](/errors/W0116)).
+
+On a live page the region is the whole instance the element is in: an id
+in a component's markup reloads that component, and one in the page's own
+markup — a `<section id="orders">` around the table — the page, with the
+components it renders, its state still kept. Give the part a component of
+its own, as the table above, to keep the render small.
 
 ## Server Patches {#server-patches}
 

@@ -64,6 +64,7 @@ func (p *Feed) Render() opttarget.Node {
 		<button onClick={opttarget.JS.Push(func() {})}>Nothing</button>
 		<button onClick={opttarget.JS.Push(p.Bump, 1).Success(p.Reset).After(func() {})}>Hooks</button>
 		<button onClick={opttarget.JS.Push(p.Reset).Success(opttarget.JS.Reload())}>Reset</button>
+		<button onClick={opttarget.JS.Push(p.Reset).Success(opttarget.JS.Reload("#n"))}>Refresh</button>
 		<button onClick={opttarget.JS.Remove(opttarget.Sel("#n")).Push(p.Reset)}>Clear</button>
 	</div>
 }

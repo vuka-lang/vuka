@@ -428,7 +428,7 @@ The operations, their arguments and what they do:
 | `close` | | close the opened component *this* is in, or the `<dialog>` around it ([below](#open)) |
 | `busy` | `to`, `timeout`? | mark the elements busy until undone ([below](#busy)) |
 | `patch`, `navigate` | `href` | move the page to `href` over the connection, as a click on a `data-vk-link` (`="patch"`) link would ([navigation](#navigation)); a page without a connection loads `href` |
-| `reload` | | render the page again at its URL: a patch of its path and query in place of the history entry ([navigation](#navigation)) |
+| `reload` | `sel`? | render the page again at its URL: a patch of its path and query in place of the history entry ([navigation](#navigation)); with `sel`, `"#id"`, a region: on a live page an `event` with `target` `"<instance>:vkreload"` (`event` `vkreload`) for the instance the element with the id is in, which renders again with the instances it renders, none mounting afresh, and the reply is the patch; on a page that isn't live a GET of the page's URL, whose element with the id replaces the page's. No element with the id: an error in development, else nothing |
 
 Branches nest: an `if` inside a branch opens a level of its own, and
 `else_if`, `else` and `end` belong to the innermost `if` not yet ended. A
