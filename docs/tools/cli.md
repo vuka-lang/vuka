@@ -606,8 +606,12 @@ A `.vuka.html` file is formatted whole, in the form it is in:
   blocks of its `if`, `for` and `switch` statements. Statements and the Go
   in holes are gofmt-formatted (`{a+b}` becomes `{a + b}`). An opening tag
   that doesn't fit in the width goes one attribute a line, with `>` or `/>`
-  on its own line under the `<`. Void elements and childless components
-  close themselves: `<br>` becomes `<br />`, `<ui.Badge></ui.Badge>`
+  on its own line under the `<`. A tag written across lines with an
+  attribute that spans lines goes one attribute a line the same way, and a
+  `{…}` value spanning lines keeps its break: `{` ends its line, the
+  expression follows two spaces in as gofmt prints it, and `}` closes on a
+  line of its own (see below). A tag written on one line keeps its layout.
+  Void elements and childless components close themselves: `<br>` becomes `<br />`, `<ui.Badge></ui.Badge>`
   becomes `<ui.Badge />`. Runs of blank lines become one.
 - **Text stays on its lines.** Only whitespace that doesn't render changes:
   line breaks are re-indented, and what `<pre>`, `<textarea>`, a
@@ -620,6 +624,28 @@ A `.vuka.html` file is formatted whole, in the form it is in:
   list the way Tailwind orders its rules: classes it doesn't know first, as
   written, then utilities by the property they set, then those under a
   variant (`hover:`, `md:`). A `class={…}` hole is never touched.
+
+This shows a tag written across lines before and after formatting; `Edit`
+stays against the `>` because no whitespace was written between them:
+
+```html
+<!-- before -->
+<orders.ActionMenu icon="pencil" onClick={
+        ui.JS.Call(editor.Form{Open: editOpen})
+      } danger>Edit</orders.ActionMenu>
+
+<!-- after -->
+<orders.ActionMenu
+  icon="pencil"
+  onClick={
+    ui.JS.Call(editor.Form{Open: editOpen})
+  }
+  danger
+>Edit</orders.ActionMenu>
+```
+
+A `{…}` value that isn't one Go expression — a list of statements such as
+`{open = false; Save()}` — or that holds a comment is left as written.
 
 The project's [`vuka.toml`](/reference/vuka-toml), next to its `go.mod`,
 sets the width and the Tailwind order in its `[fmt]` table. Both are
