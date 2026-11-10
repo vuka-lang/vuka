@@ -12,6 +12,8 @@ func (p *Orders) chains() []ui.Commands {
 		ui.JS.Push(p.Save).Timeout(3).Navigate("/orders"),     // want `W0116: Navigate runs at once`
 		ui.JS.Push(p.Save).Into("#x").Patch("/orders?page=2"), // want `W0116: Patch runs at once`
 		ui.JS.Push(p.Save).Then(ui.ShowToast("saved")),        // want `W0116: the toast runs at once`
+		ui.JS.Push(p.Save).Reload(),                           // want `W0116: Reload runs at once`
+		ui.JS.Push(p.Save).Success(ui.JS.Reload()),
 		ui.JS.Push(p.Save).Success(ui.JS.Hide("#form")),
 		ui.JS.Hide("#form").Push(p.Save),
 		ui.JS.Push(p.Save).Show("#spinner"),

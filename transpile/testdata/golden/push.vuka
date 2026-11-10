@@ -42,6 +42,7 @@ func (p *Orders) Render() opttarget.Node {
 		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("3"))}>Remove</button>
 		<button onClick={opttarget.JS.Push(p.When).Into(opttarget.Sel("#when"))}>When</button>
 		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("4")).Before(opttarget.JS.Show("#x")).Success(p.Refresh).OnError(opttarget.JS.Show("#err")).After(p.Done)}>Hooks</button>
+		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("5")).Success(opttarget.JS.Reload())}>Delete</button>
 	</div>
 }
 
@@ -61,6 +62,7 @@ func (p *Feed) Render() opttarget.Node {
 		<button onClick={opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n"))}>Bump</button>
 		<button onClick={opttarget.JS.Push(func() {})}>Nothing</button>
 		<button onClick={opttarget.JS.Push(p.Bump, 1).Success(p.Reset).After(func() {})}>Hooks</button>
+		<button onClick={opttarget.JS.Push(p.Reset).Success(opttarget.JS.Reload())}>Reset</button>
 	</div>
 }
 
