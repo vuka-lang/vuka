@@ -165,8 +165,18 @@ the `github.com/vuka-lang/vuka` package your module requires.
   and `Error`. A method given as a hook is its own push; on a page that
   isn't live it is a second request to a fresh copy of the page, and sees
   none of the first push's field changes. Steps written after a `Push`
-  still run at once: use `.Success(…)` for what waits for the reply. See
+  still run at once: use `.Success(…)` for what waits for the reply;
+  `vuka vet` warns of a `Hide`, `Navigate`, `Patch` or toast written
+  straight after a `Push` ([W0116](/errors/W0116)). See
   [Lifecycle](/ui/js#push-lifecycle).
+- **A typed `Success`** ([#443](https://github.com/vuka-lang/vuka/pull/443)).
+  A method given to `Success` that takes one value, after a `Push` whose
+  handler returns a scalar or a struct, gets that result:
+  `ui.JS.Push(Create).Success(Created)` with `Create` returning the new
+  order's `int64` and `Created(id int64)`. The compiler checks the method's
+  parameter takes it ([E0168](/errors/E0168)); `ui.Result` is the same read
+  for a step to pass. After a push returning nothing, the method takes the
+  element's value as before.
 
 ```html
 <button onClick={
@@ -175,6 +185,47 @@ the `github.com/vuka-lang/vuka` package your module requires.
     .Success(ui.JS.Hide("#order-" + o.Number).Push(RefreshTotals))
     .Error(ui.JS.SetText("#error", ui.LoadError))
 }>Delete</button>
+```
+
+### Opening Components
+
+- **`ui.JS.Call(component)` opens a component from any template** ([#442](https://github.com/vuka-lang/vuka/pull/442)).
+  `Call`'s first argument is a function's name, which calls a script's
+  function as before, or a component's value, which opens that component
+  over the page, with the props it carries, until it closes:
+  `onClick={ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})}`.
+  It works on live pages, where the session mounts it as an instance of its
+  own, and on pages that aren't, over HTTP to the page's URL. A component
+  whose root is the new `<ui.Dialog>` shows in it, any other in a dialog
+  frame with a close button. It reports back through `ui.Action` props, and
+  `ui.Close(ctx)` or `ui.JS.Close()` closes it; `ui.Call(ctx, c)` opens one
+  from a handler. `Before`, `Success`, `Error` and `After` work on a `Call`
+  as on a `Push`, and `.Closed(a)` runs once it has closed. See
+  [Opening Components](/ui/call).
+- **Signed, and still authorized by `Mount`.** The compiler registers each
+  component a `Call` names, and no other opens. The click carries a token
+  of the component's name, its props, the session it is bound to and an
+  expiry, so changed props, another visitor's token or an unregistered
+  component are refused. The token proves only what the page rendered:
+  the component's `Mount` must still check what the visitor may see and
+  edit ([Safety](/ui/call#safety)). A Call of something that can't be sent
+  — not a component, a generic one, a prop holding markup, a func that
+  isn't a `ui.Action`, a channel, an argument that isn't an option, or
+  `.Closed` after a `Push` — is [E0191](/errors/E0191).
+- **How it shows** ([#443](https://github.com/vuka-lang/vuka/pull/443)).
+  Options after the component: `ui.As(ui.Drawer{})` picks the presentation
+  (`Dialog`, `Drawer` with a `Side`, `Popover`, `Notice`) whatever its
+  root; `ui.Into("#preview")` opens it in place, no dialog;
+  `ui.CallKey("cart")` makes a second `Call` with the key give the open one
+  new props instead of opening another; `ui.SizeLg` (and the new `SizeXl`,
+  `SizeFull`) sets its width. Modals stack: Escape closes the top one, and
+  the focus goes back to what had it when each opened. The kit's
+  `ui.ConfirmBox` (`OnYes`, `OnNo`) and `ui.Notice` (a toast closing itself
+  after its `Timeout`, 4s) open like any other component. See
+  [Presentations and Options](/ui/call#options).
+
+```html
+<button onClick={ui.JS.Call(components.OrderDetails{ID: o.ID}, ui.As(ui.Drawer{}), ui.SizeLg).Closed(RefreshTotals)}>Details</button>
 ```
 
 ### The vuka command
@@ -228,6 +279,13 @@ the `github.com/vuka-lang/vuka` package your module requires.
   to key them.
 - `FormFor`'s `Load` takes a ctx and returns an error, `Load(ctx, row)`, as
   `Save(ctx)` does; `ui.FormState` and `ui.ModelForm` keep `Load(row)`.
+- `ui.JS.Confirm(msg)` asks in a styled ConfirmBox, not the browser's
+  `confirm()`, on a page with the overlay host, which the document shell now
+  writes for any page rendering a `Confirm` or a `Call`.
+  `ui.JS.Confirm(msg, ui.NativeConfirm())` keeps the browser's dialog, which
+  is also kept where an event needs the answer at once: a submit, a link, a
+  form's submit button, an element whose event also goes to the server
+  ([Confirming and Notifying](/ui/call#confirm)).
 
 ## v2.17.0 — 2026-11-06
 
