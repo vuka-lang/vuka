@@ -1,0 +1,2 @@
+err_success.vuka:20:56: p.Wrong takes Order, and the push before it returns int64: a Success's method gets the push's result; give the method one parameter of the push's result type, or pass a method taking none
+err_success.vuka:21:57: p.Created takes a value, and the push before it returns opttarget.Node (node): a Success's method gets a scalar or a struct the push returns; give the method one parameter of the push's result type, or pass a method taking none

@@ -100,6 +100,53 @@ modal, a native `<dialog>`: Escape closes the top one, and when it closes
 the focus goes back to what had it when it opened. A second `Call` opens a
 second component over the first.
 
+## Presentations and Options {#options}
+
+A component shows in its root's presentation — `<ui.Dialog>`, `<ui.Drawer>`
+(sliding in from an edge, `side="left"`), `<ui.Popover>` (a small panel by
+the element that opened it, not modal: Escape or a press elsewhere closes
+it) or `ui.Notice` (a toast) — else in a dialog frame. The call can choose
+instead, with options after the component:
+
+| Option | |
+|---|---|
+| `ui.As(ui.Drawer{Side: "right"})` | show it in that presentation, whatever its root: the root's title and footer, when it has one, and its markup go in it. `As` takes the presentation's settings only |
+| `ui.Into("#side")` | open it in place in the element of that id, no dialog, replacing what another `Call` put there; on a live page it belongs to the instance whose markup ran the call, and goes when that one is unmounted |
+| `ui.CallKey("cart")` | name it: a second `Call` with the key, while the first is open, gives it the new props instead of opening another — a live one keeps its state |
+| `ui.SizeSm`, `ui.SizeLg`, `ui.SizeXl`, `ui.SizeFull` | its width (`ui.SizeMd` is the default) |
+
+```html
+<button onClick={ui.JS.Call(components.OrderDetails{ID: o.ID}, ui.As(ui.Drawer{}), ui.SizeLg)}>Details</button>
+<button onClick={ui.JS.Call(components.ProductPreview{ID: p.ID}, ui.Into("#preview"))}>Preview</button>
+<button onClick={ui.JS.Call(components.Cart{Items: Count}, ui.CallKey("cart"))}>Cart</button>
+```
+
+The options travel in the call's token with its props, so a browser can't
+change them. Modal presentations stack: a `Call` from inside an opened
+component opens over it, Escape closes the top one, and the focus goes back
+to what had it when each opened — the button in the dialog below, then the
+page's.
+
+### Confirming and Notifying {#confirm}
+
+Two components come with the kit, opened like any other:
+
+```html
+<button onClick={ui.JS.Call(ui.ConfirmBox{Title: "Delete order?", Text: "It can't be undone.", Danger: true, OnYes: Remove})}>Delete</button>
+<button onClick={ui.JS.Push(Save).Success(ui.JS.Call(ui.Notice{Text: "Saved", Variant: ui.AlertSuccess}))}>Save</button>
+```
+
+`ConfirmBox` runs `OnYes` or `OnNo` (both `ui.Action`) and closes; `Yes` and
+`No` change its buttons' words. `Notice` shows a toast in the corner of the
+window, closing itself after its `Timeout` (4s).
+
+`ui.JS.Confirm(msg)` asks in a ConfirmBox too where the page has an overlay
+host — which the document shell writes on a page that renders a `Call` or
+a `Confirm` — and waits for the answer; `ui.JS.Confirm(msg,
+ui.NativeConfirm())` asks in the browser's own dialog. The browser's is
+kept where the event needs the answer at once: a submit, a link, a form's
+submit button, an element whose event also goes to the server.
+
 ## Props and Results {#props}
 
 The call sends the component's props, so they are what a page can send:

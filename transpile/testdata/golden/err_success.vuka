@@ -1,0 +1,23 @@
+package main
+
+import "vukatest.local/opttarget"
+
+type Order struct{ ID int64 }
+
+type Orders struct{}
+
+func (p *Orders) Create() (int64, error)          { return 1, nil }
+func (p *Orders) Place() (Order, error)           { return Order{}, nil }
+func (p *Orders) Details() (opttarget.Node, error) { return nil, nil }
+func (p *Orders) Created(id int64)                 {}
+func (p *Orders) Placed(o Order)                   {}
+func (p *Orders) Wrong(o Order)                    {}
+
+func (p *Orders) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Push(p.Create).Success(p.Created)} />
+		<button onClick={opttarget.JS.Push(p.Place).Success(p.Placed)} />
+		<button onClick={opttarget.JS.Push(p.Create).Success(p.Wrong)} />
+		<button onClick={opttarget.JS.Push(p.Details).Success(p.Created)} />
+	</div>
+}

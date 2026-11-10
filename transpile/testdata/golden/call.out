@@ -1,1 +1,1 @@
-open main.EditProduct; closed main.(*Products).Seen open main.Details open main.Details; on_ok [show #x] call confetti close
+open main.EditProduct; closed main.(*Products).Seen open main.Details open main.Details; on_ok [show #x] call confetti close push main.(*Products).Count 0; on_ok main.(*Products).Counted

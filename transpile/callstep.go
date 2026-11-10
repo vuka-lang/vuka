@@ -27,8 +27,8 @@ func (e *engine) callComponent(f *fileState, call *ast.CallExpr) (reg string, ac
 		return "", nil, true
 	}
 	for _, a := range call.Args[1:] {
-		if at := e.info.TypeOf(a); at != nil && !isTargetNamed(f, at, "CallOption") {
-			return fail(a, "%s follows the component %s: a Call of a component takes its props in the component's value, and CallOptions after it", text(a), text(arg))
+		if at := e.info.TypeOf(a); at != nil && !isTargetNamed(f, at, "CallOption") && !isTargetNamed(f, at, "Size") {
+			return fail(a, "%s follows the component %s: a Call of a component takes its props in the component's value, and CallOptions (or a Size) after it", text(a), text(arg))
 		}
 	}
 	base := t
@@ -201,4 +201,57 @@ func (e *engine) closedStep(f *fileState, closed *ast.CallExpr) {
 			return
 		}
 	}
+}
+
+// typedSuccess checks a Success (or OnSuccess) given a method taking one
+// value, after a Push whose handler returns a result: the method gets that
+// result (ui.Result), so its parameter takes the result's type — a scalar
+// or a struct (E0168). It reports false when it reported an error.
+func (e *engine) typedSuccess(f *fileState, hook *ast.CallExpr) bool {
+	text := func(n ast.Node) string { return string(f.src[f.orig(n.Pos()):f.orig(n.End())]) }
+	sig, _ := e.info.TypeOf(hook.Args[0]).Underlying().(*types.Signature)
+	if sig == nil {
+		return true
+	}
+	var params []*types.Var
+	for i := range sig.Params().Len() {
+		t := sig.Params().At(i).Type()
+		if (i == 0 && isContext(t)) || isPointerOrInterface(t) {
+			continue
+		}
+		params = append(params, sig.Params().At(i))
+	}
+	if len(params) != 1 {
+		return true
+	}
+	push := e.pushBefore(f, hook)
+	if push == nil || len(push.Args) == 0 {
+		return true
+	}
+	if name, _, _ := e.chainStep(f, push); name != "Push" {
+		return true
+	}
+	hs, _ := e.info.TypeOf(push.Args[0]).Underlying().(*types.Signature)
+	if hs == nil {
+		return true
+	}
+	res := hs.Results()
+	if res.Len() == 0 || res.Len() == 1 && types.Identical(res.At(0).Type(), types.Universe.Lookup("error").Type()) {
+		return true // no result: the method takes the element's value, as a push of it does
+	}
+	rt, pt := res.At(0).Type(), params[0].Type()
+	fail := func(format string, a ...any) bool {
+		e.errs.add("E0168", f.at(f.orig(hook.Args[0].Pos())), format, a...).
+			help("give the method one parameter of the push's result type, or pass a method taking none")
+		return false
+	}
+	switch kind := e.resultKind(f, rt); kind {
+	case "scalar", "struct":
+	default:
+		return fail("%s takes a value, and the push before it returns %s (%s): a Success's method gets a scalar or a struct the push returns", text(hook.Args[0]), e.display(rt), kind)
+	}
+	if !types.AssignableTo(rt, pt) && !(scalarParam(rt) && scalarParam(pt)) {
+		return fail("%s takes %s, and the push before it returns %s: a Success's method gets the push's result", text(hook.Args[0]), e.display(pt), e.display(rt))
+	}
+	return true
 }

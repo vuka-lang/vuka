@@ -52,7 +52,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		out, failed := ui.RenderCall(ctx, "k", v)
+		out, failed := ui.RenderCall(ctx, "k", v, c.Options()...)
 		fmt.Println(c.Component(), failed, regexp.MustCompile(` + "`" + `<p>[^<]*</p>` + "`" + `).FindString(out))
 		if e, ok := v.(*components.EditProduct); ok {
 			ops, _ := ui.EncodeJS(ctx, e.OnSave.(ui.JSChain))
@@ -77,13 +77,18 @@ import (
 
 type Products struct{}
 
-func (p *Products) Reload() {}
+func (p *Products) Reload()            {}
+func (p *Products) Count() (int, error) { return 3, nil }
+func (p *Products) Counted(n int)       {}
 </script>
 
 <main>
   <input id="q" value="red" />
   <button onClick={ui.JS.Call(components.EditProduct{ID: 7, Query: ui.Sel("#q").Value(), OnSave: Reload})}>Edit</button>
   <button onClick={ui.JS.Call(components.Details{ID: 8})}>Details</button>
+  <button onClick={ui.JS.Call(components.Details{ID: 9}, ui.Into("#side"), ui.SizeLg, ui.CallKey("details"))}>Side</button>
+  <button onClick={ui.JS.Push(Count).Success(Counted)}>Count</button>
+  <div id="side" />
 </main>
 `,
 	"components/editproduct.vuka.html": `<script lang="go">
@@ -146,6 +151,7 @@ func TestCalls(t *testing.T) {
 		"components.EditProduct <nil> <p>product 7 red</p>",
 		"Products.Reload <nil>",
 		"components.Details <nil> <p>details 8</p>",
+		"components.Details <nil> <p>details 9</p>",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("no %s in\n%s", want, out.String())
