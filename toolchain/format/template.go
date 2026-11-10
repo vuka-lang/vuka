@@ -30,7 +30,8 @@ func Template(src []byte, pkg string) ([]byte, error) { return TemplateWith(src,
 //   - its markup indented two spaces a level — elements, and the blocks of
 //     its Go statements — those statements and the Go of its holes as gofmt
 //     writes them, an opening tag's attributes one a line when it doesn't
-//     fit in o's width, void elements and childless components closing
+//     fit in o's width or one of them spans lines (a {Go} value spanning
+//     lines broken after its { and before its }), void elements and childless components closing
 //     themselves (<input … />, <ui.Badge />), with no runs of blank lines;
 //   - a top-level <style>'s CSS formatted (CSS), a blank line before it
 //     and before a component's <script>;

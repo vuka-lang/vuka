@@ -231,8 +231,8 @@ example in its own script. A missing or mismatched package is
 [E0142](/errors/E0142).
 
 `vuka fmt` and editor format-on-save format the whole file: the Go as
-gofmt does, the markup indented two spaces a level, and the CSS of its
-`<style>`. See [formatting shape files](/tools/cli#fmt-shapes). Document an exported
+gofmt does, the markup indented two spaces a level (a tag written across
+lines one attribute a line), and the CSS of its `<style>`. See [formatting shape files](/tools/cli#fmt-shapes). Document an exported
 component on its struct. One file renders one shape; there is no second
 template body after a later function header.
 

@@ -45,7 +45,7 @@ type mtok struct {
 	self  bool     // an opening tag closed by />
 	nl    int      // a break's line breaks
 	opens bool     // a statement opens a block
-	multi bool     // a tag or statement spanning lines, kept as written
+	multi bool     // a tag or statement spanning lines
 }
 
 var voidElements = map[string]bool{
@@ -658,8 +658,23 @@ func (p *markupPrinter) openTag(t mtok, text string) {
 		multi = multi || strings.Contains(a, "\n")
 	}
 	if multi {
-		// An attribute's value spans lines: the tag stays as written.
-		p.b.WriteString(text)
+		if rawElements[strings.ToLower(t.name)] {
+			p.b.WriteString(text)
+			return
+		}
+		// An attribute spans lines: each attribute on a line of its own, a
+		// {Go} spanning lines broken after its { and before its }.
+		ind := p.lineIndent()
+		p.b.WriteString("<" + t.name)
+		for i, a := range t.attrs {
+			if strings.Contains(a, "\n") {
+				a = multiLineAttr(a, ind+"  ")
+			} else {
+				a = attrs[i]
+			}
+			p.b.WriteString("\n" + ind + "  " + a)
+		}
+		p.b.WriteString("\n" + ind + strings.TrimSpace(end))
 		return
 	}
 	flat := "<" + t.name
@@ -681,6 +696,63 @@ func (p *markupPrinter) openTag(t mtok, text string) {
 		p.b.WriteString("\n" + ind + "  " + a)
 	}
 	p.b.WriteString("\n" + ind + strings.TrimSpace(end))
+}
+
+// multiLineAttr is an attribute spanning lines at the indent ind: a {Go}
+// value, or a {…} attribute, as name={, the expression as gofmt writes it
+// two spaces in, and } at ind. Anything else — a quoted value, Go that
+// isn't one expression, Go holding a comment or a raw string spanning
+// lines — stays as written.
+func multiLineAttr(a, ind string) string {
+	open := 0
+	if !strings.HasPrefix(a, "{") {
+		open = strings.Index(a, "={") + 1
+		if open == 0 || strings.ContainsAny(a[:open], "\"'\n") {
+			return a
+		}
+	}
+	if closeGo([]byte(a), open+1) != len(a)-1 {
+		return a
+	}
+	expr := strings.TrimSpace(a[open+1 : len(a)-1])
+	spread := strings.HasSuffix(expr, "...")
+	expr = strings.TrimSuffix(expr, "...")
+	if hasComment(expr) {
+		return a
+	}
+	fset := token.NewFileSet()
+	x, err := parser.ParseExprFrom(fset, "", expr, 0)
+	if err != nil {
+		return a
+	}
+	var f bytes.Buffer
+	if format.Node(&f, fset, x) != nil {
+		return a
+	}
+	for _, t := range scanTokens(f.Bytes(), 0) {
+		if t.tok == token.STRING && strings.Contains(t.lit, "\n") {
+			return a
+		}
+	}
+	out := f.String()
+	if goSig(out) != goSig(expr) {
+		return a
+	}
+	if spread {
+		out += "..."
+	}
+	var b strings.Builder
+	b.WriteString(a[:open+1])
+	for _, l := range strings.Split(out, "\n") {
+		if l == "" {
+			b.WriteString("\n")
+			continue
+		}
+		tabs := len(l) - len(strings.TrimLeft(l, "\t"))
+		b.WriteString("\n" + ind + "  " + strings.Repeat("  ", tabs) + l[tabs:])
+	}
+	b.WriteString("\n" + ind + "}")
+	return b.String()
 }
 
 // stmtHead is a block's head — if, for, switch, } else … — as gofmt
