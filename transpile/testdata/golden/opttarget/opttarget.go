@@ -124,8 +124,10 @@ func (c Commands) Debounce(d time.Duration) Commands { return c.step("debounce "
 func (c Commands) Throttle(d time.Duration) Commands { return c.step("throttle " + d.String()) }
 func (c Commands) Then(ch JSChain) Commands          { return Commands{append(c.steps, ch.jsChain().steps...)} }
 func (c Commands) Show(t Target) Commands            { return c.step("show " + string(t)) }
-func (c Commands) Reload() Commands                  { return c.step("reload") }
-func (c Commands) Remove(t Target) Commands          { return c.step("remove " + string(t)) }
+func (c Commands) Reload(region ...string) Commands {
+	return c.step(strings.TrimSpace("reload " + strings.Join(region, " ")))
+}
+func (c Commands) Remove(t Target) Commands { return c.step("remove " + string(t)) }
 
 // Stateful is what a live page's pointer implements.
 type Stateful interface{ live() }
