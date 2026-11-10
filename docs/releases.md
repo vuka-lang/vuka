@@ -20,6 +20,215 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.18.0 — 2026-11-10
+
+### Forms
+
+- **`ui.FormFor[T]`, one form for models and plain structs** ([#403](https://github.com/vuka-lang/vuka/issues/403)).
+  A form of any struct `T` with no form struct of its own: its fields are
+  `T`'s, described by `T`'s field attributes, and its types decide what is
+  required (an `Option[T]` is optional, empty is `None`). Markup names a
+  field through the form, `model={Form.Name}`, which Go writes
+  `Form.Value.Name`. `Load(ctx, row)` edits a row and `Load(ctx,
+  Product{})` starts a new one; `Save(ctx)` inserts a new record or updates
+  only the form's fields (`SaveFields`), then reads the row again. A form of
+  a plain struct hands its submit handler the checked `T`, and
+  `ui.FieldError(Signup.Email, msg)` is an error of one field. The fields a
+  form edits are the ones its markup binds, or `@ui.Fields(T.A, T.B)`; never
+  the key or the database's times. `Save` on a `FormFor` of a type that
+  isn't a model is [E0182](/errors/E0182). See
+  [FormFor](/ui/forms#formfor).
+- **Form types** ([#411](https://github.com/vuka-lang/vuka/issues/411)).
+  A struct embedding `ui.FormFor[T]` is a form of `T` with methods of its
+  own: `Clean`, `Clean<Field>` and `<Field>Choices` declared on it are the
+  form's, as on `T`, and `Init(ctx, deps…) error` runs once per instance —
+  just before the first render, in every `Load` (seeing the row) and after a
+  reset — never on a change or a submit, so typed values stay. A form
+  rendered hidden (a closed modal, a `show={…}` not holding) runs `Init`
+  when the browser first shows it; `eager` runs it at once. It may sit in
+  the page's `<script lang="go">` beside the page's struct. A wrong `Init`
+  or Clean shape is [E0184](/errors/E0184); a form type's field or method
+  that `T` declares too is [E0185](/errors/E0185). See
+  [Form Types](/ui/forms#formfor-types).
+- **Forms on plain tags** ([#412](https://github.com/vuka-lang/vuka/issues/412)).
+  `<form for={Form}>` is the form `<ui.Form for>` renders — binding,
+  checks, submit policy, busy state, CSRF, summary, `Init` — on the page's
+  own element; `<ui.Form>` is the same form with the kit's class. Its
+  options (`key`, `validate`, `submit`, `keep`, `confirmLeave`,
+  `noSummary`, `eager`, `error`) are attributes, a misspelt one an error
+  with did-you-mean, and every other attribute is the element's. An empty
+  `<label for={Form.Name}/>` or `<legend/>` shows the field's label and its
+  optional or required marker; `<fieldset for={Form.Address}>` scopes its
+  children to a struct field; `form={Form}` attaches a button or control
+  outside the form. Required controls get `aria-required`, options with a
+  group render under `<optgroup>`, and while a submit is on its way its
+  button is `aria-busy` and the form's other controls `aria-disabled`.
+  [E0186](/errors/E0186) is a `for=` that names no form or field,
+  [E0188](/errors/E0188) a `form=` naming a value that isn't a form. See
+  [Rendering a Form](/ui/forms#rendering) and
+  [Writing the Markup](/ui/forms#markup).
+- **Form events.** `<form for>` takes `onSuccess`, `onError` and
+  `onInvalid` — `ui.JS` chains the browser runs after a reply without
+  errors, after one showing errors, and when the browser's own checks stop
+  a submit — and `onReset`, a method or a chain. A `<button type="reset">`
+  resets the form on the server: the loaded values back, the errors
+  cleared. A control's or a `<fieldset for>`'s own handler runs after its
+  form's, so it reads the bound value. See
+  [Events on the Form Tags](/ui/forms#events).
+- **Field details in one attribute, on the model or on the form** ([#419](https://github.com/vuka-lang/vuka/issues/419)).
+  `@ui.Spec{Label, Help, Placeholder, Widget, Autocomplete, Required,
+  Optional, Min, Max, Choices, Msg, Disabled, ReadOnly}` describes a field;
+  `Min`, `Max` and `Choices` may only tighten what the model allows, and
+  `Msg` is a `ui.Msgs` of a rule's own messages. On a form type, a member of
+  type `ui.Meta` describes `T`'s field of the same name for that form
+  alone. A form takes the rest from the model's `@orm` attributes — limits,
+  patterns, choices, `Trim`, `Null`, `Default` as a new record's starting
+  value, `LongText` as a textarea, the key and automatic times never fields
+  — and a unique column (`Char`, `Slug`, `Int`, `DateField`, `Datetime`
+  with `Unique`, `@orm.Unique`) is checked against the table on submit, the
+  record's own row left out. The form's attributes win over the model's
+  `@ui`, which win over what `@orm` implies. [E0189](/errors/E0189) is a
+  `ui.Spec` the compiler can tell is wrong, [E0190](/errors/E0190) a
+  `ui.Meta` that describes no field, and [E0183](/errors/E0183) one
+  setting given twice. See [Field Attributes](/ui/forms#field-attributes).
+- **Widgets: form controls as components** ([#421](https://github.com/vuka-lang/vuka/issues/421)).
+  Package `github.com/vuka-lang/ui/v2/widget` has the built-in controls —
+  `Text`, `Email`, `Number`, `Textarea`, `Select`, `Radios`, `Checkbox`,
+  `Switch`, `Date`, `File`, `Related`, `RelatedSearch` and more — and the
+  form's components, `widget.Field`, `Error`, `Summary`, `Fieldset` and
+  `Choices`. A component embedding `widget.Props` is a widget of the app's:
+  it takes `model={Form.Email}` and the form fills its label, hint, error,
+  value and choices. Which widget a field gets: the markup's, then
+  `@ui.Spec{Widget: …}`, then `widget.Use[T]` for every field of a type. An
+  `orm.FK[T]` field is a select of `T`'s rows, and a `<Field>Choices`
+  returning a query makes its rows the options and checks a submitted key
+  against it. A widget whose `Value` or `Choices` don't fit its field is
+  [E0195](/errors/E0195). See [Widgets](/ui/widgets).
+- **Formsets: `ui.Rows[T]`** ([#422](https://github.com/vuka-lang/vuka/issues/422)).
+  A field of a form type editing many rows at once, each a form of `T` with
+  its own rules and errors; `Add()` and `Remove(r)` are events, and
+  `@ui.Spec{Min, Max}` bounds the rows. Rows of a model with an `orm.FK`
+  back to the form's model load with the record, and `Save` writes the
+  record and the rows added, changed and removed in one transaction.
+  Formsets need a live page. See [Formsets](/ui/forms#formsets).
+
+```html
+<form for={Form} onSubmit={save}>
+  <widget.Field for={Form.Customer}/>
+  for _, r := range Form.Lines.Each() {
+    <widget.Related model={r.Product}/>
+    <widget.Number model={r.Quantity}/>
+    <button type="button" onClick={Form.Lines.Remove(r)}>Remove</button>
+  }
+  <button type="button" onClick={Form.Lines.Add()}>Add line</button>
+</form>
+```
+
+### Overlays and Lazy Content
+
+- **`<ui.Teleport>`: overlays outside clipping ancestors** ([#413](https://github.com/vuka-lang/vuka/issues/413)).
+  Its content renders where it is written and the runtime moves it to the
+  end of `<body>` (or `to="#id"`), so an ancestor's `mask-image`,
+  `transform`, `filter` or `contain` can't clip a fixed overlay. It keeps
+  its scope, state, handlers and form; live patches reach it where it was
+  moved, and a focused field keeps its focus. Without JavaScript it renders
+  in place. The kit's `ui.Modal` and `ui.ToastContainer` and the vendored
+  Dialog render in one. See
+  [Overlays Outside Clipping Ancestors](/ui/components#teleport).
+- **`<ui.Lazy when={open}>`: hidden content rendered when first shown** ([#423](https://github.com/vuka-lang/vuka/issues/423)).
+  The first render has a busy placeholder in the children's place, and the
+  children and their server work don't run; the first time it shows, the
+  runtime asks for the content, over a live page's connection or with one
+  GET on a page that isn't live. `lazy` on a component taking `show` (the
+  registry's Dialog) does the same for its children, `lazy="each"`
+  renders them again each time, and `<slot:loading>` replaces the
+  placeholder. A chain that shows it and pushes, `ui.JS.Set(open,
+  true).Push(Edit)`, sends one event. A form type's form rendered hidden on
+  a page that isn't live now defers its `Init` the same way. See
+  [Rendering When First Shown](/ui/state#lazy).
+
+### Events
+
+- **`ui.Action`, one prop type for what an event does** ([#436](https://github.com/vuka-lang/vuka/issues/436)).
+  A prop of type `ui.Action` takes browser commands, statements
+  (`onClick={open = true}`), a closure or a method of the page, and the
+  component forwards it with `onClick={OnClick}`. See
+  [Handing a Click to a Child](/ui/state#click-to-a-child) and [Required Props](/ui/components#required).
+- **Push hooks: `Before`, `Success`, `Error` and `After`** ([#441](https://github.com/vuka-lang/vuka/pull/441)).
+  A push runs `Before → request → Success | Error → After`, the same on a
+  live page (over its socket) and on a page that isn't live (over HTTP).
+  Each hook takes a `ui.Action`. A `Before` that stops — a declined
+  `Confirm`, an `If` that doesn't hold — sends nothing, runs no other hook
+  and takes the `Busy` marks off. `After` is a finally: it runs after a
+  timeout or a lost connection too, and when `Success` fails (which doesn't
+  run `Error`). `OnSuccess` and `OnError` stay as the names of `Success`
+  and `Error`. A method given as a hook is its own push; on a page that
+  isn't live it is a second request to a fresh copy of the page, and sees
+  none of the first push's field changes. Steps written after a `Push`
+  still run at once: use `.Success(…)` for what waits for the reply. See
+  [Lifecycle](/ui/js#push-lifecycle).
+
+```html
+<button onClick={
+  ui.JS.Push(Remove, ui.Value(o.ID))
+    .Before(ui.JS.Confirm("Delete order " + o.Number + "?"))
+    .Success(ui.JS.Hide("#order-" + o.Number).Push(RefreshTotals))
+    .Error(ui.JS.SetText("#error", ui.LoadError))
+}>Delete</button>
+```
+
+### The vuka command
+
+- **`vuka upgrade main`** ([#405](https://github.com/vuka-lang/vuka/issues/405))
+  moves an app to the main branches' current commits — vuka, ui, web and,
+  when go.mod requires them, the orm, `cmd/vuka` and `cmd/vukavet` — runs
+  every rewrite after the app's version, then `vuka vet` and `vuka test`.
+  The summary names each module's commit; main's commits are not a set
+  tested together, so this is for trying unreleased work. `vuka version`
+  reports such an app as on main. See [Upgrading an App](/tools/cli#upgrade).
+- **The command says when it compiles with an older vuka than the app's** ([#409](https://github.com/vuka-lang/vuka/issues/409)).
+  The compiler is in the vuka module, so a command can link an older one
+  than the app requires. The commands that compile an app (build, run,
+  test, vet, lsp, …) warn once on stderr when it is, and `vuka version`
+  prints the vuka the command compiles with. `vuka upgrade -self [version |
+  main]` installs the command — the newest release's by default, or main's
+  built against vuka's main — and changes no app. See
+  [The Command's Compiler](/project/versions#command-compiler).
+
+### Fixes
+
+- `model` and a label's `for` on an `Option` field no longer fail to
+  compile with "cannot take address of …" in a `ui.FormState` form or a
+  `ui.ModelForm` ([#406](https://github.com/vuka-lang/vuka/pull/406)).
+- `vuka lsp` no longer shows gopls's `go mod tidy` failure about folder
+  routes' package paths (`pages/products/[id]`) on go.mod; other go.mod
+  problems still show ([#432](https://github.com/vuka-lang/vuka/issues/432)).
+- A component in a private folder below `pages/` (`pages/_parts/`) has
+  its `<script lang="ts">` and `<style scoped>` collected, and Tailwind
+  finds the classes only its markup uses ([#434](https://github.com/vuka-lang/vuka/issues/434);
+  [Private Folders](/web/folder-routes#private-folders)).
+
+**Upgrading:**
+
+- A push hook given twice runs both, in the order given:
+  `OnSuccess(a).OnSuccess(b)` kept only `b`.
+- `ui.Field`, `ui.Error`, `ui.Summary`, `ui.Fieldset` and `ui.Choices`
+  still work, as the same components, but are deprecated for their
+  `widget` names; `vuka vet` notes each use ([W0320](/errors/W0320)).
+- `model` on an `<input type="hidden">` is the warning
+  [W0115](/errors/W0115), shown by `vuka vet` and the editor, never a build
+  failure. It was briefly the error E0187 on main; that code is retired.
+- `ui.Modal` and `ui.ToastContainer` render in a `ui.Teleport`, at the end
+  of `<body>` once the runtime starts, so CSS that reached them through
+  their ancestors no longer does. The vendored Dialog does the same; a copy
+  you vendored before keeps rendering in place (`vuka ui diff dialog`).
+- A `<select model>`'s empty first option reads "Choose…" (`form.choose`
+  in the message catalogue) unless the field has a placeholder.
+- Two forms of one type on a page without a `key` fail the render, saying
+  to key them.
+- `FormFor`'s `Load` takes a ctx and returns an error, `Load(ctx, row)`, as
+  `Save(ctx)` does; `ui.FormState` and `ui.ModelForm` keep `Load(row)`.
+
 ## v2.17.0 — 2026-11-06
 
 ### Events
