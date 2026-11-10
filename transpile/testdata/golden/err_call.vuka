@@ -1,0 +1,30 @@
+package main
+
+import "vukatest.local/opttarget"
+
+type Card struct {
+	ID       int64
+	Body     opttarget.Node
+	Children opttarget.Node
+	Rows     []struct{ Cell opttarget.Node }
+	OnPick   func()
+}
+
+func (c Card) Render() opttarget.Node { return <p>{c.ID}</p> }
+
+type NotAComponent struct{ ID int64 }
+
+type Page struct{}
+
+func (p *Page) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Call(Card{ID: 1, Body: <b>x</b>})} />
+		<button onClick={opttarget.JS.Call(Card{Children: <b>x</b>})} />
+		<button onClick={opttarget.JS.Call(Card{Rows: nil})} />
+		<button onClick={opttarget.JS.Call(Card{OnPick: func() {}})} />
+		<button onClick={opttarget.JS.Call(NotAComponent{ID: 1})} />
+		<button onClick={opttarget.JS.Call(Card{ID: 1}, 3)} />
+		<button onClick={opttarget.JS.Call("confetti").Closed(opttarget.JS.Show("#x"))} />
+		<button onClick={opttarget.JS.Push(p.Render).Closed(opttarget.JS.Show("#x"))} />
+	</div>
+}

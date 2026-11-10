@@ -161,3 +161,40 @@ func RegisterOptions(m any) {
 	name := runtime.FuncForPC(reflect.ValueOf(m).Pointer()).Name()
 	registered[name[strings.LastIndexByte(name, '/')+1:]] = true
 }
+
+// Action is what an event does: a chain, a method or a closure.
+type Action interface{}
+
+// CallOption is how a component a Call opens shows.
+type CallOption func()
+
+// Call opens a component, or calls a script's function by name: the step
+// names the component's type, and whether a RegisterCall registered it.
+func (c Commands) Call(target any, args ...any) Commands {
+	if name, ok := target.(string); ok {
+		return c.step("call " + name)
+	}
+	t := reflect.TypeOf(target)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	name := t.String()
+	if !calls[t] {
+		name += " (not registered)"
+	}
+	return c.step("open " + name)
+}
+
+func (c Commands) Closed(a any) Commands { return c.hook("closed", a) }
+func (c Commands) Close() Commands       { return c.step("close") }
+
+var calls = map[reflect.Type]bool{}
+
+// RegisterCall records a component's type, as ui's does.
+func RegisterCall(component any) {
+	t := reflect.TypeOf(component)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	calls[t] = true
+}

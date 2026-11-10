@@ -1,0 +1,65 @@
+error[E0191]: Card's Body is markup (opttarget.Node): a Call sends its component's props, and markup can't be sent; pass what it is made of, and let the component render it
+  --> err_call.vuka:21:50
+   |
+21 |         <button onClick={opttarget.JS.Call(Card{ID: 1, Body: <b>x</b>})} />
+   |                                                        ^^^^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: Card's Children is markup (opttarget.Node): a Call sends its component's props, and markup can't be sent; pass what it is made of, and let the component render it
+  --> err_call.vuka:22:43
+   |
+22 |         <button onClick={opttarget.JS.Call(Card{Children: <b>x</b>})} />
+   |                                                 ^^^^^^^^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: Card's Rows is markup ([]struct{Cell opttarget.Node}): a Call sends its component's props, and markup can't be sent; pass what it is made of, and let the component render it
+  --> err_call.vuka:23:43
+   |
+23 |         <button onClick={opttarget.JS.Call(Card{Rows: nil})} />
+   |                                                 ^^^^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: Card's OnPick is a func, which a Call can't send: declare it ui.Action, which takes a method of the page or a closure
+  --> err_call.vuka:24:43
+   |
+24 |         <button onClick={opttarget.JS.Call(Card{OnPick: func() {}})} />
+   |                                                 ^^^^^^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: NotAComponent isn't a component: it renders no markup
+  --> err_call.vuka:25:38
+   |
+25 |         <button onClick={opttarget.JS.Call(NotAComponent{ID: 1})} />
+   |                                            ^^^^^^^^^^^^^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: 3 follows the component Card{ID: 1}: a Call of a component takes its props in the component's value, and CallOptions after it
+  --> err_call.vuka:26:51
+   |
+26 |         <button onClick={opttarget.JS.Call(Card{ID: 1}, 3)} />
+   |                                                         ^
+   |
+   = help: open a component with its props as values: ui.JS.Call(components.EditProduct{ID: p.ID, OnSave: Reload})
+
+error[E0191]: Closed follows a Call of a script's function, "confetti": it runs once the component a Call opened closes
+  --> err_call.vuka:27:50
+   |
+27 |         <button onClick={opttarget.JS.Call("confetti").Closed(opttarget.JS.Show("#x"))} />
+   |                                                        ^^^^^^
+   |
+   = help: give the Call a component, or drop Closed
+
+error[E0191]: Closed follows a Push: it runs once the component a Call opened closes
+  --> err_call.vuka:28:48
+   |
+28 |         <button onClick={opttarget.JS.Push(p.Render).Closed(opttarget.JS.Show("#x"))} />
+   |                                                      ^^^^^^
+   |
+   = help: put it after a Call of a component: ui.JS.Call(components.Details{ID: id}).Closed(…)
+
+For more information about this error, try `vuka explain E0191`.

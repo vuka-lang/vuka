@@ -423,6 +423,8 @@ The operations, their arguments and what they do:
 | `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
 | `set_text` | `to`, `text` | set the element's `textContent` to `text` |
 | `call` | `fn`, `to`?, `args`? | call a JavaScript function ([below](#calling-javascript)) |
+| `open` | `t`, `h`? or `csrf`?, `reads`?, `before`?, `on_ok`?, `on_error`?, `after`?, `closed`?, `timeout`? | open a component in the overlay host ([below](#open)) |
+| `close` | | close the opened component *this* is in, or the `<dialog>` around it ([below](#open)) |
 | `busy` | `to`, `timeout`? | mark the elements busy until undone ([below](#busy)) |
 | `patch`, `navigate` | `href` | move the page to `href` over the connection, as a click on a `data-vk-link` (`="patch"`) link would ([navigation](#navigation)); a page without a connection loads `href` |
 
@@ -515,6 +517,48 @@ isn't live or of a read (`read: true`): the page's own URL with the header
 `csrf`. A read's reference is `<id>.r<seconds>.<signature>`, the seconds its
 `ui.Cache`, when it has one. The page answers the result as above (`{}` for
 none), `{"redirect":url}`, or `{"error":{…}}` with the error's status.
+
+### Opening Components {#open}
+
+`["open",{"t":"<token>",…}]` is a Call of a component (`ui.JS.Call`). `t`
+is opaque to the client: the component's name, its props, what the token is
+bound to (the session, or the visitor's CSRF token) and its expiry, sealed
+by the server. `reads` names the props the browser reads when the step
+runs, each a `{"$read":…}`; the client sends their values. The client
+names the component it opens by a key of its own (letters, digits, `-`,
+`_`, at most 40).
+
+On a live page `h` is the session's open handler, `c0:vkcall`: the client
+sends `{"type":"event","target":"c0:vkcall","event":"vkcall","value":"<t>","data":{"key":"…","reads":{…}}}`.
+The session checks the token, mounts the component, and renders it at the
+end of the page's render in a `<vk-teleport data-vk-teleport="#vk-overlays">`,
+its root a `<dialog data-vk-call="<key>" data-vk-on-vkclose="<id>">`, until
+it closes. A refused token, or a Mount that fails, is the reply's `error`;
+a failed Mount still renders the dialog, in its error state.
+
+On a page that isn't live the step has `csrf` instead: a `POST` of the
+page's own URL with the header `Vk-Call: <t>`, `X-CSRF-Token` set to
+`csrf`, and `_vk_key` and `_vk_reads` (JSON) in a urlencoded body. The page
+answers `{"html":"…"}`, the dialog's markup, which the client appends to
+the overlay host; `{"redirect":url}`; or `{"error":{…}}` with the error's
+status — with `html` too (the error state) and `run` (commands) when the
+component's Mount failed.
+
+The overlay host is `<div id="vk-overlays" data-vk-overlays>`: the
+document has it after the runtime's script when the page renders an
+`open`; a client without one makes one at the end of `<body>`, kept by
+morphs as a script's element is. An `open` settles as a push does,
+`before` to `after`: it succeeds once the dialog is in the page, which the
+client shows modal (`showModal`). A dialog's `cancel` (Escape) closes it,
+as `close` does: the client closes the dialog and, on a live page,
+dispatches `vkclose` on it, the session's handler dropping the instance —
+the next render leaves it out — or, on a page that isn't live, removes it.
+When a dialog the client opened leaves the page it gives the focus back to
+what had it when the `open` ran, and runs `closed` there.
+
+A push's reply over HTTP may carry `run`, commands to run after its result
+(the components its method opened, `ui.Call`), and `close: true`, closing
+the opened component the push came from (`ui.Close`).
 
 ### Commands Pushed by the Server {#commands-pushed-by-the-server}
 

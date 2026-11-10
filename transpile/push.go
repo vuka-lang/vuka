@@ -8,8 +8,9 @@ import (
 
 // registerPushes registers each method a Push or Options step of the
 // package's markup names (ui.JS.Push(p.Details, id, ui.Read()),
-// ui.JS.Options(target, c.CitiesOf, args…)), and each method a push's hook
-// pushes (.Success(p.Refresh)), when the page can call it over
+// ui.JS.Options(target, c.CitiesOf, args…)), each method a push's hook
+// pushes (.Success(p.Refresh)), and each method a Call's Action prop is
+// (ui.JS.Call(components.EditProduct{OnSave: p.Reload})), when the page can call it over
 // HTTP — a method of a page or component that isn't live, any method a
 // read or an Options step names — and checks each step's arguments and
 // Into against its handler's parameters and result:
@@ -24,8 +25,10 @@ import (
 // step passes one argument fewer — and dependencies (pointers and
 // interfaces). It returns nothing, an error, or a result — []ui.Option,
 // []ui.OptionGroup, a ui.Node, a string, number, bool or time.Time, a
-// struct, ui.Commands — and maybe an error. It reports whether it wrote
-// any registration: the files type-check once more with them.
+// struct, ui.Commands — and maybe an error. It registers each component a
+// Call names too (ui.RegisterCall(components.EditProduct{}), callstep.go):
+// no other can be opened. It reports whether it wrote any registration:
+// the files type-check once more with them.
 func (e *engine) registerPushes() bool {
 	wrote := false
 	for _, f := range e.vuka {
@@ -46,14 +49,42 @@ func (e *engine) registerPushes() bool {
 			return true
 		})
 		seen := map[string]bool{}
-		var regs []string
+		var regs, calls []string
 		first := -1
+		mark := func(call *ast.CallExpr) {
+			if first < 0 {
+				first = f.orig(call.Pos())
+			}
+		}
 		ast.Inspect(f.ast, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || f.off(call.Pos()) >= f.body {
 				return true
 			}
 			name, on, ok := e.chainStep(f, call)
+			if ok && name == "Call" && len(call.Args) > 0 {
+				reg, actions, isComp := e.callComponent(f, call)
+				if !isComp || reg == "" {
+					return true
+				}
+				if !seen["call "+reg] && f.target.has("RegisterCall") {
+					seen["call "+reg] = true
+					calls = append(calls, reg)
+					mark(call)
+				}
+				for _, a := range actions {
+					// an Action prop's method: called over HTTP on a page that isn't live
+					if r, ok := e.pushMethod(f, call, false, a, nil, nil); ok && r != "" && !seen[r] && f.target.has("RegisterPush") {
+						seen[r] = true
+						regs = append(regs, r)
+						mark(call)
+					}
+				}
+				return true
+			}
+			if ok && name == "Closed" {
+				e.closedStep(f, call)
+			}
 			hook := pushHooks[name]
 			if !ok || name != "Push" && name != "Options" && !hook {
 				return true
@@ -78,25 +109,26 @@ func (e *engine) registerPushes() bool {
 			}
 			seen[reg] = true
 			regs = append(regs, reg)
-			if first < 0 {
-				first = f.orig(call.Pos())
-			}
+			mark(call)
 			return true
 		})
-		if len(regs) == 0 {
+		pushReg := "RegisterPush"
+		if !f.target.has(pushReg) {
+			pushReg = "RegisterOptions" // a ui from before Push took results
+		}
+		if !f.target.has(pushReg) {
+			regs = nil // a ui calling no method over HTTP
+		}
+		if len(regs) == 0 && len(calls) == 0 {
 			continue
-		}
-		register := "RegisterPush"
-		if !f.target.has(register) {
-			register = "RegisterOptions" // a ui from before Push took results
-		}
-		if !f.target.has(register) {
-			continue // a ui calling no method over HTTP
 		}
 		var b strings.Builder
 		b.WriteString("\nfunc init() {\n")
 		for _, r := range regs {
-			b.WriteString("\t" + f.target.q + register + "(" + r + ")\n")
+			b.WriteString("\t" + f.target.q + pushReg + "(" + r + ")\n")
+		}
+		for _, c := range calls {
+			b.WriteString("\t" + f.target.q + "RegisterCall(" + c + ")\n")
 		}
 		b.WriteString("}\n")
 		f.optionsGen.gen(b.String(), first)
@@ -140,7 +172,7 @@ func (e *engine) chainStep(f *fileState, call *ast.CallExpr) (name string, on, o
 
 // pushHooks are the steps that give the last Push before them a hook: a
 // chain, or a method or closure pushed as Push(handler) would push it.
-var pushHooks = map[string]bool{"Before": true, "Success": true, "Error": true, "After": true, "OnSuccess": true, "OnError": true}
+var pushHooks = map[string]bool{"Before": true, "Success": true, "Error": true, "After": true, "OnSuccess": true, "OnError": true, "Closed": true}
 
 // funcArg reports whether a hook's argument is a func, a handler to push,
 // rather than a chain of commands.
