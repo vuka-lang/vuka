@@ -9,7 +9,7 @@ import (
 )
 
 // PushSteps reports a step a chain runs straight after a Push that reads
-// as if it waited for the reply (W0116): Hide, Navigate, Patch, or a toast
+// as if it waited for the reply (W0116): Hide, Navigate, Patch, Reload, or a toast
 // shown with Then. The steps after a Push run at once, while the push is
 // on its way; .Success(…) runs them once it has succeeded.
 var PushSteps = &analysis.Analyzer{
@@ -34,7 +34,7 @@ func runPushSteps(pass *analysis.Pass) (any, error) {
 		step, prev := chainStep(pass, call)
 		what := ""
 		switch step {
-		case "Hide", "Navigate", "Patch", "PatchReplace":
+		case "Hide", "Navigate", "Patch", "PatchReplace", "Reload":
 			what = step
 		case "Then":
 			if len(call.Args) == 1 && toast(pass, call.Args[0]) {
@@ -44,7 +44,11 @@ func runPushSteps(pass *analysis.Pass) (any, error) {
 		if what == "" || !afterPush(pass, prev) {
 			return
 		}
-		help := "move it into the push's Success, .Success(ui.JS." + step + "(…)), to run it once the push has succeeded"
+		args := "…"
+		if step == "Reload" {
+			args = ""
+		}
+		help := "move it into the push's Success, .Success(ui.JS." + step + "(" + args + ")), to run it once the push has succeeded"
 		if step == "Then" {
 			help = "move it into the push's Success, .Success(ui.ShowToast(…)), to show it once the push has succeeded"
 		}

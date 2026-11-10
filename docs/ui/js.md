@@ -73,6 +73,7 @@ The commands are:
 | `After(a)` | run `a` once the last `Push` or `Call` has settled, after its `Success` or `Error` ([lifecycle](#push-lifecycle)) |
 | `Timeout(d)` | how long the last `Push` or `Call` waits for its reply before it fails (10s) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
+| `Reload()` | render the current page again at its URL, query and `#hash` kept, scroll and focus too ([below](#reload)) |
 
 ### URLs and Attributes {#urls-and-attributes}
 
@@ -340,8 +341,8 @@ func removeProduct(id int64) ui.Commands {
 The steps written after a `Push` still run at once, not after its reply:
 `ui.JS.Push(Save).Hide("#form")` hides the form while the save is on its
 way; `ui.JS.Push(Save).Success(ui.JS.Hide("#form"))` hides it once saved.
-`vuka vet` warns of a `Hide`, `Navigate`, `Patch` or a toast written
-straight after a `Push` ([W0116](/errors/W0116)).
+`vuka vet` warns of a `Hide`, `Navigate`, `Patch`, `Reload` or a toast
+written straight after a `Push` ([W0116](/errors/W0116)).
 
 The lifecycle is the same on a live page, whose push goes over its socket,
 and on a page that isn't live, whose push goes over HTTP: the same phases in
@@ -400,6 +401,129 @@ request finishes.
 A live handler can send commands through its live instance. DOM-only effects
 are transient. Put data that subsequent renders must preserve in tracked server
 fields or browser-state fields. A fresh document navigation creates a new page.
+
+## Reloading the Page {#reload}
+
+A live page renders again after an event when its state changed. A table
+whose rows the page reads from the database while it renders isn't state:
+after a handler that deletes a row, or a child form that saves one, the
+table stays as it was. `Reload()` renders the page again:
+
+```html
+<button onClick={ui.JS.Push(Remove, ui.Value(o.ID)).Success(ui.JS.Reload())}>Delete</button>
+```
+
+A handler can return it, as it returns any [commands](#results), when it is
+the handler that knows the page must follow:
+
+```vuka
+func (p *Orders) remove(ctx context.Context, id int64) (ui.Commands, error) {
+	if err := p.orders.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	return ui.JS.Reload(), nil
+}
+```
+
+What it runs on the server is what a [patch](/web/navigation) of the
+page's URL runs: the route for the URL, its middleware and guards, and the
+page's render. A page whose `Update` takes the URL stays mounted, its state
+kept, and `Update` runs; any other page mounts again — its mount hook and
+its `@ui.Loads` loaders run, and its fields start over from the URL.
+Layouts the page shares stay, their `Load` not run again unless they read
+the request ([layouts that stay](/web/folder-routes#layouts-that-stay)).
+On a page that isn't live, the browser fetches the URL and the route runs
+as for a load, layouts included.
+
+The URL is the one in the address bar: its path and query, so the page,
+search and sort a query holds stay, and its `#hash`, which the reload
+doesn't scroll to. The history entry is replaced, not added, and scroll,
+focus and what was typed in a field the render doesn't change stay. The
+document's title is what a load of the URL gives it: the layout's
+`<title>`, else the page's `Title()`.
+
+On a live page it is a patch over the connection; on a page that isn't
+live, a fetch of the URL whose body takes the page's place, as a
+[patch link](/web/navigation)'s does. The [lifecycle](#push-lifecycle) of
+the push around it is the same on both: in `Success` the reload runs once
+the push's reply is applied; written straight after the `Push` it runs at
+once, while the push is on its way ([W0116](/errors/W0116)). A handler's
+returned `Reload` runs once its reply is applied, before the push's
+`Success`.
+
+Before, a page whose table reads the orders as it renders kept a field
+nobody reads, bumped by every handler that writes, only so that something
+changed:
+
+```html
+<script lang="go">
+package orders
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Orders struct {
+    ui.Live
+    Page    int
+    orders  *services.Orders
+    refresh int
+}
+
+func (p *Orders) Rows(ctx context.Context, page int) []models.Order {
+    return p.orders.List(ctx, page)
+}
+
+func (p *Orders) remove(ctx context.Context, id int64) error {
+    p.refresh++
+    return p.orders.Delete(ctx, id)
+}
+</script>
+
+<table>
+  for _, o := range Rows(Page) {
+    <tr key={o.ID}><td>{o.Number}</td><td><button onClick={remove(o.ID)}>Delete</button></td></tr>
+  }
+</table>
+```
+
+After, the field is gone and the button says what it wants:
+
+```html
+<script lang="go">
+package orders
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Orders struct {
+    ui.Live
+    Page   int
+    orders *services.Orders
+}
+
+func (p *Orders) Rows(ctx context.Context, page int) []models.Order {
+    return p.orders.List(ctx, page)
+}
+
+func (p *Orders) remove(ctx context.Context, id int64) error {
+    return p.orders.Delete(ctx, id)
+}
+</script>
+
+<table>
+  for _, o := range Rows(Page) {
+    <tr key={o.ID}><td>{o.Number}</td><td><button onClick={ui.JS.Push(remove, ui.Value(o.ID)).Success(ui.JS.Reload())}>Delete</button></td></tr>
+  }
+</table>
+```
 
 ## Server Patches {#server-patches}
 

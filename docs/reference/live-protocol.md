@@ -427,6 +427,7 @@ The operations, their arguments and what they do:
 | `close` | | close the opened component *this* is in, or the `<dialog>` around it ([below](#open)) |
 | `busy` | `to`, `timeout`? | mark the elements busy until undone ([below](#busy)) |
 | `patch`, `navigate` | `href` | move the page to `href` over the connection, as a click on a `data-vk-link` (`="patch"`) link would ([navigation](#navigation)); a page without a connection loads `href` |
+| `reload` | | render the page again at its URL: a patch of its path and query in place of the history entry ([navigation](#navigation)) |
 
 Branches nest: an `if` inside a branch opens a level of its own, and
 `else_if`, `else` and `end` belong to the innermost `if` not yet ended. A
@@ -841,8 +842,9 @@ version supports navigation.
 
 A transport may add fields to a navigation's `patch`; the web framework's
 `token` is the new page's join token, which the client uses when it
-reconnects, and `title` the new page's title, which the client gives the
-document.
+reconnects, and `title` the document's title as a load of the URL gives it
+(the `<title>` of the rendered document's head, else the page's own
+title), which the client gives the document.
 
 ### The Client {#the-client}
 
@@ -852,7 +854,13 @@ default is already prevented, the click is not the main button or has a
 modifier key (`ctrl`, `meta`, `shift`, `alt`), the link has a `target`
 other than `_self` or a `download` attribute, `href` is of another origin,
 or `href` is the page's own URL with a `#hash`; those stay the browser's.
-It also moves on `patch` and `navigate` commands, and on `popstate`.
+It also moves on `patch`, `navigate` and `reload` commands, and on `popstate`.
+A `reload` sends a patch of the page's own path and query; once applied it
+replaces the history entry keeping its state, leaves scroll and focus as
+they are, doesn't scroll to the `#hash`, and `vk:navigate`'s `detail`
+has `reload: true`. On a page that isn't live it is a navigation over HTTP
+(below) that never takes a reply fetched ahead; a live page not connected
+loads its URL again.
 
 While a navigation is in flight it sets `data-vk-navigating` on `<html>` and
 sends no events. Then:
