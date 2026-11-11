@@ -99,6 +99,7 @@ export default defineConfig({
           { text: 'Components', link: '/ui/components' },
           { text: 'Data Tables', link: '/ui/datatable' },
           { text: 'Component Classes', link: '/ui/classes' },
+          { text: 'Theming', link: '/ui/theming' },
           { text: 'UI Components (Vendored)', link: '/ui/vendored' },
           { text: 'Vendored Components', link: '/ui/components/', collapsed: true, items: uiComponents },
           { text: 'Stateful Components', link: '/ui/stateful' },
