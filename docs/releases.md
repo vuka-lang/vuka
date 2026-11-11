@@ -33,6 +33,26 @@ the `github.com/vuka-lang/vuka` package your module requires.
   inline-card header, close button and padding. A Toast, Dialog, Drawer or
   Notice root is bare by default. The kit's CSS now carries the pointer-events
   rule for dialogs and toasts in the overlay host.
+- **One `ui.DataTable` for stores, slices and the browser** ([#454](https://github.com/vuka-lang/vuka/issues/454)).
+  `load={…}` takes a `Load(ctx, ui.TableQuery) (ui.Page[T], error)` and
+  renders the page it returns; `rows={…}` pages a slice on the server;
+  `rows={…} client` lets the browser search and page every row. The first
+  two keep page, size, search and sort in the address (`key` prefixes
+  them), so each control is a patch of the live page or a link. The root
+  carries `id` (`records` unless set), so `ui.JS.Reload("#records")`
+  renders the table again. `<slot:actions let={row}>` is a row's menu of
+  `ui.ActionMenu` items. A failing `Load` shows an error state, not the
+  page's error. The event-driven form (`page`, `onSearch`, `onSort`,
+  `onPage`, `onSize`) works as before.
+- **`ui.LoadPage`** ([#454](https://github.com/vuka-lang/vuka/issues/454)).
+  A `Load` over an orm `QuerySet`: counts before and after the search,
+  searches with `Source.Search`, orders by `Source.Sorts` (a key it
+  doesn't list is ignored; without `Sorts` a column's `sort` key is the
+  field) or `Default`, and lets the database cut the page. The kit now
+  requires the orm module, and Go 1.27.
+- The DataTable, its search box, pager and menu take the look of shadcn's
+  Table, Input, Pagination and Dropdown Menu, through `--ui-*` tokens only;
+  `--ui-weight-medium` is a new token. See [Data Tables](/ui/datatable).
 
 ## v2.18.0 — 2026-11-10
 

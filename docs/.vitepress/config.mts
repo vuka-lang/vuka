@@ -97,6 +97,7 @@ export default defineConfig({
           { text: 'Context Processors', link: '/web/context-processors' },
           { text: 'Templates', link: '/ui/templates' },
           { text: 'Components', link: '/ui/components' },
+          { text: 'Data Tables', link: '/ui/datatable' },
           { text: 'Component Classes', link: '/ui/classes' },
           { text: 'Theming', link: '/ui/theming' },
           { text: 'UI Components (Vendored)', link: '/ui/vendored' },
