@@ -54,7 +54,7 @@ func (p *Index) Books(ctx context.Context, q ui.TableQuery) (ui.Page[models.Book
 }
 </script>
 
-<ui.DataTable load={Books} placeholder="Find a book">
+<ui.DataTable load={Books} searchPlaceholder="Find a book">
   <slot:column header="Title" sort="title" let={b}><b>{b.Title}</b></slot:column>
   <slot:column header="Pages" sort="pages" align="right" let={b}>{b.Pages}</slot:column>
   <slot:column header="Author" let={b}>{b.Author}</slot:column>
