@@ -20,6 +20,20 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## Unreleased
+
+### UI kit
+
+- **One token contract.** Every colour, radius, shadow, size and motion value of the
+  kit is a documented `--ui-*` token defined in one place, with light and dark
+  values; the kit's CSS holds no literal values of its own and a test enforces
+  it. The default look is unchanged. `preset-shadcn.css` is an opt-in layer that
+  maps the tokens onto shadcn's variables. See [Theming](/ui/theming).
+- **`ui.Into(sel, ui.Bare())`** opens a component in place without the
+  inline-card header, close button and padding. A Toast, Dialog, Drawer or
+  Notice root is bare by default. The kit's CSS now carries the pointer-events
+  rule for dialogs and toasts in the overlay host.
+
 ## v2.18.0 — 2026-11-10
 
 ### Forms
