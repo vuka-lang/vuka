@@ -20,6 +20,27 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## Unreleased
+
+### UI kit
+
+- **Component pages with live previews** ([#453](https://github.com/vuka-lang/vuka/issues/453)).
+  A vendored component's page reads like a component catalogue's: a preview
+  with its source, installation (`vuka ui add`, or the file to copy), usage,
+  a section per size, variant and state, each a live preview drawn with the
+  component's own CSS in the docs' light or dark theme, and an API reference
+  from its Go. Each example is a `.vuka.html` file built with the component,
+  so a snippet is the source of what its preview shows; a test fails when a
+  page or preview is out of date. [Button](/ui/components/button) is the
+  first.
+- **`vuka ui gallery`: the kit's components on your machine** ([#453](https://github.com/vuka-lang/vuka/issues/453)).
+  An index, a page per kit component with its examples, props and related
+  components, and a page of every component in every state, light and dark.
+  `--css` loads an app's stylesheet after the kit's to preview its token
+  overrides (read again on every reload); `--out` writes the pages for
+  before-and-after screenshots. The examples are package
+  `github.com/vuka-lang/ui/v2/gallery`. See [Kit Gallery](/ui/gallery).
+
 ## v2.18.0 — 2026-11-10
 
 ### Forms

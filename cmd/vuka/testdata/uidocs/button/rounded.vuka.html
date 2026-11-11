@@ -1,0 +1,15 @@
+<script lang="go">
+package examples
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/app/components/ui"
+)
+
+type ButtonRoundedDemo struct{}
+</script>
+
+<design.Button variant={design.ButtonOutline} size={design.SizeIcon} class="rounded-full" attrs={[]ui.Attr{{Name: "aria-label", Value: "Scroll up"}}}>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+</design.Button>

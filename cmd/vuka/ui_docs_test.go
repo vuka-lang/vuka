@@ -35,8 +35,11 @@ func TestUIDocs(t *testing.T) {
 	}
 	here, _ := os.Getwd()
 	docs, public := filepath.Join(here, uiDocs), filepath.Join(here, "../../docs/public/ui/components")
-	_, ejected := ejectRegistry(t, reg)
+	modDir, ejected := ejectRegistry(t, reg)
+	rendered := showcaseExamples(t, modDir)
 	want := map[string]string{}
+	pubFiles := map[string]string{} // under docs/public/ui: previews/…, pages/…
+	names := reg.components()
 	var side []map[string]string
 	var index strings.Builder
 	index.WriteString(uiDocsHead("Components", "The components vuka ui add writes into an app.") +
@@ -45,8 +48,26 @@ func TestUIDocs(t *testing.T) {
 		"source from then on. [UI Components (Vendored)](/ui/vendored) covers\n" +
 		"starting, theming and updating them.\n\n" +
 		"| Component | Runs | |\n|---|---|---|\n")
-	for _, name := range reg.components() {
+	for i, name := range names {
 		it := reg.item(name)
+		if text, err := os.ReadFile(filepath.Join(here, "testdata/uidocs", name, "page.md")); err == nil {
+			var prev, next *registryItem
+			if i > 0 {
+				prev = reg.item(names[i-1])
+			}
+			if i+1 < len(names) {
+				next = reg.item(names[i+1])
+			}
+			sc := showcasePage(t, here, reg, it, string(text), rendered, ejected, prev, next)
+			want[name+".md"] = sc.page
+			pubFiles["pages/"+name+".md"] = sc.copy
+			for p, doc := range sc.previews {
+				pubFiles["previews/"+p] = doc
+			}
+			side = append(side, map[string]string{"text": it.Title, "link": "/ui/components/" + name})
+			fmt.Fprintf(&index, "| [%s](/ui/components/%s) | %s | %s |\n", it.Title, name, tierNames[it.Tier], mdText(sentence(it.Description)))
+			continue
+		}
 		usage, err := os.ReadFile(filepath.Join(here, "testdata/uidocs", name+".md"))
 		if err != nil {
 			t.Errorf("%s: no usage: write testdata/uidocs/%s.md", name, name)
@@ -64,6 +85,8 @@ func TestUIDocs(t *testing.T) {
 	want["index.md"] = index.String()
 	b, _ := json.MarshalIndent(side, "", "  ")
 	want["sidebar.json"] = string(b) + "\n"
+
+	checkUIPreviews(t, filepath.Join(here, "../../docs/public/ui"), modDir, pubFiles)
 
 	have, _ := filepath.Glob(filepath.Join(docs, "*"))
 	for _, p := range have {
@@ -115,6 +138,13 @@ func ejectRegistry(t *testing.T, reg *registry) (dir string, _ map[string][]byte
 		sums = append(sums, s...)
 	}
 	writeFile(t, filepath.Join(dir, "go.sum"), string(sums))
+	// The docs' examples (testdata/uidocs/<component>/*.vuka.html), built
+	// with the components they show.
+	examples, _ := filepath.Glob(filepath.Join(repo, "cmd", "vuka", "testdata", "uidocs", "*", "*.vuka.html"))
+	for _, ex := range examples {
+		b, _ := os.ReadFile(ex)
+		writeFile(t, filepath.Join(dir, "components", "examples", filepath.Base(filepath.Dir(ex)), filepath.Base(ex)), string(b))
+	}
 	for _, it := range reg.Items {
 		for _, f := range it.Files {
 			b, _ := registryFS.ReadFile("registry/" + f.Path)
@@ -135,7 +165,7 @@ func ejectRegistry(t *testing.T, reg *registry) (dir string, _ map[string][]byte
 			target = filepath.Join(dir, target)
 		}
 		writeFile(t, target, string(g.Src))
-		if strings.HasSuffix(g.Source, ".vuka.html") {
+		if strings.HasSuffix(g.Source, ".vuka.html") && !strings.Contains(filepath.ToSlash(g.Source), "components/examples/") {
 			out[filepath.Base(g.Source)] = ejected(g.Src)
 		}
 	}

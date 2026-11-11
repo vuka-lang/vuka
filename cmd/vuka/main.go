@@ -40,6 +40,9 @@ Usage:
 	        tokens into its stylesheet and components/ui/cn.go, add writes
 	        components (button, card, dialog, tabs…) beside it from the
 	        registry, diff shows how the app's differ from it; vuka ui -h
+	vuka ui gallery [--addr host:port] [--out dir] [--css file]
+	        every component of the kit in every state, light and dark, served
+	        (or written to --out), with the app's stylesheet (--css) over it
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        vet runs vukavet's checks too (the app's go tool vukavet, else one

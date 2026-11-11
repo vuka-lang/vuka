@@ -1,0 +1,26 @@
+<script lang="go">
+package examples
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/app/components/ui"
+)
+
+type ButtonSizeDemo struct{}
+</script>
+
+<div class="flex flex-col items-start gap-8 sm:flex-row">
+  <div class="flex items-start gap-2">
+    <design.Button size={design.SizeSm} variant={design.ButtonOutline}>Small</design.Button>
+    <design.Button size={design.SizeIcon} variant={design.ButtonOutline} attrs={[]ui.Attr{{Name: "aria-label", Value: "Submit"}}}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+    </design.Button>
+  </div>
+  <div class="flex items-start gap-2">
+    <design.Button variant={design.ButtonOutline}>Default</design.Button>
+  </div>
+  <div class="flex items-start gap-2">
+    <design.Button size={design.SizeLg} variant={design.ButtonOutline}>Large</design.Button>
+  </div>
+</div>
