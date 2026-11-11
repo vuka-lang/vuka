@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,12 +41,78 @@ func testModule(t *testing.T, path string) (gomod, gosum string) {
 			runtime = f[1]
 		}
 	}
+	// ui's own Go version and every module it requires (orm and what orm
+	// needs among them): the test module must satisfy them.
+	goVersion, extra := "1.25.0", ""
+	inRequire := false
+	for _, line := range strings.Split(string(uiMod), "\n") {
+		f := strings.Fields(line)
+		switch {
+		case len(f) == 2 && f[0] == "go" && semverLess("v"+goVersion, "v"+f[1]):
+			goVersion = f[1]
+		case len(f) == 2 && f[0] == "require" && f[1] == "(":
+			inRequire = true
+		case len(f) == 1 && f[0] == ")":
+			inRequire = false
+		case inRequire && len(f) >= 2 && f[0] != "github.com/vuka-lang/vuka/v2" && f[0] != "github.com/vuka-lang/ui/v2" && !strings.HasPrefix(f[0], "github.com/a-h/"):
+			extra += "\n\t" + f[0] + " " + f[1]
+		}
+	}
 	uiSum, _ := os.ReadFile(filepath.Join(ui, "go.sum"))
 	ownSum, _ := os.ReadFile("go.sum")
 	sum := append(uiSum, ownSum...)
-	return "module " + path + "\n\ngo 1.25.0\n\nrequire (\n\t" + strings.Join(templ, "\n\t") +
-		"\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n\tgithub.com/vuka-lang/vuka/v2 " + runtime + "\n)\n\n" +
+	return "module " + path + "\n\ngo " + goVersion + "\n\nrequire (\n\t" + strings.Join(templ, "\n\t") +
+		"\n\tgithub.com/vuka-lang/ui/v2 " + familyVersion(t, "ui") + "\n\tgithub.com/vuka-lang/vuka/v2 " + runtime + extra + "\n)\n\n" +
 		"replace github.com/vuka-lang/vuka/v2 => " + repo + "\n\nreplace github.com/vuka-lang/ui/v2 => " + ui + "\n", string(sum)
+}
+
+// ormFamily is the versions of the vuka family (ui, vuka, web) that the orm
+// the ui checkout requires itself requires: the test module's own
+// requirements, though replaced by local checkouts, must not be lower, or
+// go would have to rewrite its go.mod.
+func ormFamily(t *testing.T, ormVersion string) map[string]string {
+	t.Helper()
+	fam := map[string]string{}
+	if ormVersion == "" {
+		return fam
+	}
+	out, err := exec.Command("go", "env", "GOMODCACHE").Output()
+	if err != nil {
+		return fam
+	}
+	mod, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(out)), "cache", "download", "github.com", "vuka-lang", "orm", "v2", "@v", ormVersion+".mod"))
+	if err != nil {
+		return fam
+	}
+	for _, line := range strings.Split(string(mod), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && strings.HasPrefix(f[0], "github.com/vuka-lang/") {
+			fam[f[0]] = f[1]
+		}
+	}
+	return fam
+}
+
+// familyVersion is the version a test module requires a vuka family module
+// at: v2.0.0, or what the orm the ui checkout requires needs.
+func familyVersion(t *testing.T, module string) string {
+	t.Helper()
+	ui := os.Getenv("VUKA_UI")
+	if ui == "" {
+		repo, _ := filepath.Abs("../..")
+		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
+	}
+	uiMod, _ := os.ReadFile(filepath.Join(ui, "go.mod"))
+	orm := ""
+	for _, line := range strings.Split(string(uiMod), "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "github.com/vuka-lang/orm/v2" {
+			orm = f[1]
+		}
+	}
+	if v := ormFamily(t, orm)["github.com/vuka-lang/"+module+"/v2"]; v != "" {
+		return v
+	}
+	return "v2.0.0"
 }
 
 func writeFile(t *testing.T, path, content string) {

@@ -35,7 +35,7 @@ func routesModule(t *testing.T, files map[string]string) string {
 	})
 	app := filepath.Join(root, "app")
 	gomod, gosum := testModule(t, "example.com/app")
-	gomod = strings.Replace(gomod, "require (", "require (\n\tgithub.com/vuka-lang/web/v2 v2.0.0", 1) + "\nreplace github.com/vuka-lang/web/v2 => ../web\n"
+	gomod = strings.Replace(gomod, "require (", "require (\n\tgithub.com/vuka-lang/web/v2 "+familyVersion(t, "web"), 1) + "\nreplace github.com/vuka-lang/web/v2 => ../web\n"
 	writeFile(t, filepath.Join(app, "go.mod"), gomod)
 	writeFile(t, filepath.Join(app, "go.sum"), gosum)
 	for name, src := range files {
