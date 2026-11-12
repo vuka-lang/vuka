@@ -199,3 +199,99 @@
     margin-top: 0;
   }
 }
+
+/* Component showcase pages: the actions beside the title, and each
+   example's card, the preview over its code. */
+.vk-ui-showcase .vp-doc h1 {
+  margin-right: 180px;
+}
+
+.ui-page-actions {
+  float: right;
+  display: flex;
+  gap: 6px;
+  margin-top: -52px;
+}
+
+.ui-page-actions button,
+.ui-page-actions a {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+  background: var(--vp-c-bg);
+}
+
+.ui-page-actions button:hover,
+.ui-page-actions a:hover {
+  background: var(--vp-c-bg-soft);
+}
+
+.ui-example {
+  margin: 16px 0 24px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ui-example-preview iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.ui-example-code {
+  position: relative;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.ui-example-code div[class*='language-'] {
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+.ui-example-code:not(.open) div[class*='language-'] {
+  max-height: 116px;
+  overflow: hidden;
+}
+
+
+.ui-example-fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 64px;
+  padding-bottom: 10px;
+  background: linear-gradient(to bottom, transparent, var(--vp-code-block-bg) 70%);
+}
+
+.ui-example-fade button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+}
+
+@media (max-width: 640px) {
+  .vk-ui-showcase .vp-doc h1 {
+    margin-right: 0;
+  }
+
+  .ui-page-actions {
+    float: none;
+    margin: 0 0 16px;
+  }
+}

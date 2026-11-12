@@ -1,0 +1,19 @@
+<script lang="go">
+package examples
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/app/components/ui"
+)
+
+type Menu struct {
+	open ui.State[bool]
+}
+</script>
+
+<design.Button onClick={open = !open}>Menu</design.Button>
+<ul show={open}>
+  <li>Profile</li>
+  <li>Sign out</li>
+</ul>

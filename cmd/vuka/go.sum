@@ -10,6 +10,8 @@ github.com/evanw/esbuild v0.28.2 h1:A2uETn4jrQTcXaT/shwTDTYBxDjl7fV7nXmUrJxfA2w=
 github.com/evanw/esbuild v0.28.2/go.mod h1:D2vIQZqV/vIf/VRHtViaUtViZmG7o+kKmlBfVQuRi48=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+github.com/vuka-lang/orm/v2 v2.18.0 h1:mSqqbEFs6yGORSQMdKSeL6wzOGQYYCkcXUVIXPRFb9k=
+github.com/vuka-lang/orm/v2 v2.18.0/go.mod h1:0o9nj3EulmDuJAe4VhjQNE9N6tXEuOXfh6aFJmV7ZEw=
 github.com/vuka-lang/ui/v2 v2.10.0 h1:c/J1Z0NQW7v6C64QiFzQm3aSj2H6QFSIhiC+Qv0Sk/0=
 github.com/vuka-lang/ui/v2 v2.10.0/go.mod h1:6QEDwNqLp5F9yRwCT7TpQimmD+Pxm4dZMCbqAGZxfMM=
 github.com/vuka-lang/ui/v2 v2.11.0 h1:uGYhC3F6envQ1BWWbAygwoO5fps49uQvDXHvb28KHeY=
@@ -74,6 +76,8 @@ github.com/vuka-lang/ui/v2 v2.18.1-0.20261110115020-c5b16395b4f3 h1:saW1xyeWn2Vm
 github.com/vuka-lang/ui/v2 v2.18.1-0.20261110115020-c5b16395b4f3/go.mod h1:1FEy3OSNnL6M6FEVvMTEVxbm7NSz2cKmgLNvai2sl+A=
 github.com/vuka-lang/ui/v2 v2.18.1-0.20261110122310-e04dc26b44f4 h1:676cfzaTG5VP+JVidZrPY9JL1rk1Z1oYX5BbBQ1JXSQ=
 github.com/vuka-lang/ui/v2 v2.18.1-0.20261110122310-e04dc26b44f4/go.mod h1:1FEy3OSNnL6M6FEVvMTEVxbm7NSz2cKmgLNvai2sl+A=
+github.com/vuka-lang/ui/v2 v2.18.1-0.20261111060937-1194bebc1adf h1:IdW8DcmEjkvMxm8CjI/etfGAQX/99Uz0sUYl/zuxRKY=
+github.com/vuka-lang/ui/v2 v2.18.1-0.20261111060937-1194bebc1adf/go.mod h1:6STSKC2H/pi1nlQhvzf62AZePRVLIR/IfefhCz6eX5M=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348 h1:8x1CeJOb6kaNQ3rgCC75M2f3bW4b6zBAbZJXhi0F/KQ=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818 h1:zsu1nUA1Tdw4CAbAMdCFc6WIsu2UusNf/oc5U5qpvBc=

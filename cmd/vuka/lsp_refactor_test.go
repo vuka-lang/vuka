@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -31,12 +32,25 @@ func refactorModule(t *testing.T, files map[string]string) string {
 	webMod, _ := os.ReadFile(filepath.Join(web, "go.mod"))
 	// Every module the build loads, at the highest version any of them
 	// requires: the go.mod go accepts as it is.
-	reqs := map[string]string{"github.com/vuka-lang/web/v2": "v2.0.0"}
+	webVersion := familyVersion(t, "web")
+	reqs := map[string]string{"github.com/vuka-lang/web/v2": webVersion}
 	var order []string
+	// What the orm ui requires needs, too (golang.org/x/text among them): a
+	// module the build loads can't be listed below the version it selects.
+	// Only modules the others list: a new one has no go.sum entry.
+	known := map[string]bool{}
 	for _, text := range []string{gomod, string(uiMod), string(webMod)} {
 		for _, line := range strings.Split(text, "\n") {
+			if f := strings.Fields(strings.TrimPrefix(strings.TrimSpace(line), "require ")); len(f) >= 2 {
+				known[f[0]] = true
+			}
+		}
+	}
+	raised := map[string]bool{} // modules only the orm's requirement raised
+	for i, text := range []string{gomod, string(uiMod), string(webMod), ormGoMod(t, uiORMVersion(string(uiMod)))} {
+		for _, line := range strings.Split(text, "\n") {
 			f := strings.Fields(strings.TrimPrefix(strings.TrimSpace(line), "require "))
-			if len(f) < 2 || !strings.Contains(f[0], ".") || !strings.HasPrefix(f[1], "v") {
+			if len(f) < 2 || !strings.Contains(f[0], ".") || !strings.HasPrefix(f[1], "v") || !known[f[0]] {
 				continue
 			}
 			if v, ok := reqs[f[0]]; !ok || semverLess(v, f[1]) {
@@ -44,11 +58,12 @@ func refactorModule(t *testing.T, files map[string]string) string {
 					order = append(order, f[0])
 				}
 				reqs[f[0]] = f[1]
+				raised[f[0]] = i == 3
 			}
 		}
 	}
 	var req strings.Builder
-	req.WriteString("require (\n\tgithub.com/vuka-lang/web/v2 v2.0.0\n")
+	req.WriteString("require (\n\tgithub.com/vuka-lang/web/v2 " + webVersion + "\n")
 	for _, m := range order {
 		req.WriteString("\t" + m + " " + reqs[m] + "\n")
 	}
@@ -57,11 +72,30 @@ func refactorModule(t *testing.T, files map[string]string) string {
 	gomod = gomod[:start] + req.String() + gomod[end:] + "\nreplace github.com/vuka-lang/web/v2 => " + web + "\n"
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	writeFile(t, filepath.Join(dir, "go.mod"), gomod)
-	writeFile(t, filepath.Join(dir, "go.sum"), gosum+string(webSum))
+	writeFile(t, filepath.Join(dir, "go.sum"), gosum+string(webSum)+moduleSums(t, raised, reqs))
 	for name, src := range files {
 		writeFile(t, filepath.Join(dir, name), src)
 	}
 	return dir
+}
+
+// moduleSums is the go.sum lines of the modules at the versions reqs gives
+// them, from the module cache (or the proxy).
+func moduleSums(t *testing.T, mods map[string]bool, reqs map[string]string) string {
+	t.Helper()
+	var sums strings.Builder
+	for m, ok := range mods {
+		if !ok {
+			continue
+		}
+		out, err := exec.Command("go", "mod", "download", "-json", m+"@"+reqs[m]).Output()
+		var info struct{ Sum, GoModSum string }
+		if err != nil || json.Unmarshal(out, &info) != nil {
+			continue
+		}
+		fmt.Fprintf(&sums, "%s %s %s\n%s %s/go.mod %s\n", m, reqs[m], info.Sum, m, reqs[m], info.GoModSum)
+	}
+	return sums.String()
 }
 
 // apply writes a refactor's change to disk.

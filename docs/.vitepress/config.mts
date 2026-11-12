@@ -104,6 +104,7 @@ export default defineConfig({
         items: [
           { text: 'Components', link: '/ui/components' },
           { text: 'Data Tables', link: '/ui/datatable' },
+          { text: 'Kit Gallery', link: '/ui/gallery' },
           { text: 'Component Classes', link: '/ui/classes' },
           { text: 'Stateful Components', link: '/ui/stateful' },
           { text: 'Opening Components', link: '/ui/call' },

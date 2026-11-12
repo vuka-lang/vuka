@@ -28,6 +28,7 @@ const uiUsage = `Usage:
 	vuka ui upgrade [--check] [--dry-run] [<library>/<component…>]
 	vuka ui theme [--dry-run] [name]
 	vuka ui list [library | component | library/component]
+	vuka ui gallery [--addr host:port] [--out dir] [--css file]…
 
 Components that are the app's own source: vuka ui add writes each one into
 the app, a .vuka.html file you change as you like, drawn with Tailwind
@@ -67,6 +68,18 @@ utilities over design tokens in the app's stylesheet.
          with a component's (button, shadcn-templ/dialog), what it takes:
          its attributes and their types, the values a variant takes, its
          slots and events, read from its source.
+  gallery
+         serves the components of the kit (github.com/vuka-lang/ui/v2):
+         an index, a page per component with its examples (a preview and
+         the .vuka.html that writes it), its props and the vuka ui add
+         command when there is a copy to vendor, and a page of every
+         component in every state it takes, default, disabled, error,
+         loading, with and without an icon, light and dark:
+         http://localhost:7357 (--addr another). --css loads a stylesheet
+         after the kit's, the app's built CSS with its token overrides,
+         read again on every reload; give it more than once for more.
+         --out writes the pages to a directory instead, for comparing
+         screenshots before and after a change.
 
 The registry is vuka's own, fetched at the version of this vuka, or the
 copy built into it with --offline or when the fetch fails. --registry
@@ -97,8 +110,11 @@ func uiCmd(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if cmds := []string{"init", "add", "diff", "upgrade", "theme", "list"}; !slices.Contains(cmds, sub) {
-		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff, upgrade, theme and list", sub, suggest(sub, cmds, ""))
+	if cmds := []string{"init", "add", "diff", "upgrade", "theme", "list", "gallery"}; !slices.Contains(cmds, sub) {
+		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff, upgrade, theme, list and gallery", sub, suggest(sub, cmds, ""))
+	}
+	if sub == "gallery" {
+		return uiGallery(f, stdout)
 	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil && sub != "list" {
@@ -166,6 +182,8 @@ type uiFlags struct {
 	style, registry string
 	setDir, setPkg  bool
 	within          bool // init run by add, which says what to do next
+	addr, out       string
+	cssFiles        []string // gallery's --css, which repeats
 }
 
 func parseUIFlags(sub string, args []string) (*uiFlags, error) {
@@ -182,6 +200,9 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
 	case "upgrade":
 		bools["check"], bools["dry-run"] = &f.check, &f.dryRun
+	case "gallery":
+		values = map[string]*string{"addr": &f.addr, "out": &f.out, "css": &f.css}
+		bools = map[string]*bool{}
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -202,6 +223,9 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 				value = args[i]
 			}
 			*values[name] = value
+			if sub == "gallery" && name == "css" {
+				f.cssFiles = append(f.cssFiles, value)
+			}
 			f.setDir = f.setDir || name == "dir"
 			f.setPkg = f.setPkg || name == "package"
 		default:
