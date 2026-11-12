@@ -73,24 +73,38 @@ func testModule(t *testing.T, path string) (gomod, gosum string) {
 func ormFamily(t *testing.T, ormVersion string) map[string]string {
 	t.Helper()
 	fam := map[string]string{}
-	if ormVersion == "" {
-		return fam
-	}
-	out, err := exec.Command("go", "env", "GOMODCACHE").Output()
-	if err != nil {
-		return fam
-	}
-	mod, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(out)), "cache", "download", "github.com", "vuka-lang", "orm", "v2", "@v", ormVersion+".mod"))
-	if err != nil {
-		return fam
-	}
-	for _, line := range strings.Split(string(mod), "\n") {
+	for _, line := range strings.Split(ormGoMod(t, ormVersion), "\n") {
 		f := strings.Fields(line)
 		if len(f) >= 2 && strings.HasPrefix(f[0], "github.com/vuka-lang/") {
 			fam[f[0]] = f[1]
 		}
 	}
 	return fam
+}
+
+// ormGoMod is the go.mod of the orm version in the module cache, empty when
+// it isn't there.
+func ormGoMod(t *testing.T, ormVersion string) string {
+	t.Helper()
+	if ormVersion == "" {
+		return ""
+	}
+	out, err := exec.Command("go", "env", "GOMODCACHE").Output()
+	if err != nil {
+		return ""
+	}
+	mod, _ := os.ReadFile(filepath.Join(strings.TrimSpace(string(out)), "cache", "download", "github.com", "vuka-lang", "orm", "v2", "@v", ormVersion+".mod"))
+	return string(mod)
+}
+
+// uiORMVersion is the orm version the ui checkout requires.
+func uiORMVersion(uiMod string) string {
+	for _, line := range strings.Split(uiMod, "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "github.com/vuka-lang/orm/v2" {
+			return f[1]
+		}
+	}
+	return ""
 }
 
 // familyVersion is the version a test module requires a vuka family module
