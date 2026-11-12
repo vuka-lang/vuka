@@ -30,12 +30,20 @@ func TestExeSuffix(t *testing.T) {
 func TestNodeBin(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "node_modules", ".bin", "vite")
-	for _, goos := range []string{"linux", "windows"} {
-		if got := goosNodeBin(goos, dir, "vite"); got != base {
-			t.Errorf("%s, none installed: %q, want %q", goos, got, base)
+	// None installed: Windows points at the .cmd shim an install writes (a
+	// path that doesn't exist, so fileExists triggers a reinstall), the
+	// extensionless path elsewhere.
+	for _, c := range []struct{ goos, want string }{{"linux", base}, {"windows", base + ".cmd"}} {
+		if got := goosNodeBin(c.goos, dir, "vite"); got != c.want {
+			t.Errorf("%s, none installed: %q, want %q", c.goos, got, c.want)
 		}
 	}
+	// A node_modules copied from another OS has only the POSIX script, no
+	// Windows shim: it must not pass as installed, so still the .cmd path.
 	writeFile(t, base, "#!/bin/sh\n")
+	if got := goosNodeBin("windows", dir, "vite"); got != base+".cmd" {
+		t.Errorf("windows, only the POSIX script: %q, want the .cmd shim path", got)
+	}
 	writeFile(t, base+".exe", "")
 	if got := goosNodeBin("windows", dir, "vite"); got != base+".exe" {
 		t.Errorf("windows, bun's shim: %q", got)

@@ -29,8 +29,10 @@ func exe(path string) string { return path + exeSuffix() }
 
 // nodeBin is the command dir/node_modules/.bin has for name: on Windows the
 // package managers' name.cmd (npm, pnpm, yarn) or name.exe (bun) shim, as
-// the extensionless one is a shell script there; name elsewhere. When none
-// is there it is the extensionless path, which doesn't exist.
+// the extensionless one is a POSIX shell script there; name elsewhere. When
+// none is installed it is a path that doesn't exist — the .cmd shim's on
+// Windows, the extensionless one's elsewhere — so a caller's fileExists
+// check reads it as not installed and reinstalls.
 func nodeBin(dir, name string) string {
 	return goosNodeBin(runtime.GOOS, dir, name)
 }
@@ -43,6 +45,12 @@ func goosNodeBin(goos, dir, name string) string {
 				return p + ext
 			}
 		}
+		// Only a .cmd/.exe shim is runnable on Windows; the extensionless
+		// file is a POSIX shell script (a node_modules copied from another
+		// OS has only that). Return the .cmd shim's path, which an install
+		// here writes: a missing shim then reads as not installed and gets a
+		// reinstall, not a confusing "executable file not found" at exec.
+		return p + ".cmd"
 	}
 	return p
 }
