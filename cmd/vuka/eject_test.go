@@ -29,8 +29,6 @@ func TestEject(t *testing.T) {
 		}
 		writeFile(t, filepath.Join(root, ex, "main.vuka"), string(src))
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	bin := t.TempDir()
 	want := map[string][]byte{}
@@ -99,6 +97,7 @@ func TestEject(t *testing.T) {
 // An ejected file has its type's constructor and schema method after the
 // type; its init functions stay where the source wrote them.
 func TestEjectedArrange(t *testing.T) {
+	t.Parallel()
 	src := `package main
 
 // Board is a page.
@@ -255,8 +254,6 @@ import (
 
 func main() { fmt.Println(cli.Names()) }
 `)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var out bytes.Buffer
 	if err := eject([]string{"-rm", "./greet"}, &out); err != nil {
@@ -276,6 +273,7 @@ func main() { fmt.Println(cli.Names()) }
 }
 
 func TestRouteBundle(t *testing.T) {
+	t.Parallel()
 	if !routeBundle.MatchString(`func AdminPage(path string) vuka.Bundle { return vuka.Compose(web.Get(path), auth.Required()) }`) {
 		t.Error("a bundle of web.Get isn't seen")
 	}

@@ -17,10 +17,10 @@ import (
 // at the module only: a save in it starts the build): a body, then a new
 // function the page calls, then a changed signature.
 func TestWatchLocalReplace(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
 	}
-	t.Setenv("GOWORK", "off")
 	vuka := buildVuka(t)
 	root := localModule(t, webCheckout(t), map[string]string{
 		"main.go": e2eMain,

@@ -87,6 +87,7 @@ func TestUIGalleryArgs(t *testing.T) {
 // The served gallery reads the app's stylesheet on every request and stops
 // with its context.
 func TestUIGalleryServe(t *testing.T) {
+	t.Parallel()
 	css := filepath.Join(t.TempDir(), "app.css")
 	os.WriteFile(css, []byte(":root{--ui-primary:#000001}"), 0o644)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -133,6 +134,7 @@ func TestUIGalleryServe(t *testing.T) {
 }
 
 func TestGalleryURL(t *testing.T) {
+	t.Parallel()
 	for addr, want := range map[string]string{"127.0.0.1:7357": "http://localhost:7357/", "[::]:80": "http://localhost:80/", "192.168.1.5:9000": "http://192.168.1.5:9000/"} {
 		a, _ := net.ResolveTCPAddr("tcp", addr)
 		if got := galleryURL(a); got != want {

@@ -7,6 +7,7 @@ import (
 )
 
 func TestCutIslands(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		cmd  string
 		args []string
@@ -28,6 +29,7 @@ func TestCutIslands(t *testing.T) {
 
 // The old name still works and says so, except where web.Dev starts it.
 func TestBuildIslandsDeprecated(t *testing.T) {
+	t.Parallel()
 	var said strings.Builder
 	deprecateBuildIslands(nil, &said)
 	if !strings.Contains(said.String(), "vuka build -islands") {

@@ -249,6 +249,7 @@ after the swap, rows 2
 // its real receiver are the same, and a child's render calling one still shows
 // what it says now.
 func TestMethodPropsE2E(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -288,6 +289,7 @@ func TestMethodPropsE2E(t *testing.T) {
 // TestMethodPropsHelpers: a tag records a func prop's method and receiver for
 // a method of a helper declared in the page's own script, as for the page's.
 func TestMethodPropsHelpers(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}

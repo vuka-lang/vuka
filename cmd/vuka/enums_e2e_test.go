@@ -244,8 +244,6 @@ func TestExplainEnums(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
-	t.Setenv("GOFLAGS", "-mod=mod")
-	t.Setenv("GOWORK", "off")
 	repo, _ := filepath.Abs("../..")
 	root := tempModule(t, map[string]string{
 		"go.mod":             "module example.com/shop\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n",
@@ -321,8 +319,6 @@ func TestEjectValueEnumMethods(t *testing.T) {
 	writeFile(t, filepath.Join(root, "go.mod"), gomod)
 	writeFile(t, filepath.Join(root, "go.sum"), gosum)
 	writeFile(t, filepath.Join(root, "payments", "main.vuka"), enumMethodsPkg)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	bin := t.TempDir()
 	var stderr bytes.Buffer

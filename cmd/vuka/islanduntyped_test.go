@@ -22,6 +22,7 @@ const live = useLive()
 // coming from the build itself; only typed use (defineProps<T>() of its
 // types) needs the generated file.
 func TestIslandUntyped(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("node"); err != nil {
 		needs(t, "node not on PATH")
 	}

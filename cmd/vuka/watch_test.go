@@ -493,7 +493,7 @@ func TestEmbedRoots(t *testing.T) {
 		"other/go.mod":      "module other\n",
 		"other/embedded.go": "package other\n\nimport _ \"embed\"\n\n//go:embed x\nvar s string\n",
 	})
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	got := embedRoots(context.Background(), root, "")
 	want := []string{filepath.Join(root, "lib"), filepath.Join(root, "static"), filepath.Join(root, "views", "pet.html")}
 	if !slices.Equal(got, want) {
@@ -728,7 +728,7 @@ func TestRunWatch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	vuka := buildVuka(t)
 	root := tempModule(t, map[string]string{"go.mod": "module example.com/w\n\ngo 1.25.0\n", "main.vuka": watchApp})
 	r := startWatch(t, vuka, root, nil)
@@ -801,7 +801,7 @@ func TestRunWatchCancel(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("its stand-in go command is a shell script")
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	vuka := buildVuka(t)
 	goCmd, err := exec.LookPath("go")
 	if err != nil {
@@ -856,7 +856,7 @@ func TestBuildDWARF(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	root := tempModule(t, map[string]string{"go.mod": "module example.com/d\n\ngo 1.25.0\n", "main.go": "package main\n\nfunc main() {}\n"})
 	for _, debug := range []bool{false, true} {
 		flags, _ := cutDebug([]string{"-buildvcs=false"})
@@ -898,6 +898,7 @@ func hasDWARF(bin string) (bool, error) {
 }
 
 func TestQuickCompile(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ in, want []string }{
 		{nil, []string{"-gcflags=app/...=-l -dwarf=false"}},
 		{[]string{"-race"}, []string{"-race", "-gcflags=app/...=-l -dwarf=false"}},
@@ -967,6 +968,7 @@ func TestBinaryID(t *testing.T) {
 }
 
 func TestCompilerFlags(t *testing.T) {
+	t.Parallel()
 	in := []string{"-p=2", "-gcflags=m/...=-l -dwarf=false", "-ldflags=-w", "-tags", "dev", "-trimpath", "-buildvcs=false", "-race", "-mod=mod"}
 	want := []string{"-gcflags=m/...=-l -dwarf=false", "-tags", "dev", "-trimpath", "-race", "-mod=mod"}
 	if got := compilerFlags(in); !slices.Equal(got, want) {

@@ -20,6 +20,14 @@ func TestMain(m *testing.M) {
 	if os.Getenv(reuseEnv) == "" {
 		os.Setenv(reuseEnv, "off")
 	}
+	// The tests' modules are temporary directories: no workspace above them
+	// applies, and the go command may complete their go.mod and go.sum.
+	// Set once here, not per test, so those tests can run in parallel.
+	for k, v := range map[string]string{"GOWORK": "off", "GOFLAGS": "-mod=mod"} {
+		if _, ok := os.LookupEnv(k); !ok {
+			os.Setenv(k, v)
+		}
+	}
 	vukaExecutable = func() (string, error) {
 		dir, err := checkoutVukavet()
 		return filepath.Join(dir, "vuka"), err
@@ -70,6 +78,7 @@ func besideVukavet(t *testing.T, vuka string) {
 }
 
 func TestHasVettool(t *testing.T) {
+	t.Parallel()
 	for args, want := range map[string]bool{
 		"./...":                      false,
 		"-vettool=/x/vukavet ./...":  true,
@@ -97,7 +106,6 @@ func TestVetTool(t *testing.T) {
 	}
 	vukavet := filepath.Join(built, "vukavet"+exeSuffix())
 	empty := t.TempDir()
-	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "")
 	t.Setenv("PATH", filepath.Dir(goTool(t)))
 	cache := t.TempDir()
@@ -204,6 +212,7 @@ func goTool(t *testing.T) string {
 // TestVetRunsVukavet: plain vuka vet runs vukavet's checks — a live list
 // without keys is W0102 — and VUKA_VUKAVET=off leaves them out.
 func TestVetRunsVukavet(t *testing.T) {
+	t.Parallel()
 	e := newE2E(t)
 	off := []string{"VUKA_TAILWIND=off", "VUKA_FRONTEND=off"}
 	dir := e.new("vetshop", "--auth=no")

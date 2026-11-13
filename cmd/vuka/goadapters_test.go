@@ -11,6 +11,7 @@ import (
 // function literal — once each, as a .vuka file's call decorators do; a
 // package with .vuka files is left to the compiler.
 func TestGoCallAdapters(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{
 		"go.mod": "module example.com/app\n\ngo 1.25.0\n",
 		"main.go": `package main

@@ -127,7 +127,7 @@ func TestLSPContextVarsFolderPage(t *testing.T) {
 		t.Skip("builds a module")
 	}
 	dir := refactorModule(t, map[string]string{"main.go": ctxPagesMain, "pages/home/index.vuka.html": ctxPagesHome})
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	c := startLSPAt(t, dir, lspOptions{})
 	uri := pathToURI(filepath.Join(dir, "pages", "home", "index.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{

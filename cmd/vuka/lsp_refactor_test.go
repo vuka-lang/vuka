@@ -116,7 +116,7 @@ func apply(t *testing.T, c change) {
 // transpiles, compiles and vets.
 func vets(t *testing.T, dir string) {
 	t.Helper()
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	var out, errOut bytes.Buffer
 	if err := runGo("vet", []string{"./..."}, &out, &errOut); err != nil {
@@ -669,7 +669,7 @@ func TestLSPRefactors(t *testing.T) {
 	for name, src := range map[string]string{"go.mod": mod, "go.sum": sum, "components/counter.vuka.html": keyedCounter} {
 		writeFile(t, filepath.Join(dir, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	c := startLSPCaps(t, dir, lspOptions{renameCommands: true}, map[string]any{
 		"codeAction": map[string]any{"resolveSupport": map[string]any{"properties": []any{"edit"}},
 			"codeActionLiteralSupport": map[string]any{"codeActionKind": map[string]any{"valueSet": []any{"quickfix", "refactor", "refactor.extract", "refactor.move", "refactor.rewrite", "source"}}}},

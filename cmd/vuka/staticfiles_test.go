@@ -76,6 +76,7 @@ func staticTree(t *testing.T) string {
 }
 
 func TestStaticMounts(t *testing.T) {
+	t.Parallel()
 	root := staticTree(t)
 	mounts := findStaticMounts(root)
 	got := map[string]bool{}
@@ -149,6 +150,7 @@ func TestStaticDiags(t *testing.T) {
 }
 
 func TestFixStaticPaths(t *testing.T) {
+	t.Parallel()
 	root := staticTree(t)
 	mounts := findStaticMounts(root)
 	file := filepath.Join(root, "pages", "plain.vuka.html")
@@ -186,8 +188,6 @@ func TestStaticAssetsE2E(t *testing.T) {
 		"static/site.css":        "body{background:url(images/logo.png)}",
 		"public/robots.txt":      "User-agent: *",
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "off")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")

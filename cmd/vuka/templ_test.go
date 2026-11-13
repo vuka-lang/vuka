@@ -39,6 +39,7 @@ func templFiles(t *testing.T, files map[string]string) map[string]string {
 }
 
 func TestModStubTempl(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	// The templ plugin compiles .templ files of a module that requires templ.
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module m\n\ngo 1.25.0\n\nrequire github.com/a-h/templ v0.3.1020\n"), 0o644)
@@ -93,6 +94,7 @@ func TestLSPTempl(t *testing.T) {
 // link named gopls first on PATH): a .templ file sees the components of the
 // .vuka.html files beside it, and templ's buffers win over vuka's Go for them.
 func TestTemplDropIn(t *testing.T) {
+	t.Parallel()
 	templBin, err := exec.LookPath("templ")
 	if err != nil {
 		needs(t, "templ not on PATH")

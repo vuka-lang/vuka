@@ -73,6 +73,7 @@ func TestTailwindFor(t *testing.T) {
 }
 
 func TestTailwindEntry(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod, "app.css": `@import "tailwindcss";`,
 		"lib/a/button.vuka": "package a", "lib/b/b.go": "package b", "lib/c/card.templ": "package c", "lib/d/d_test.vuka": "package d",
 		"lib/e/badge.vuka.html": "<span></span>"})
@@ -245,8 +246,6 @@ func TestBuildTailwind(t *testing.T) {
 	}
 	root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
 		"styles/app.css": "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
@@ -345,7 +344,7 @@ func TestBuildTailwindOldWeb(t *testing.T) {
 	goBin, _ := exec.LookPath("go")
 	os.Symlink(goBin, filepath.Join(bin, "go"))
 	t.Setenv("PATH", bin)
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	root := tempModule(t, map[string]string{
 		"go.mod":     "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n\nreplace github.com/vuka-lang/web/v2 => ./web\n",
 		"main.go":    "package main\n\nimport _ \"github.com/vuka-lang/web/v2\"\n\nfunc main() {}\n",
@@ -371,8 +370,6 @@ func TestGenCodeOnly(t *testing.T) {
 	}
 	root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
 		"styles/app.css": "@import \"tailwindcss\";\n"})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	bin := t.TempDir()

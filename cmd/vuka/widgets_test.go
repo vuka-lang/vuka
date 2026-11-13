@@ -99,7 +99,7 @@ func TestWidgets(t *testing.T) {
 	for name, src := range widgetApp {
 		writeFile(t, filepath.Join(dir, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	var out, errOut bytes.Buffer
 	if err := runGo("run", []string{"."}, &out, &errOut); err != nil {

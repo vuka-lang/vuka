@@ -60,6 +60,7 @@ func recCalls(t *testing.T, src string) ([]string, []byte) {
 }
 
 func TestInstrumentTempl(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name, src string
 		want      []string
@@ -101,6 +102,7 @@ func TestInstrumentTempl(t *testing.T) {
 // TestInstrumentTemplOutput: the instrumented Go imports the recorder once,
 // in a declaration of its own, and keeps everything templ wrote around it.
 func TestInstrumentTemplOutput(t *testing.T) {
+	t.Parallel()
 	_, out := recCalls(t, "package views\n\n// Doc stays.\ntempl Hello(name string) {\n\t<p>{ name }</p>\n}\n\nfunc helper() int { return 1 }\n")
 	for _, want := range []string{
 		"import templ_vk \"github.com/vuka-lang/ui/v2/templx\"\n",
@@ -120,6 +122,7 @@ func TestInstrumentTemplOutput(t *testing.T) {
 // TestTemplTrees: .templ files are instrumented in modules whose ui has
 // the recorder, and only there.
 func TestTemplTrees(t *testing.T) {
+	t.Parallel()
 	uiDir := t.TempDir()
 	writeFile(t, filepath.Join(uiDir, "templx", "record.go"), "package templx\n\nfunc Record() {}\n")
 	old := t.TempDir()

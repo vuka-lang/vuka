@@ -41,8 +41,6 @@ func TestImplicitCtxBuild(t *testing.T) {
 	}
 	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
 	root := tempModule(t, files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	var stderr bytes.Buffer

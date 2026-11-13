@@ -59,8 +59,6 @@ func TestIslandsGoE2E(t *testing.T) {
 	if err := os.Symlink(nm, filepath.Join(root, "web", "node_modules")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	if err := gen([]string{"-inplace", "./..."}, io.Discard); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)

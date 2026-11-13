@@ -71,8 +71,6 @@ func TestMarkupOptionE2E(t *testing.T) {
 		"components/badge.vuka.html": optionBadge,
 		"pages/index.vuka.html":      optionIndex,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

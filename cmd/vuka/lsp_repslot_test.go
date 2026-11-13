@@ -105,6 +105,7 @@ func itemLabels(items []any) []string {
 // attributes; the parent lists the slot once beside its Node and func
 // slots; inside it, <slot: lists the element's slots its tag doesn't set.
 func TestRepeatedSlotCompletion(t *testing.T) {
+	t.Parallel()
 	p, page := repProxy(t)
 	for _, c := range []struct {
 		tag  string
@@ -144,6 +145,7 @@ func TestRepeatedSlotCompletion(t *testing.T) {
 // element's attributes and its let's values; on an attribute, the element
 // field; on let, the values of the element's func.
 func TestRepeatedSlotHover(t *testing.T) {
+	t.Parallel()
 	p, page := repProxy(t)
 	src := []byte(repPage)
 	s := scanShape(page, src)
@@ -174,6 +176,7 @@ func TestRepeatedSlotHover(t *testing.T) {
 // argument inferred from rows: a repeated slot's tag completes exactly its
 // element's attributes, and its let's values hover as the inferred type.
 func TestLSPRepeatedSlotInferred(t *testing.T) {
+	t.Parallel()
 	files := map[string]string{"main.go": "package main\n\nimport _ \"lsptest/pages\"\n\nfunc main() {}\n", "components/data_table.vuka.html": repTable, "pages/index.vuka.html": repPage}
 	c, dir, _ := startLSPWith(t, files)
 	uri := pathToURI(filepath.Join(dir, "pages", "index.vuka.html"))

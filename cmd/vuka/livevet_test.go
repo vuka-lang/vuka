@@ -37,6 +37,7 @@ func (o *Orders) LoadMore() {}
 `
 
 func TestFixAttributes(t *testing.T) {
+	t.Parallel()
 	out, n, err := attributeTags([]byte(tagPage))
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +63,7 @@ func TestFixAttributes(t *testing.T) {
 }
 
 func TestFixHooks(t *testing.T) {
+	t.Parallel()
 	live, deferred := deferredGroups([][]byte{[]byte(tagPage)})
 	out, marked := markHooks([]byte(tagPage), live, deferred)
 	if got := strings.Join(marked, " "); got != "Orders.Mount Orders.Changed Orders.LoadLists" {
@@ -78,6 +80,7 @@ func TestFixHooks(t *testing.T) {
 }
 
 func TestVetLivePages(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "orders.vuka"), []byte(tagPage), 0o644); err != nil {
 		t.Fatal(err)
@@ -108,6 +111,7 @@ func TestVetLivePages(t *testing.T) {
 }
 
 func TestIsUpdateMethod(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, params string
 		want         bool
@@ -163,6 +167,7 @@ func (d *Dashboard) loadRows(ctx context.Context) error { return nil }
 `
 
 func TestDeferDiags(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "dashboard.vuka"), []byte(deferLogic), 0o644)
 	var got []string

@@ -209,7 +209,6 @@ func startLSPMod(t *testing.T, files map[string]string, opts lspOptions, edit fu
 		os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755)
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
-	t.Setenv("GOWORK", "off")
 	c := startLSPAt(t, dir, opts)
 	return c, dir, c.init
 }

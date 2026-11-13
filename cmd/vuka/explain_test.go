@@ -56,11 +56,10 @@ func List(ctx context.Context) []*entities.Placement {
 }
 
 func TestExplainCrossPackageStatics(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
-	t.Setenv("GOFLAGS", "-mod=mod")
-	t.Setenv("GOWORK", "off")
 	root := explainModule(t)
 	page := filepath.Join(root, "pages", "page.vuka")
 
@@ -83,11 +82,10 @@ func TestExplainCrossPackageStatics(t *testing.T) {
 }
 
 func TestExplainError(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
-	t.Setenv("GOFLAGS", "-mod=mod")
-	t.Setenv("GOWORK", "off")
 	root := explainModule(t)
 	page := filepath.Join(root, "pages", "page.vuka")
 	writeFile(t, page, strings.Replace(mustRead(t, page), ".Objects.", ".Objectss.", 1))

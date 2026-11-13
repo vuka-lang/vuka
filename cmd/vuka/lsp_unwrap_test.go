@@ -103,6 +103,7 @@ type Page struct{ Store Store }
 // TestLSPUnwrapResultHover: hover on a Result in markup names the value
 // type it is there.
 func TestLSPUnwrapResultHover(t *testing.T) {
+	t.Parallel()
 	c, dir, _ := startLSPWith(t, map[string]string{"main.go": unwrapResultStore, "page.vuka.html": unwrapResultPage})
 	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": unwrapResultPage}})
@@ -144,6 +145,7 @@ type Page struct{ U User }
 // TestLSPUnwrapOptionHover: hover on an Option in markup names the value
 // type it is there.
 func TestLSPUnwrapOptionHover(t *testing.T) {
+	t.Parallel()
 	c, dir, _ := startLSPWith(t, map[string]string{"main.go": unwrapOptionStore, "page.vuka.html": unwrapOptionPage})
 	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": unwrapOptionPage}})

@@ -14,6 +14,7 @@ var updateFiles = flag.Bool("update", false, "rewrite the goldens and generated 
 // with what the fixer reports, with name.golden; a file it leaves alone has
 // "unchanged" as its golden.
 func TestFixUI(t *testing.T) {
+	t.Parallel()
 	cases, _ := filepath.Glob("testdata/fixui/*.in")
 	if len(cases) == 0 {
 		t.Fatal("no cases")

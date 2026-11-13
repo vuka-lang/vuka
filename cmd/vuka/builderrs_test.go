@@ -109,8 +109,6 @@ func (g *Guard) Load(ctx context.Context) error {
 		files["pages/"+d+"/index.vuka.html"] = "<script lang=\"go\">\npackage " + d + "\n\ntype Index struct{}\n</script>\n\n<section>" + d + "</section>\n"
 	}
 	root := localModule(t, webCheckout(t), files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	return root
 }
@@ -198,8 +196,6 @@ func TestBuildReportGo(t *testing.T) {
 	}
 	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
 	root := tempModule(t, files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var stderr bytes.Buffer
 	if runGo("build", []string{"-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr) == nil {
@@ -258,8 +254,6 @@ func status(r Result[int]) int {
 	}
 	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
 	root := tempModule(t, files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var stderr bytes.Buffer
 	if runGo("build", []string{"-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr) == nil {
@@ -392,8 +386,6 @@ func Users(ctx context.Context) ([]entities.User, error) { return nil, nil }
 `,
 	}
 	root := localModule(t, webCheckout(t), files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	return root
 }
@@ -544,8 +536,6 @@ type Index struct{}
 			fs[c.file] = c.src
 			root := localModule(t, webCheckout(t), fs)
 			withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
-			t.Setenv("GOWORK", "off")
-			t.Setenv("GOFLAGS", "-mod=mod")
 			t.Chdir(root)
 			var stderr bytes.Buffer
 			if runGo("build", []string{"-v", "-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr) == nil {
@@ -587,6 +577,7 @@ var manySyntaxErrors = "package links\n\n" + strings.Repeat("var x = T{: 1}\n", 
 // position, is a diagnostic with the parser's message, hand-written or
 // generated, with a source or without.
 func TestCheckParserGaveUp(t *testing.T) {
+	t.Parallel()
 	const pkg = "example.com/app/links"
 	for _, c := range []struct {
 		name, src, want string
@@ -692,6 +683,7 @@ func TestGoCommandsHelp(t *testing.T) {
 // at the source's package clause, saying it is vuka's; one the source
 // declares stays on its own import line with the usual help.
 func TestUnusedImportPosition(t *testing.T) {
+	t.Parallel()
 	const pkg = "example.com/app/links"
 	from := "package links\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nvar _ = fmt.Sprint\n"
 	clause := len("package links")

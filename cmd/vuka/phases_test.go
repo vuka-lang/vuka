@@ -28,6 +28,7 @@ func (l *lockedBuffer) String() string {
 // A step that takes longer than the threshold is named while it runs and
 // timed when it ends; a quick one says nothing.
 func TestPhasesNameSlowSteps(t *testing.T) {
+	t.Parallel()
 	var out lockedBuffer
 	p := &phases{w: &out, after: 20 * time.Millisecond}
 	p.step("scanning the module")

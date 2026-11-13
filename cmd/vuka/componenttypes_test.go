@@ -12,6 +12,7 @@ import (
 // data fields as props, its methods on live, its fields' handles and its
 // states — and a script misusing them doesn't type-check.
 func TestComponentDTS(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "chart.go"), []byte(`package views
 
@@ -93,6 +94,7 @@ export default component<Chart>((el, props, ctx) => {
 // are pushes AllowPush lists (Reorder, _set); a name that is no method
 // isn't.
 func TestScriptLivePushes(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "orders.go"), []byte("package views\n\ntype Orders struct{ Q string }\n\nfunc (o *Orders) Reorder(ids []int) {}\n"), 0o644)
 	c := &assetComp{dir: dir, name: "Orders", live: true, scripts: []assetSrc{{inline: "export default page((el, live) => { live.reorder([1]); live.q.set('x'); live.q.get(); live.navigate('/') })", label: "orders.vuka.html:3"}}}
@@ -126,6 +128,7 @@ func tscCheck(t *testing.T, dir, script string) string {
 // page<T> its alias, (el, live, ctx); a page has no parent, so ctx.emit is
 // a type error there and not on a component.
 func TestComponentDTSPage(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "index.go"), []byte(`package views
 
@@ -174,6 +177,7 @@ export default component<Index>((el, props, ctx) => { ctx.emit("x") })
 // A page's form and its password fields aren't props: ui.Props leaves them
 // out, so its script's type has neither (vuka#229).
 func TestComponentDTSNoSecrets(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "join.go"), []byte(`package views
 

@@ -59,8 +59,6 @@ func TestLibraryExample(t *testing.T) {
 	}
 	root := localModule(t, web, files)
 	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	bin := t.TempDir()
 	vet := exec.Command("go", "build", "-o", filepath.Join(bin, "vukavet"), ".")

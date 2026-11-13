@@ -41,7 +41,6 @@ func main() { fmt.Println(len(id().Unwrap())) }
 	os.WriteFile(mod, append(src, []byte("\nrequire github.com/google/uuid v1.6.0\n")...), 0o644)
 	t.Setenv("GOPROXY", "off")
 	t.Setenv("GOSUMDB", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	chdir(t, dir)
 
 	if err := mod_(t, "tidy"); err != nil {

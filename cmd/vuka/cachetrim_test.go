@@ -48,7 +48,6 @@ func ormProxy(t *testing.T, versions ...string) {
 	}
 	t.Setenv("GOPROXY", "file://"+proxy)
 	t.Setenv("GOSUMDB", "off")
-	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod -modcacherw")
 	t.Setenv("GOMODCACHE", t.TempDir())
 	t.Setenv("VUKA_CACHE", t.TempDir())
@@ -151,6 +150,7 @@ func TestOrmToolKeyIgnoresParallelism(t *testing.T) {
 // TestCachedOrmToolInterrupted: a build that dies part way leaves nothing a
 // later vuka would run, and that vuka builds it whole.
 func TestCachedOrmToolInterrupted(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	_, err := cachedOrmTool(base, "k", func(out string) error {
 		os.WriteFile(out, []byte("half a bin"), 0o755)
@@ -177,6 +177,7 @@ func TestCachedOrmToolInterrupted(t *testing.T) {
 // TestCachedOrmToolConcurrent: while vukas build at once, a reader sees the
 // whole binary or none.
 func TestCachedOrmToolConcurrent(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	whole := strings.Repeat("x", 1<<20)
 	final := filepath.Join(base, "k", "orm"+exeSuffix())
@@ -329,6 +330,7 @@ func TestTrimCachesOnceADay(t *testing.T) {
 // TestTrimCachesSize: over the size limit the entries used longest ago go,
 // and a limit never takes one in use.
 func TestTrimCachesSize(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	now := time.Now()
 	for i, age := range []time.Duration{5 * time.Hour, 4 * time.Hour, 3 * time.Hour, 2 * time.Minute} {
@@ -358,6 +360,7 @@ func goCacheEntry(t *testing.T, dir, name string, size int, age time.Duration, n
 // subdirectory; what isn't an entry stays, and nothing used in the last hour
 // goes, whatever the limit.
 func TestTrimGoCache(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	now := time.Now()
 	oldest := goCacheEntry(t, dir, "aa11-d", 1000, 9*time.Hour, now)
@@ -396,6 +399,7 @@ func TestTrimGoCache(t *testing.T) {
 
 // TestTrimGoCacheUnderLimit: a cache that fits is left alone.
 func TestTrimGoCacheUnderLimit(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	now := time.Now()
 	p := goCacheEntry(t, dir, "aa11-d", 1000, 100*time.Hour, now)
@@ -467,7 +471,6 @@ func TestTrimGoCacheThenBuild(t *testing.T) {
 	gocache := t.TempDir()
 	t.Setenv("GOCACHE", gocache)
 	t.Setenv("GOFLAGS", "")
-	t.Setenv("GOWORK", "off")
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.21\n")
 	writeFile(t, filepath.Join(root, "main.go"), "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"ok\") }\n")

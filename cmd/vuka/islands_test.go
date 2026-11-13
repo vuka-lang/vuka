@@ -37,6 +37,7 @@ const counterTS = "import { twice } from \"./lib\";\n" +
 // from the Go struct (pointer → optional, []T → T[], json:"-" and the slot left
 // out).
 func TestIslands(t *testing.T) {
+	t.Parallel()
 	root := localModule(t, webDir(t), map[string]string{
 		"main.vuka":          islandPage,
 		"islands/Counter.ts": counterTS,
@@ -112,6 +113,7 @@ func TestIslands(t *testing.T) {
 // TestIslandsErrors: a framework still awaiting a later phase is reported; a
 // missing component file is reported.
 func TestIslandsErrors(t *testing.T) {
+	t.Parallel()
 	web := webDir(t)
 	for _, c := range []struct{ name, decl, file, want string }{
 		{"framework", `@ui.Island("islands/Chart.svelte")`, "islands/Chart.svelte", "svelte islands need svelte, esbuild, esbuild-svelte in "},
@@ -143,6 +145,7 @@ func TestIslandsErrors(t *testing.T) {
 // TestFindFrontendRoot: the island build is rooted at web.FrontendRoot when
 // given, else the parent of web.Frontend's root argument, else the module root.
 func TestFindFrontendRoot(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ name, call, want string }{
 		{"frontendroot", `web.Frontend(dist, "frontend/dist", web.FrontendRoot("frontend"))`, "frontend"},
 		{"parent", `web.Frontend(dist, "frontend/dist")`, "frontend"},
@@ -171,6 +174,7 @@ func TestFindFrontendRoot(t *testing.T) {
 
 // TestIslandStructFields unit-checks the Go→TS field mapping.
 func TestIslandStructFields(t *testing.T) {
+	t.Parallel()
 	src := "package main\n\ntype P struct {\n" +
 		"\tA, B int\n" +
 		"\tF    float64 `json:\"f\"`\n" +
@@ -198,6 +202,7 @@ func TestIslandStructFields(t *testing.T) {
 // directory's i/ and islands.d.ts into the resolved frontend root (here
 // web.Frontend's parent, "frontend").
 func TestIslandDevAssets(t *testing.T) {
+	t.Parallel()
 	src := "package main\n\n" +
 		"import (\n\t\"embed\"\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n" +
 		"//go:embed all:frontend/dist\nvar dist embed.FS\n\n" +
@@ -251,6 +256,7 @@ func webDir(t *testing.T) string {
 // folder for a package under modules/<m>/; none or two such files are
 // errors naming them.
 func TestIslandsInferred(t *testing.T) {
+	t.Parallel()
 	web := webDir(t)
 	head := "\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n"
 	decl := func(pkg, deco, name string) string {

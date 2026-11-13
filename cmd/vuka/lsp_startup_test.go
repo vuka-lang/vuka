@@ -18,6 +18,7 @@ var goplsLoad = regexp.MustCompile(`go/packages\.Load #(\d+)\b.*?query=\[([^\]]*
 // hundred milliseconds per file in a real module. It logs the time to the
 // first hover and to gopls settling.
 func TestLSPStartup(t *testing.T) {
+	t.Parallel()
 	logfile := filepath.Join(t.TempDir(), "gopls.log")
 	// gopls writes its log messages, the loads among them, with -rpc.trace.
 	opts := lspOptions{renameCommands: true, goplsArgs: []string{"-logfile", logfile, "-rpc.trace"}}

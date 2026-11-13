@@ -119,8 +119,6 @@ func TestEventCallsE2E(t *testing.T) {
 		"pages/index.vuka.html":       eventsIndex,
 		"pages/about.vuka.html":       eventsAbout,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

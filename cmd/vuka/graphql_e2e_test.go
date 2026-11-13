@@ -72,8 +72,6 @@ func TestGraphQLSchema(t *testing.T) {
 		"pets/types.go": graphqlTypes,
 		"pets/ops.vuka": graphqlOps,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	for _, k := range []string{graphqlSchemaEnv, graphqlCheckEnv, "VUKA_TAILWIND", "VUKA_FRONTEND"} {
 		t.Setenv(k, "")
 	}
@@ -237,8 +235,6 @@ func TestGraphQLNullability(t *testing.T) {
 		"shop/types.go": shopTypes,
 		"shop/ops.vuka": shopOps,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	for _, k := range []string{graphqlSchemaEnv, graphqlCheckEnv, "VUKA_TAILWIND", "VUKA_FRONTEND"} {
 		t.Setenv(k, "")
 	}

@@ -76,8 +76,6 @@ func TestTemplLibraryE2E(t *testing.T) {
 	mod := filepath.Join(root, "go.mod")
 	b, _ := os.ReadFile(mod)
 	os.WriteFile(mod, append(b, "\nrequire github.com/a-h/templ v0.3.1020\n"...), 0o644)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer
@@ -210,8 +208,6 @@ func TestTemplLibraryAttrs(t *testing.T) {
 	}
 	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
 	root := tempModule(t, files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var stderr bytes.Buffer
 	if err := runGo("build", []string{"-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr); err != nil {

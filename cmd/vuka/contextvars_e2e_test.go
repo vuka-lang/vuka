@@ -116,8 +116,6 @@ func TestContextProcessorsE2E(t *testing.T) {
 		"pages/_layout.vuka.html":    ctxLayout,
 		"pages/index.vuka.html":      ctxIndex,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")
@@ -263,8 +261,6 @@ func TestContextProcessorsFolderPagesE2E(t *testing.T) {
 		"pages/(admin)/panel/index.vuka.html": ctxGroup,
 		"pages/items/[id]/index.vuka.html":    ctxItem,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

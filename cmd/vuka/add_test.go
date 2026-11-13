@@ -37,6 +37,7 @@ func read(t *testing.T, path string) string {
 }
 
 func TestAddModule(t *testing.T) {
+	t.Parallel()
 	dir := scaffolded(t, map[string]string{})
 	files, err := addModule(dir, "example.com/shop", "invoices")
 	if err != nil {
@@ -90,6 +91,7 @@ func TestAddModule(t *testing.T) {
 
 // Each kind of app gets the module its pages are made of.
 func TestAddModuleKinds(t *testing.T) {
+	t.Parallel()
 	templ := scaffolded(t, map[string]string{"ui": "templ", "auth": "no"})
 	if _, err := addModule(templ, "example.com/shop", "notes"); err != nil {
 		t.Fatal(err)
@@ -123,6 +125,7 @@ func TestAddModuleKinds(t *testing.T) {
 }
 
 func TestSingular(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{"notes": "Note", "categories": "Category", "boxes": "Box", "addresses": "Address", "news": "New", "sheep": "Sheep", "glass": "Glass", "matches": "Match"} {
 		if got := singular(in); got != want {
 			t.Errorf("singular(%q) = %q, want %q", in, got, want)

@@ -89,6 +89,7 @@ export default component<Card>((el, props, ctx) => {})
 // listens for (ctx.emit), a page's @ui.URL keys (patch({q})), the folder
 // routes (navigate), and the Go doc of each live method.
 func TestScriptNames(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod,
 		"main.go":                    "package main\n\nfunc main() {}\n",
 		"pages/index.vuka.html":      namesIndex,
@@ -157,6 +158,7 @@ export const b = component<Card>((el, props, ctx) => {
 // or event its shape doesn't have, and on ctx.emit in a page's script, at
 // the name's line and column, with the name it likely meant.
 func TestVetScripts(t *testing.T) {
+	t.Parallel()
 	page := strings.Replace(namesIndex, "export default component<Index>((el, props, ctx) => {})", `export default component<Index>((el, props, c) => {
   c.ref("search")
   c.ref("serch")
@@ -219,6 +221,7 @@ declare module 'chart.js/auto' {
 // vuka generates for it, and vuka vet finds nothing wrong with the names
 // it uses.
 func TestScriptsGuide(t *testing.T) {
+	t.Parallel()
 	guide, err := os.ReadFile("../../docs/ui/scripts.md")
 	if err != nil {
 		t.Fatal(err)
@@ -280,8 +283,6 @@ func TestScriptsGuideVets(t *testing.T) {
 	}
 	here, _ := os.Getwd()
 	t.Cleanup(func() { os.Chdir(here) })
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	for i, f := range regexp.MustCompile("(?s)```html\n(.*?)```").FindAllStringSubmatch(string(guide), -1) {
 		code := f[1]
 		if !strings.Contains(code, `<script lang="ts">`) || !strings.Contains(code, `<script lang="go">`) {
@@ -305,6 +306,7 @@ func TestScriptsGuideVets(t *testing.T) {
 }
 
 func TestSetupRefTypes(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	src := strings.Replace(namesIndex, `<canvas ref="chart"></canvas>`, `if Q != "" { <canvas ref="chart"></canvas> }
  for _, x := range Q { <input ref="item" value={x}/> }`, 1)

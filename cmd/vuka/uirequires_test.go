@@ -18,6 +18,7 @@ import (
 // library's main: an item asking for a tag that doesn't exist yet would
 // refuse every app tracking main, whose pseudo-versions sort below it.
 func TestUIRegistryRequiresResolve(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("asks the module proxy")
 	}

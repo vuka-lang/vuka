@@ -131,7 +131,7 @@ func startGoTemplate(t *testing.T) *goTemplate {
 	for name, src := range lspGoTemplate {
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	c := startLSPCaps(t, dir, lspOptions{renameCommands: true}, map[string]any{
 		"completion": map[string]any{"completionItem": map[string]any{"snippetSupport": true}},
 	})

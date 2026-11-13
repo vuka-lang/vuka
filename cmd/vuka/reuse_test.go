@@ -57,7 +57,6 @@ replace (
 // TestReuseKey: the key a kept build is found by changes with each input of
 // the build, and only with those.
 func TestReuseKey(t *testing.T) {
-	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "")
 	root := tempModule(t, map[string]string{
 		"go.mod":            "module example.com/app\n\ngo 1.25.0\n\nreplace example.com/lib => ../lib\n",
@@ -310,7 +309,7 @@ func TestRunWatchReuse(t *testing.T) {
 	if !strings.Contains(reuseApp, "version+stamp") || !strings.Contains(reuseApp, "var stamp string") {
 		t.Fatal("reuseApp isn't watchApp with a stamp")
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	vuka := buildVuka(t)
 	tmp := t.TempDir()
 	cache, goLog, hold := filepath.Join(tmp, "cache"), filepath.Join(tmp, "go.log"), filepath.Join(tmp, "hold")

@@ -20,7 +20,6 @@ func module(t *testing.T, files map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv("GOWORK", "off")
 	return dir
 }
 
@@ -95,6 +94,7 @@ func TestFix(t *testing.T) {
 }
 
 func TestCompareVersions(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		a, b string
 		want int
@@ -109,6 +109,7 @@ func TestCompareVersions(t *testing.T) {
 }
 
 func TestExplain(t *testing.T) {
+	t.Parallel()
 	dir := module(t, map[string]string{"main.vuka": staticsSrc, "plain.vuka": "package main\n\nfunc plain() {}\n"})
 	var out bytes.Buffer
 	if err := explain([]string{filepath.Join(dir, "main.vuka")}, &out); err != nil {

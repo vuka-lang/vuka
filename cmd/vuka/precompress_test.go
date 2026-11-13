@@ -42,6 +42,7 @@ func gunzip(t *testing.T, b []byte) []byte {
 var bigJS = []byte(strings.Repeat("export function pet(i) { return { id: i, name: 'Rex', status: 'available' } }\n", 60))
 
 func TestPrecompress(t *testing.T) {
+	t.Parallel()
 	e := precompress("app.js", bigJS)
 	if e.br == nil || e.gz == nil || len(e.br) >= len(e.gz) {
 		t.Fatalf("encodings: br %d, gzip %d of %d", len(e.br), len(e.gz), len(bigJS))
@@ -58,6 +59,7 @@ func TestPrecompress(t *testing.T) {
 
 // The encodings vuka build embeds decode to the assets they stand for.
 func TestAssetsGoEncodings(t *testing.T) {
+	t.Parallel()
 	island := []byte(strings.Repeat("export default function mount(el) { el.textContent = 'pets' }\n", 40))
 	c := &compiled{
 		manifest: []byte(`{}`),
@@ -124,6 +126,7 @@ func generatedConsts(t *testing.T, src []byte) (map[string][]byte, [][3]string) 
 }
 
 func TestWriteEncoded(t *testing.T) {
+	t.Parallel()
 	file := filepath.Join(t.TempDir(), "chart.0a1b2c.js")
 	os.WriteFile(file, bigJS, 0o644)
 	names, err := writeEncoded(file, bigJS)

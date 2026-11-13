@@ -45,7 +45,7 @@ func routesModule(t *testing.T, files map[string]string) string {
 		}
 		writeFile(t, filepath.Join(app, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(app)
 	return app
 }
@@ -382,6 +382,7 @@ func generatedProblems(src []byte) []string {
 }
 
 func TestKebab(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{"New": "new", "ResetPassword": "reset-password", "HTMLPage": "html-page", "Step2": "step2", "APIKeys": "api-keys"} {
 		if got := kebab(in); got != want {
 			t.Errorf("kebab(%s) = %s, want %s", in, got, want)
@@ -390,6 +391,7 @@ func TestKebab(t *testing.T) {
 }
 
 func TestPatterns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		a, b         string
 		overlap, a2b bool

@@ -48,6 +48,7 @@ templ Hello(name string) {
 // TestTempl: a .vuka file calls a component of a .templ file beside it, with
 // no templ generate; a stale *_templ.go on disk is ignored.
 func TestTempl(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -108,6 +109,7 @@ func main() {
 // TestTemplOnly: a package of .templ (and .go) files alone builds through
 // vuka, imported by another package.
 func TestTemplOnly(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -156,6 +158,7 @@ func main() {
 
 // TestTemplError: templ's parse errors come out positioned in the .templ.
 func TestTemplError(t *testing.T) {
+	t.Parallel()
 	root := templModule(t, map[string]string{
 		"broken.templ": "package main\n\ntempl Broken() {\n\t<div>\n\t\t<span>open\n\t</div>\n}\n",
 		"main.vuka":    "package main\n\nfunc main() { Broken() }\n",
@@ -182,6 +185,7 @@ func TestTemplError(t *testing.T) {
 // TestTemplChildren: a template's children reach a .templ component's { children... }
 // through templ's context.
 func TestTemplChildren(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -308,6 +312,7 @@ Card [title n]
 // build module, and in place; a .templ file's components are registered, with
 // their parameters' names, also for a .templ file in a subdirectory's package.
 func TestFiles(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -388,6 +393,7 @@ func plainRun(t *testing.T, dir string) string {
 // whose package clause isn't its directory's, and one beside the package with
 // another package clause are errors at the literal.
 func TestFileErrors(t *testing.T) {
+	t.Parallel()
 	root := templModule(t, map[string]string{
 		"app/main.vuka": `package main
 

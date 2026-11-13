@@ -16,6 +16,7 @@ import (
 )
 
 func TestExplainCode(t *testing.T) {
+	t.Parallel()
 	var b bytes.Buffer
 	if err := explain([]string{"E0203"}, &b); err != nil {
 		t.Fatal(err)

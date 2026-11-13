@@ -13,6 +13,7 @@ import (
 )
 
 func TestOrmTagAttrs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ tag, attrs, rest string }{
 		{`orm:"elements:placement_id"`, `@orm.Elements{Column: "placement_id"}`, ``},
 		{`json:"tags" orm:"elements:tag_ids,code"`, `@orm.Elements{Column: "tag_ids", Ref: "code"}`, `json:"tags"`},
@@ -32,6 +33,7 @@ func TestOrmTagAttrs(t *testing.T) {
 }
 
 func TestAttributeTagsModel(t *testing.T) {
+	t.Parallel()
 	src := "package entities\n\nimport \"github.com/vuka-lang/orm/v2\"\n\n" +
 		"type Employer struct {\n\torm.Base @orm.Meta{Table: \"employers\"}\n\tID int64\n" +
 		"\tPlacements []Placement `json:\"placements\" orm:\"elements:placement_id\"`\n" +
@@ -53,6 +55,7 @@ func TestAttributeTagsModel(t *testing.T) {
 }
 
 func TestDBSchemaRefs(t *testing.T) {
+	t.Parallel()
 	src := "package entities\n\nimport \"github.com/vuka-lang/orm/v2\"\n\n" +
 		"var legacy = orm.DBSchema{Names: \"x\"}\n" +
 		"var tenant orm.Schema\n\n" +
@@ -110,6 +113,7 @@ func find(ctx context.Context, login string, id int64) Result[Option[userRow]] {
 `
 
 func TestQueryFixes(t *testing.T) {
+	t.Parallel()
 	out, n := queryFixes([]byte(queriesSrc), map[string]bool{"userRow": true, "groupMemberRow": true, "permissionRow": true})
 	if n != 5 {
 		t.Errorf("%d rewritten, want 5", n)
@@ -155,8 +159,6 @@ func TestEjectORM(t *testing.T) {
 	}
 	root := localModule(t, web, map[string]string{"main.vuka": ejectORMSrc})
 	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	if err := eject([]string{"-rm", "."}, io.Discard); err != nil {
 		t.Fatal(err)

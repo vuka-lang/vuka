@@ -19,8 +19,6 @@ func tidyEnv(t *testing.T, dir string) {
 	t.Helper()
 	t.Setenv("GOPROXY", "off")
 	t.Setenv("GOSUMDB", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
-	t.Setenv("GOWORK", "off")
 	chdir(t, dir)
 }
 
@@ -215,8 +213,6 @@ func Field() string { return entities.UserFields.Email.Name() }
 	withModule(t, root, ormModule, orm)
 	// tidy resolves the imports of the orm's tests too, its database
 	// drivers, which no build here fetches: the job's GOPROXY is kept.
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	chdir(t, root)
 	before := treeFiles(t, root)
 	var copied []string // the copy's Go files under entities/
@@ -258,6 +254,7 @@ func Field() string { return entities.UserFields.Email.Name() }
 // TestModTidyNeeded: a requirement tidy would drop that the generated Go
 // imports from is refused, go.mod left as it was.
 func TestModTidyNeeded(t *testing.T) {
+	t.Parallel()
 	mod := []byte("module example.com/app\n\ngo 1.24\n\nrequire example.com/lib v1.0.0\n")
 	r := &tidyResult{root: "/app", origMod: mod, newMod: []byte("module example.com/app\n\ngo 1.24\n"),
 		gens: []load.Generated{{Target: "/app/x_vuka.go", Source: "/app/x.vuka", Src: []byte("package app\n\nimport \"example.com/lib/sub\"\n")}}}
@@ -325,6 +322,7 @@ func TestModTidyTestDepsHint(t *testing.T) {
 
 // TestDeclaresTool: a tool directive counts on its own line or in a block.
 func TestDeclaresTool(t *testing.T) {
+	t.Parallel()
 	const tool = "github.com/vuka-lang/orm/v2/cmd/orm"
 	for name, mod := range map[string]string{
 		"line":  "module example.com/app\n\ngo 1.24\n\ntool " + tool + "\n",
@@ -342,6 +340,7 @@ func TestDeclaresTool(t *testing.T) {
 // TestModTidyChangesReport: requirements moving to or from // indirect, and
 // go.sum's lines, are reported, so -check says why a module isn't tidy.
 func TestModTidyChangesReport(t *testing.T) {
+	t.Parallel()
 	r := tidyResult{
 		origMod: []byte("module example.com/app\n\ngo 1.24\n\nrequire (\n\texample.com/a v1.0.0 // indirect\n\texample.com/b v1.0.0\n)\n"),
 		newMod:  []byte("module example.com/app\n\ngo 1.24\n\nrequire (\n\texample.com/a v1.0.0\n\texample.com/b v1.0.0 // indirect\n)\n"),

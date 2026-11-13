@@ -28,7 +28,7 @@ func TestFixCtxVars(t *testing.T) {
 		files["orders/"+strings.TrimSuffix(filepath.Base(c), ".in")] = string(src)
 	}
 	dir := refactorModule(t, files)
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	var out bytes.Buffer
 	if err := fix([]string{"ctx-vars"}, &out); err != nil {
@@ -81,7 +81,7 @@ func NewBoard() *Board { return &Board{} }
 </section>
 `
 	dir := refactorModule(t, map[string]string{"main.go": string(main), "orders/board.vuka.html": board})
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	c := startLSPAt(t, dir, lspOptions{})
 	path := filepath.Join(dir, "orders", "board.vuka.html")
 	uri := pathToURI(path)

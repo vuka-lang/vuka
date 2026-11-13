@@ -158,7 +158,7 @@ func writePush252(t *testing.T, file, old, new string) string {
 		}
 		writeFile(t, filepath.Join(dir, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	return dir
 }

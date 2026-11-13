@@ -15,6 +15,7 @@ import (
 )
 
 func TestOrphanVites(t *testing.T) {
+	t.Parallel()
 	const bin = "/app/frontend/node_modules/.bin/vite"
 	ps := strings.Join([]string{
 		"  101     1   101 node " + bin,
@@ -31,6 +32,7 @@ func TestOrphanVites(t *testing.T) {
 }
 
 func TestStopOrphanVites(t *testing.T) {
+	t.Parallel()
 	if bin := os.Getenv("VUKA_TEST_ORPHAN_VITE"); bin != "" {
 		c := exec.Command(bin)
 		c.Dir = filepath.Dir(filepath.Dir(filepath.Dir(bin)))
