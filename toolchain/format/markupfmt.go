@@ -876,12 +876,29 @@ func templateSig(src []byte) (string, error) {
 	return b.String(), nil
 }
 
-// goSig is Go text by its tokens.
+// goSig is Go text by its tokens, without the commas and semicolons layout
+// adds: gofmt writes a trailing comma when it breaks a call or literal over
+// lines and drops it when it joins one, so a comma right before the closing
+// bracket says nothing about what the Go means.
 func goSig(s string) string {
 	var b strings.Builder
-	for _, t := range scanTokens([]byte(s), 0) {
+	toks := scanTokens([]byte(s), 0)
+	for i, t := range toks {
 		if t.tok == token.SEMICOLON && t.lit == "\n" {
 			continue
+		}
+		if t.tok == token.COMMA {
+			next := token.ILLEGAL
+			for _, n := range toks[i+1:] {
+				if n.tok == token.SEMICOLON && n.lit == "\n" {
+					continue
+				}
+				next = n.tok
+				break
+			}
+			if next == token.RPAREN || next == token.RBRACK || next == token.RBRACE {
+				continue
+			}
 		}
 		b.WriteString(t.tok.String() + t.lit + " ")
 	}

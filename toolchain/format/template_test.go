@@ -207,3 +207,12 @@ type P struct{}
 		t.Errorf("not idempotent: %v\n%s", err, again)
 	}
 }
+
+// TestTemplateMultilineHole: a hole spanning lines joins when it fits; the
+// trailing comma gofmt drops (or adds, breaking the other way) is layout,
+// not a render change.
+func TestTemplateMultilineHole(t *testing.T) {
+	src := "package p\n\ntype D struct{}\n<div>\n  {len(\n    \"a\",\n  )}\n</div>\n"
+	want := "package p\n\ntype D struct{}\n<div>\n  {len(\"a\")}\n</div>\n"
+	check(t, src, "", want, Options{})
+}
