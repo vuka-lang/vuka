@@ -18,11 +18,11 @@ import (
 // it's on the orm's own numbering. CI's cmd job points new apps at orm main
 // (VUKA_NEW_REPLACE), so a scaffold out of step with the orm fails there.
 const (
-	version     = "v2.18.0"
-	vukaVersion = "v2.18.0"
-	uiVersion   = "v2.18.0"
-	webVersion  = "v2.18.0"
-	ormVersion  = "v2.18.0"
+	version     = "v2.19.0"
+	vukaVersion = "v2.19.0"
+	uiVersion   = "v2.19.0"
+	webVersion  = "v2.19.0"
+	ormVersion  = "v2.19.0"
 )
 
 const firstSetVersion = "v0.50.0"
