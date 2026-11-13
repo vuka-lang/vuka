@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
@@ -197,15 +198,30 @@ func relocateReplaces(mod []byte, root, out string) []byte {
 		g := replacePath.FindSubmatch(m)
 		target := filepath.Join(root, filepath.FromSlash(string(g[2])))
 		rel, err := filepath.Rel(out, target)
-		if err != nil {
-			return m
-		}
-		rel = filepath.ToSlash(rel)
-		if !strings.HasPrefix(rel, ".") {
-			rel = "./" + rel
-		}
-		return append(append(append([]byte{}, g[1]...), rel...), g[3]...)
+		return append(append(append([]byte{}, g[1]...), relocatedPath(target, rel, err)...), g[3]...)
 	})
+}
+
+// relocatedPath is the replacement path to write for a target directory from
+// the output dir: the relative path when there is one (slash-prefixed so
+// go.mod reads it as a path), else — across Windows volumes, where Rel has no
+// relative path to give — the target's own absolute path, so the mirror still
+// points at it rather than a directory that was never copied there. A path
+// holding a space is quoted, as go.mod needs.
+func relocatedPath(target, rel string, relErr error) string {
+	var p string
+	if relErr != nil {
+		p = filepath.ToSlash(target)
+	} else {
+		p = filepath.ToSlash(rel)
+		if !strings.HasPrefix(p, ".") {
+			p = "./" + p
+		}
+	}
+	if strings.ContainsAny(p, " \t\"") {
+		return strconv.Quote(p)
+	}
+	return p
 }
 
 // relativeLines makes the line directives of a generated file, which name
