@@ -1,11 +1,12 @@
 # Releases
 
-From v0.50.0, vuka, ui, web and the `vuka` command (and from v1.0.0
-`vukavet`) are released together under one version: a release is a
-**set**, and `vuka v1.0.0` means all of them at v1.0.0. The set keeps
-[the compatibility promise](/project/compatibility), which from v2.0.0
-covers the `/v2` modules. An app requires vuka, ui and web at the same version; `vuka
-version` shows the set and warns when an app's go.mod mixes sets, and `vuka
+From v0.50.0, vuka, ui, web and the `vuka` command (from v1.0.0 `vukavet`
+too, and from v2.16.0 the orm) are released together under one version: a
+release is a **set**, and `vuka v2.16.0` means all of them at v2.16.0. The
+set keeps [the compatibility promise](/project/compatibility), which from
+v2.0.0 covers the `/v2` modules. An app requires vuka, ui and web — and,
+when it uses the orm, the orm — at the same version; `vuka version` shows
+the set and warns when an app's go.mod mixes sets, and `vuka
 upgrade` moves an app from one set to another, running the `vuka fix`
 rewrites in between. Patch releases come weekly, security fixes at once,
 features in minor releases with upgrade notes. See
