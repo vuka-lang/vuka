@@ -27,7 +27,7 @@ func openMatch(t *testing.T, src string, init map[string]any) *matchSession {
 		writeFile(t, filepath.Join(dir, "go.mod"), mod)
 		writeFile(t, filepath.Join(dir, "go.sum"), sum)
 		writeFile(t, filepath.Join(dir, "main.vuka"), src)
-		t.Setenv("GOWORK", "off")
+		t.Setenv("GOFLAGS", "")
 		c = startLSPInit(t, dir, lspOptions{renameCommands: true}, nil, init)
 	} else {
 		c, dir, _ = startLSPWith(t, files)

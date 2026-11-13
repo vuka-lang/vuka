@@ -33,8 +33,6 @@ func ejectGolden(t *testing.T, name string) {
 	writeFile(t, filepath.Join(root, "go.mod"), gomod)
 	writeFile(t, filepath.Join(root, "go.sum"), gosum)
 	writeFile(t, filepath.Join(root, "main.vuka"), string(src))
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	bin := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer

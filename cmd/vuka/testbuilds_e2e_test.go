@@ -191,8 +191,6 @@ func testBuildsModule(t *testing.T, files map[string]string) string {
 		}
 	}
 	root := localModule(t, web, all)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	return root
 }

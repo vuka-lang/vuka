@@ -296,6 +296,7 @@ func (discard) Write(p []byte) (int, error) { return len(p), nil }
 // templ's own code does, and its render tree's HTML is that too, over a
 // broad set of templ; the uninstrumented copy is templ's output beside it.
 func TestTemplTreeEquivalence(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}

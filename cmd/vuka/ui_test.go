@@ -252,6 +252,7 @@ func TestUIAdd(t *testing.T) {
 // the index says, and the conformance example's components are the
 // registry's.
 func TestUIRegistry(t *testing.T) {
+	t.Parallel()
 	reg, err := readRegistry(regSource{})
 	if err != nil {
 		t.Fatal(err)
@@ -347,6 +348,7 @@ func TestUIRegistry(t *testing.T) {
 }
 
 func TestUnifiedText(t *testing.T) {
+	t.Parallel()
 	a := "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n"
 	b := "1\n2\n3\nfour\n5\n6\n7\n8\n9\n10\n11\n12\n13"
 	want := `--- f

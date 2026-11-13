@@ -38,10 +38,10 @@ import (
 // GOMAXPROCS=4 unless it is set. VUKA_WATCH_BENCH_OUT=dir only writes
 // the generated app there.
 func TestWatchBench(t *testing.T) {
+	t.Parallel()
 	if testing.Short() || os.Getenv("VUKA_WATCH_BENCH") == "" {
 		t.Skip("set VUKA_WATCH_BENCH to measure rebuilds")
 	}
-	t.Setenv("GOWORK", "off")
 	vuka := os.Getenv("VUKA_WATCH_BENCH_VUKA") // a vuka built already, as from another checkout
 	if vuka == "" {
 		vuka = buildVuka(t)

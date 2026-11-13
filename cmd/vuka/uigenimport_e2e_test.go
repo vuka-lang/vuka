@@ -330,8 +330,6 @@ func TestUigenImportE2E(t *testing.T) {
 		files[k] = v
 	}
 	root := localModule(t, web, files)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer

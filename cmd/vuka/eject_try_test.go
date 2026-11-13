@@ -122,8 +122,6 @@ func main() {
 	fmt.Println("registered twice")
 }
 `)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var out bytes.Buffer
 	if err := eject([]string{"-rm", "./..."}, &out); err != nil {

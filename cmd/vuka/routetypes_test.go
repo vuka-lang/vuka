@@ -15,10 +15,10 @@ import (
 // page package alone for the route check, the others' types kept; a new
 // declaration types them all again; every page is served as edited.
 func TestWatchRouteTypes(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
 	}
-	t.Setenv("GOWORK", "off")
 	vuka := buildVuka(t)
 	page := func(pkg, typ, text string) string {
 		return fmt.Sprintf("<script lang=\"go\">\npackage %s\n\ntype %s struct{}\n\nfunc (p *%s) Text() string { return %q }\n</script>\n\n<main><span>{p.Text()}</span></main>\n", pkg, typ, typ, text)

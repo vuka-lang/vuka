@@ -34,7 +34,7 @@ func openModule(t *testing.T, n, files int) string {
 		main += fmt.Sprintf("\tfmt.Println(p%d.F0())\n", i)
 	}
 	writeFile(t, filepath.Join(dir, "main.vuka"), main+"}\n")
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	return dir
 }
 

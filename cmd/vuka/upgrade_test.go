@@ -35,7 +35,7 @@ func setApp(t *testing.T, vukaV, uiV, webV string, files map[string]string) stri
 	for name, src := range files {
 		writeFile(t, filepath.Join(app, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(app)
 	return app
 }
@@ -276,6 +276,7 @@ func TestOneSet(t *testing.T) {
 
 // Crossing v2.16.0 embeds ui.Live, which E0169 now requires.
 func TestUpgradeExplicitLive(t *testing.T) {
+	t.Parallel()
 	for _, s := range stepsBetween("v2.15.0", "v2.16.0") {
 		if slices.Contains(s.fixers, "explicit-live") {
 			return

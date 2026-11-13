@@ -122,8 +122,6 @@ func startLSPWithORM(t *testing.T, files map[string]string) (*lspClient, string,
 	for name, src := range files {
 		writeFile(t, filepath.Join(dir, name), src)
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	return startLSPAt(t, dir, lspOptions{renameCommands: true}), dir, orm
 }
 

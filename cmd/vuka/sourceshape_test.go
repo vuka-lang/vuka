@@ -9,6 +9,7 @@ import (
 )
 
 func TestFileShape(t *testing.T) {
+	t.Parallel()
 	const base = "package p\n\ntype T struct{ Name string }\n\nfunc (x T) Render() ui.Node {\n/*line a.vuka:5:1*/return ui.FT(0x1, \"E(h)\", func(__d []any) ui.Node { return ui.F(0x1, \"E(h)\", ui.El(\"p\", nil, ui.Child(__d[0]))) }, x.Name)\n}\n"
 	for _, c := range []struct {
 		name, src string
@@ -45,7 +46,7 @@ func TestFileShape(t *testing.T) {
 }
 
 func TestSourceShapesModule(t *testing.T) {
-	t.Setenv("GOWORK", "off")
+	t.Parallel()
 	root := t.TempDir()
 	write := func(path, src string) string {
 		t.Helper()
@@ -125,6 +126,7 @@ func TestSourceShapesModule(t *testing.T) {
 }
 
 func TestDeclarationShape(t *testing.T) {
+	t.Parallel()
 	const base = "package p\n\ntype T struct{ Name string }\n\nfunc F(x int) int { return x + 1 }\n\nfunc (T) Schema() int { return 1 }\n\nfunc M(db any) any { return orm.For[T](db) }\n\nvar V = func() int { return 1 }\n"
 	for _, c := range []struct {
 		name, old, new string
@@ -159,6 +161,7 @@ func TestDeclarationShape(t *testing.T) {
 // those it reads: one named as its generated code would be, one naming
 // orm.For, Model or Base. A method, a type or a Schema body still counts.
 func TestModelShape(t *testing.T) {
+	t.Parallel()
 	const base = "package p\n\ntype T struct{ Name string }\n\nfunc F(x int) int { return x + 1 }\n\nfunc (T) Schema() int { return 1 }\n\nfunc (T) Label() string { return \"\" }\n\nfunc M(db any) any { return orm.For[T](db) }\n"
 	for _, c := range []struct {
 		name, old, new string
@@ -193,7 +196,7 @@ func TestModelShape(t *testing.T) {
 }
 
 func TestSourceShapesBodies(t *testing.T) {
-	t.Setenv("GOWORK", "off")
+	t.Parallel()
 	root := t.TempDir()
 	write := func(rel, src string) {
 		t.Helper()

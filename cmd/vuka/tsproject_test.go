@@ -8,6 +8,7 @@ import (
 )
 
 func TestOutsideTSProject(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	web := filepath.Join(root, "web")
 	os.MkdirAll(web, 0o755)

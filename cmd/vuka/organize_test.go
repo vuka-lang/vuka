@@ -58,6 +58,7 @@ func organizesTo(t *testing.T, dir, name, want string) organized {
 }
 
 func TestOrganizeImports(t *testing.T) {
+	t.Parallel()
 	dir := orgModule(t, map[string]string{
 		"components/logo.vuka.html": "<script lang=\"go\">\npackage components\n\ntype Logo struct{}\n</script>\n\n<img src=\"/logo.svg\"/>\n",
 		"layouts/main.vuka.html":    "<script lang=\"go\">\npackage layouts\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Applicant struct{ Children ui.Node }\n</script>\n\n<main>{Children}</main>\n",
@@ -229,6 +230,7 @@ type Home struct {
 // is no package to import (os/user); while the variables aren't known, only
 // an attribute's package is added.
 func TestOrganizeVars(t *testing.T) {
+	t.Parallel()
 	src := "package store\n\nfunc Hi() string { return strings.ToUpper(user.Name) }\n\ntype T struct {\n\tID int64 @orm.PK\n}\n"
 	dir := orgModule(t, map[string]string{"store/hi.vuka": src})
 	path := filepath.Join(dir, "store/hi.vuka")
@@ -250,6 +252,7 @@ func TestOrganizeVars(t *testing.T) {
 // TestOrganizeSyntaxError: a file whose code doesn't parse is left as it
 // is.
 func TestOrganizeSyntaxError(t *testing.T) {
+	t.Parallel()
 	dir := orgModule(t, map[string]string{"store/half.vuka": "package store\n\nimport \"fmt\"\n\nfunc Half( {\n"})
 	path := filepath.Join(dir, "store/half.vuka")
 	src, _ := os.ReadFile(path)
@@ -259,6 +262,7 @@ func TestOrganizeSyntaxError(t *testing.T) {
 }
 
 func TestNameGuesses(t *testing.T) {
+	t.Parallel()
 	for path, want := range map[string]string{"github.com/mattn/go-sqlite3": "sqlite3", "gopkg.in/yaml.v3": "yaml", "github.com/x/foo-go": "foo"} {
 		if g := nameGuesses(path); !strings.Contains(strings.Join(g, " "), want) {
 			t.Errorf("%s: %v", path, g)

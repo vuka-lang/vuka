@@ -21,10 +21,8 @@ func TestRunWatchIslandFailure(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
 	web := webDir(t)
 	vuka := buildVuka(t)
-	t.Setenv("GOFLAGS", "-mod=mod")
 	root := localModule(t, web, map[string]string{
 		"main.vuka":          islandPage,
 		"islands/Counter.ts": counterTS,
@@ -94,10 +92,8 @@ func TestRunWatchIslandImport(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
 	web := webDir(t)
 	vuka := buildVuka(t)
-	t.Setenv("GOFLAGS", "-mod=mod")
 	root := localModule(t, web, map[string]string{
 		"main.vuka":          islandPage,
 		"islands/Counter.ts": counterTS,

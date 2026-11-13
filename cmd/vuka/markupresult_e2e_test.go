@@ -82,8 +82,6 @@ func TestMarkupResultE2E(t *testing.T) {
 		"pages/index.vuka.html":        resultIndex,
 		"pages/broken/index.vuka.html": resultBroken,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

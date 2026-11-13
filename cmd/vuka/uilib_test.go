@@ -184,6 +184,7 @@ func TestLibraryScripts(t *testing.T) {
 }
 
 func TestThemeAdditions(t *testing.T) {
+	t.Parallel()
 	theme, _ := os.ReadFile(filepath.Join("testdata", "uilib", "widgets", "assets", "css", "theme.css"))
 	app := "@theme inline {\n  --color-background: var(--background);\n}\n:root { --background: white; --radius: 1rem; }\n"
 	got := themeAdditions(string(theme), app)
@@ -222,6 +223,7 @@ func TestThemeAdditions(t *testing.T) {
 }
 
 func TestStyleRules(t *testing.T) {
+	t.Parallel()
 	style := `/* c */
 .style-x {
   /* MARK: a */
@@ -248,6 +250,7 @@ func TestStyleRules(t *testing.T) {
 }
 
 func TestSetTOMLTable(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ in, want string }{
 		{"", "[ui.sources]\na = \"x\"\n"},
 		{"[ui]\nstyle = \"default\"", "[ui]\nstyle = \"default\"\n\n[ui.sources]\na = \"x\"\n"},

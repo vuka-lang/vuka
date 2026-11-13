@@ -394,6 +394,7 @@ func TestLSPOneWay(t *testing.T) {
 // and definition on what is written there, and Vuka's and Go's errors at their
 // place in the .vuka.html file.
 func TestLSPScriptVuka(t *testing.T) {
+	t.Parallel()
 	const ok = `<script lang="go">
 package main
 

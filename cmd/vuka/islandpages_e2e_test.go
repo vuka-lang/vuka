@@ -566,8 +566,6 @@ func TestIslandPagesE2E(t *testing.T) {
 	if err := os.Symlink(nm, filepath.Join(root, "node_modules")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	// An island page with hooks is live: without ui.Live it doesn't build.

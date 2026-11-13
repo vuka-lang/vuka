@@ -8,6 +8,7 @@ import (
 )
 
 func TestEmbedLive(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ name, src, want string }{
 		{"an event, the import there", "<script lang=\"go\">\npackage p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nvar _ ui.Node\n\ntype C struct {\n\tn int\n}\n\nfunc (c *C) Inc() { c.n++ }\n</script>\n\n<button onClick={Inc}>{n}</button>\n",
 			"type C struct {\n\tui.Live\n\tn int\n}"},
@@ -53,6 +54,7 @@ func TestEmbedLive(t *testing.T) {
 // TestEmbedLiveHelpers: ui.Live goes in the struct the file renders, never a
 // helper, and a helper's hook or methods alone change nothing.
 func TestEmbedLiveHelpers(t *testing.T) {
+	t.Parallel()
 	const live = "<script lang=\"go\">\npackage p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nvar _ ui.Node\n\ntype Row struct {\n\tn int\n}\n\ntype Orders struct {\n\tn int\n}\n\nfunc (o *Orders) Inc() { o.n++ }\n</script>\n\n<button onClick={Inc}>{n}</button>\n"
 	out, why := transpile.EmbedLiveFile("pages/orders.vuka.html", []byte(live))
 	if !strings.Contains(string(out), "type Orders struct {\n\tui.Live\n\tn int") || !strings.Contains(string(out), "type Row struct {\n\tn int") || why != "the markup sends the event Inc" {

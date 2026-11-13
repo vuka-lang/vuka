@@ -43,6 +43,7 @@ type Widget struct {
 `
 
 func TestReadIslandOptions(t *testing.T) {
+	t.Parallel()
 	pa := &pageAssets{root: "/m"}
 	if errs := pa.readIslands("/m/pages/p.vuka", []byte(islandOptsSource)); len(errs) > 0 {
 		t.Fatal(errs)
@@ -79,6 +80,7 @@ func TestReadIslandOptions(t *testing.T) {
 }
 
 func TestReadIslandOptionErrors(t *testing.T) {
+	t.Parallel()
 	for decl, want := range map[string]string{
 		`@ui.Island(paths.Chart)`:                  "takes a string literal path",
 		`@ui.Island(ui.Strategy(s))`:               "ui.Strategy takes a string literal",
@@ -94,6 +96,8 @@ func TestReadIslandOptionErrors(t *testing.T) {
 }
 
 func TestLSPIslandRouteAdvice(t *testing.T) {
+	// Under -mod=mod the server reports E0720 for these routes as well.
+	t.Setenv("GOFLAGS", "")
 	c, dir, _ := startLSPWith(t, map[string]string{"pages/p.vuka": islandOptsSource,
 		"islands/Levels.vue": "<template><p/></template>\n", "pages/islands/Old.vue": "<template><p/></template>\n",
 		"islands/Stateless.vue": "<template><p/></template>\n", "islands/Widget.vue": "<template><p/></template>\n"})

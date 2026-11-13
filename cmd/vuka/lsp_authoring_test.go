@@ -65,7 +65,7 @@ func startAuthoring(t *testing.T) *authoring {
 	for name, src := range map[string]string{"go.mod": mod, "go.sum": sum, "data.go": authoringData, "list.vuka.html": authoringShape} {
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	c := startLSPCaps(t, dir, lspOptions{renameCommands: true}, map[string]any{
 		"completion":     map[string]any{"completionItem": map[string]any{"snippetSupport": true}},
 		"documentSymbol": map[string]any{"hierarchicalDocumentSymbolSupport": true},

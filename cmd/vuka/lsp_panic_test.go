@@ -104,6 +104,7 @@ func TestRouteFolderTidy(t *testing.T) {
 // tidy run never reaches the editor and go.mod has no diagnostic, while a
 // genuine go.mod problem is still reported.
 func TestLSPRouteFolderTidy(t *testing.T) {
+	t.Parallel()
 	c, dir, _ := startLSPWith(t, map[string]string{
 		"main.go":                        "package main\n\nfunc main() {}\n",
 		"pages/products/[id]/product.go": "package id\n\nconst Name = \"product\"\n",

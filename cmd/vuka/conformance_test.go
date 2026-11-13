@@ -49,7 +49,6 @@ func TestConformance(t *testing.T) {
 		needs(t, "needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka/v2=../..")
 	}
 	mods := confCheckouts(t)
-	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "")
 	vet := filepath.Join(t.TempDir(), "vukavet")
 	build := exec.Command("go", "build", "-o", vet, ".")

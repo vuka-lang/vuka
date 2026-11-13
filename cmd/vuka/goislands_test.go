@@ -181,6 +181,7 @@ func TestGoIslandErrors(t *testing.T) {
 }
 
 func TestGoIslandRootDiagnostics(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	for _, c := range []struct{ path, code, msg string }{
 		{"@/../Nope.vue", "E0303", "@/../Nope.vue: path escapes the module root"},

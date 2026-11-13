@@ -125,8 +125,6 @@ type Index struct{}
 			t.Fatalf("pin published orm: %v\n%s", err, out)
 		}
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	return root
 }

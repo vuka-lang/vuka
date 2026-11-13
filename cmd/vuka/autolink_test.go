@@ -162,8 +162,6 @@ func TestRunWatchAutoLink(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	vuka := buildVuka(t)
 	root := linkModule(t, `package main
 

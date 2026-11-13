@@ -9,6 +9,7 @@ import (
 
 // The island build's key changes with what the build reads, and only then.
 func TestIslandInputs(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	fr := filepath.Join(root, "web")
 	for p, c := range map[string]string{

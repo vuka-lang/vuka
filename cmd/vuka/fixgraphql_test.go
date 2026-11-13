@@ -52,7 +52,7 @@ func TestFixGraphQL(t *testing.T) {
 		t.Skip("builds a module")
 	}
 	dir := refactorModule(t, map[string]string{"main.go": fixGraphQLMain, "shop/ops.vuka": fixGraphQLOps})
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	var out bytes.Buffer
 	if err := fix([]string{"graphql-params"}, &out); err != nil {

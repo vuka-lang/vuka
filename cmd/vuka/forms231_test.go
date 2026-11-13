@@ -83,7 +83,7 @@ func TestForms231(t *testing.T) {
 	for name, src := range forms231 {
 		writeFile(t, filepath.Join(dir, name), src)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Chdir(dir)
 	var out, errOut bytes.Buffer
 	if err := runGo("run", []string{"."}, &out, &errOut); err != nil {
@@ -129,7 +129,7 @@ func TestForms231Errors(t *testing.T) {
 				}
 				writeFile(t, filepath.Join(dir, name), src)
 			}
-			t.Setenv("GOWORK", "off")
+			t.Setenv("GOFLAGS", "")
 			t.Chdir(dir)
 			var out, errOut bytes.Buffer
 			err := runGo("build", []string{"-o", filepath.Join(dir, "app"), "."}, &out, &errOut)

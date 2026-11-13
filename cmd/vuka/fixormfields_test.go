@@ -41,8 +41,6 @@ var method = PostFields.Popular
 `,
 	})
 	withModule(t, root, ormModule, orm)
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	var out bytes.Buffer
 	if err := fix([]string{"-n", "orm-fields"}, &out); err != nil {

@@ -61,7 +61,7 @@ func newReleaseFixture(t *testing.T, notes string) *releaseFixture {
 	t.Setenv("GIT_CONFIG_GLOBAL", gitconfig)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("GOMODCACHE", filepath.Join(base, "modcache"))
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	t.Setenv("GOPRIVATE", "github.com/vuka-lang")
 
 	work := filepath.Join(base, "work")

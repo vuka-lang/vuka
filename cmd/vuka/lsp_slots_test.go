@@ -277,6 +277,7 @@ func TestLSPLetHover(t *testing.T) {
 // TestSlotHover: hover on a slot's tag, opening or closing, shows the field
 // it fills, its doc and the types of the values its let names.
 func TestSlotHover(t *testing.T) {
+	t.Parallel()
 	p, page := slotsProxy(t)
 	src := []byte(slotsPageSrc)
 	s := scanShape(page, src)
@@ -300,6 +301,7 @@ func TestSlotHover(t *testing.T) {
 // TestSlotDefinition: definition on a slot's name goes to the field it
 // fills, a repeated slot's to its slice.
 func TestSlotDefinition(t *testing.T) {
+	t.Parallel()
 	p, page := slotsProxy(t)
 	board := filepath.Join(p.modRoot, "components", "board.vuka.html")
 	for slot, want := range map[string]lspRange{
@@ -386,6 +388,7 @@ type Index struct{ Names []string }
 // yet with their docs, hover on a slot's tag shows its field, definition
 // goes to it, and a let's names complete in the slot's content.
 func TestLSPSlotsLibrary(t *testing.T) {
+	t.Parallel()
 	files := map[string]string{"main.go": "package main\n\nimport _ \"lsptest/pages\"\n\nfunc main() {}\n",
 		"components/panel/panel.templ": slotsPanelTempl, "components/lists/list.vuka.html": slotsLibList, "pages/index.vuka.html": slotsLibPage}
 	c, dir, _ := startLSPWith(t, templFiles(t, files))
@@ -482,6 +485,7 @@ type Page struct{ Orders []Order }
 // TestLSPInferredLetHover: hover on a slot's let of a generic component
 // whose type arguments are inferred names the inferred type, not T.
 func TestLSPInferredLetHover(t *testing.T) {
+	t.Parallel()
 	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "list.vuka.html": slotsGenericList, "page.vuka.html": slotsGenericPage})
 	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": slotsGenericPage}})

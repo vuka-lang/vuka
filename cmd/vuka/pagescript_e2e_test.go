@@ -108,8 +108,6 @@ func TestPageScriptE2E(t *testing.T) {
 		"pages/old.vuka.html":    pageScriptOld,
 		"pages/alerts.vuka.html": scriptRefPage,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer

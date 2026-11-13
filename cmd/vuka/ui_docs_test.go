@@ -151,8 +151,6 @@ func ejectRegistry(t *testing.T, reg *registry) (dir string, _ map[string][]byte
 			writeFile(t, filepath.Join(dir, "components", filepath.FromSlash(f.Path)), string(b))
 		}
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(dir)
 	_, gens, err := inPlace([]string{"./..."}, nil, load.Options{})
 	if err != nil {

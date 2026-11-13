@@ -33,8 +33,6 @@ func halfModule(t *testing.T, files map[string]string, orm bool) string {
 		}
 		withModule(t, root, "github.com/vuka-lang/orm/v2", dir)
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 	return root
 }

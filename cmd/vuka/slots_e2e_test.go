@@ -121,8 +121,6 @@ func TestSlotsE2E(t *testing.T) {
 		"components/tasklist.vuka.html": slotsTaskList,
 		"pages/index.vuka.html":         slotsPage,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

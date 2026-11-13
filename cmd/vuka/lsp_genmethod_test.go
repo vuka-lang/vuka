@@ -77,7 +77,7 @@ func startLSPGo127(t *testing.T, files map[string]string) (*lspClient, string) {
 		os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755)
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
-	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "")
 	gopls, _ := findGopls("")
 	toProxyR, toProxyW := io.Pipe()
 	fromProxyR, fromProxyW := io.Pipe()

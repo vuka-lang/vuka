@@ -89,6 +89,7 @@ func (p *Orders) text() string { return strconv.Itoa(p.n) }
 // TestScriptMoveActions: the script moves out to orders.go, the imports
 // only the markup uses staying in the template, and back in.
 func TestScriptMoveActions(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "orders.vuka.html")
 	writeFile(t, path, inlineOrders)

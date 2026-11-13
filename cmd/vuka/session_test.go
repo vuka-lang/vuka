@@ -15,11 +15,10 @@ import (
 // importing it and a main using both, and checks each of a session's runs
 // against load.Transpile from scratch.
 func TestSessionTempl(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	files := map[string]string{
 		"data/data.vuka":      "package data\n\ntype Pet struct{ Name string }\n\nfunc All() Result[[]Pet] { return Ok([]Pet{{Name: \"Rex\"}}) }\n",
 		"data/card.vuka.html": "package data\n\ntype Card struct{}\n<p>card</p>\n",

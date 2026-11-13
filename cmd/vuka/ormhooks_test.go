@@ -9,6 +9,7 @@ import (
 )
 
 func TestSignatureText(t *testing.T) {
+	t.Parallel()
 	paths := map[string]string{"orm": ormModule, "db": ormModule, "context": "context"}
 	for _, c := range []struct{ sig, want string }{
 		{"() []orm.Index", "() []" + ormModule + ".Index"},
@@ -30,6 +31,7 @@ func TestSignatureText(t *testing.T) {
 // hooks' own signatures, with either receiver, and methods of types that
 // aren't models are not.
 func TestOrmHookDiags(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}

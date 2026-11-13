@@ -97,6 +97,7 @@ type List struct {
 // doc with the typed field's type, and references join the field's uses
 // with its typed field's. Model.Objects leads to the orm's manager.
 func TestLSPModelDefinition(t *testing.T) {
+	t.Parallel()
 	files := map[string]string{"main.vuka": modelDefsMain, "models/models.vuka": modelDefsModels, "shop/item.go": modelDefsItem,
 		"pages/list.vuka.html": modelDefsPage}
 	in := map[string]string{}

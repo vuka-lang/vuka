@@ -161,6 +161,7 @@ func TestRootIslandTagBeforeBuildAndNestedModule(t *testing.T) {
 // children and slots, and its events; a templ component's from its .templ
 // file.
 func TestTagHoverValues(t *testing.T) {
+	t.Parallel()
 	p, root := tagsModule(t)
 	writeFile(t, filepath.Join(root, "components", "chip.vuka.html"), `<script lang="go">
 package components

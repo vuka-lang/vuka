@@ -39,6 +39,7 @@ func TestShapeBoundsForms(t *testing.T) {
 // compiler does: the struct named after the file is the one its markup's
 // names belong to; the others are no components.
 func TestShapeHelperStructs(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	const src = "<script lang=\"go\">\npackage pages\n\ntype Row struct {\n\tName string\n}\n\nfunc (r Row) Label() string { return r.Name }\n\ntype Orders struct {\n\tTitle string\n}\n\nfunc (o Orders) Count() int { return 1 }\n</script>\n\n<h1>{Title} {Count()}</h1>\n"
 	file := dir + "/orders.vuka.html"

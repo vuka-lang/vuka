@@ -67,8 +67,6 @@ figcaption { color: rgb(1, 2, 3) }
 </style>
 `,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
@@ -219,8 +217,6 @@ b { color: rgb(1, 2, 3) }
 </style>
 `,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
@@ -280,6 +276,7 @@ console.log(el.dataset.rows);
 // templates' — a scoped one its component's, another the app's — and the
 // component files it imports are islands.
 func TestFindTemplateAssets(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod,
 		"main.go":   "package main\n\ntype Chart struct{ Title string }\n\nfunc main() {}\n",
 		"clock.vue": "<script setup lang=\"ts\">\ndefineProps<{ zone?: string }>()\n</script>\n<template><time /></template>\n",
@@ -310,6 +307,7 @@ func TestFindTemplateAssets(t *testing.T) {
 // TestJSXAssets: a component's <script lang="ts"> and <style scoped> in
 // .vuka JSX are its own, as a template's are.
 func TestJSXAssets(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod,
 		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Chart struct{ Title string }\n\nfunc (c Chart) Render() ui.Node {\n\treturn <figure>{c.Title}\n\t\t<script lang=\"ts\">\nexport default { mounted(el: HTMLElement) { el.dataset.x = \"1\" } }\n</script>\n\t\t<style scoped>figure { margin: 0 }</style>\n\t</figure>\n}\n\nfunc main() {}\n",
 	})

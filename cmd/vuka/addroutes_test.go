@@ -44,6 +44,7 @@ func writeApp(t *testing.T, files map[string]string) string {
 // pages, templ views or an API, makes main pass pages.Routes(); the next
 // page leaves main as it is.
 func TestAddPageServesRoutes(t *testing.T) {
+	t.Parallel()
 	for _, ui := range []string{"templ", "api"} {
 		t.Run(ui, func(t *testing.T) {
 			dir := scaffolded(t, map[string]string{"ui": ui, "db": "none", "auth": "no", "mail": "no"})
@@ -66,6 +67,7 @@ func TestAddPageServesRoutes(t *testing.T) {
 
 // A live app vuka new made passes pages.Routes() already.
 func TestAddPageLiveAppServed(t *testing.T) {
+	t.Parallel()
 	dir := scaffolded(t, map[string]string{"db": "none", "auth": "no", "mail": "no"})
 	before := read(t, filepath.Join(dir, "main.vuka"))
 	if out := addPageAt(t, dir, "/reports"); strings.Contains(out, "main.vuka") || strings.Contains(out, "web.New") {
@@ -77,6 +79,7 @@ func TestAddPageLiveAppServed(t *testing.T) {
 }
 
 func TestPagesRoutesEdit(t *testing.T) {
+	t.Parallel()
 	const webImport = "import (\n\t\"log\"\n\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n"
 	for _, c := range []struct {
 		name  string
@@ -142,6 +145,7 @@ func TestPagesRoutesEdit(t *testing.T) {
 // W0701 names vuka fix routes when it can make the change, and the fixer
 // makes it.
 func TestFixRoutes(t *testing.T) {
+	t.Parallel()
 	dir := writeApp(t, map[string]string{
 		"main.go":               "package main\n\nimport \"github.com/vuka-lang/web/v2\"\n\nfunc main() { web.New().Run(\"\") }\n",
 		"pages/index.vuka.html": "<script lang=\"go\">\npackage pages\n\ntype Home struct{}\n</script>\n\n<p>hi</p>\n",
@@ -165,6 +169,7 @@ func TestFixRoutes(t *testing.T) {
 // vuka add page in apps vuka new made without folder pages: the app
 // builds and serves the page.
 func TestAddPageRoutesEndToEnd(t *testing.T) {
+	t.Parallel()
 	e := newE2E(t)
 	off := []string{"VUKA_TAILWIND=off", "VUKA_FRONTEND=off"}
 	for _, ui := range []string{"templ", "api"} {

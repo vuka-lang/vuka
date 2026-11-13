@@ -11,6 +11,7 @@ import (
 )
 
 func TestMerge3(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, base, ours, theirs, want string
 		conflicts                      int

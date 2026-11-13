@@ -11,6 +11,7 @@ import (
 )
 
 func TestFailedAssets(t *testing.T) {
+	t.Parallel()
 	vite := islandError{&viteError{msg: "vite islands (islands/Levels.vue): vite build: exit status 1\n", tail: []string{"\x1b[31merror\x1b[39m [vite:vue] Unexpected token"}}}
 	f := failedAssets(errors.Join(errors.New("app.css: bad"), vite))
 	want := "app.css: bad\nvite islands (islands/Levels.vue): vite build: exit status 1\nerror [vite:vue] Unexpected token\n"
@@ -25,6 +26,7 @@ func TestFailedAssets(t *testing.T) {
 // Under vuka run an island that stops building leaves the last good build
 // served and says why beside the manifest; building again clears it.
 func TestDevAssetsIslandFailure(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	src := filepath.Join(root, "islands", "Counter.ts")
 	os.MkdirAll(filepath.Dir(src), 0o755)

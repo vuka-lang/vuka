@@ -60,6 +60,7 @@ type Index struct{}
 // A component tag's attribute setting a prop its ui.Variants takes
 // completes with the variant's values.
 func TestLSPVariantValues(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "components"), 0o755)
 	os.MkdirAll(filepath.Join(dir, "pages"), 0o755)

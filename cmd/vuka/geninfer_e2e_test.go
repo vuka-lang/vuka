@@ -90,8 +90,6 @@ func TestGenericInferenceE2E(t *testing.T) {
 		"components/datatable.vuka.html": genInferTable,
 		"pages/index.vuka.html":          genInferIndex,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

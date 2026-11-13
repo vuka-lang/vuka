@@ -14,6 +14,7 @@ import (
 )
 
 func TestInstallCommand(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		files map[string]string
 		want  string
@@ -66,6 +67,7 @@ func TestFrontendDir(t *testing.T) {
 }
 
 func TestPrefixed(t *testing.T) {
+	t.Parallel()
 	var b bytes.Buffer
 	w := &prefixed{w: &b, prefix: "vite: ", dev: true}
 	w.Write([]byte("\n  \x1b[32mVITE\x1b[39m v8.3.4  ready in 312 ms\n\n  ➜  Local:   http://localhost:5173/\n  ➜  Network: use --host to expose\n  ➜  press h + enter to show help\n10:14:03 AM [vite] (client) hmr upd"))
@@ -153,6 +155,7 @@ func TestDevFrontend(t *testing.T) {
 }
 
 func TestTailwindSkipsFrontends(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod, "main.vuka": "package main\n",
 		"frontend/package.json": "{}", "frontend/index.html": "<div></div>"})
 	if tw, err := tailwindFor(root); tw != nil || err != nil {
@@ -201,6 +204,7 @@ func TestPrepareFrontendInstallProgress(t *testing.T) {
 }
 
 func TestPrefixedHidesVitesPassedOverPorts(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
 	w := &prefixed{w: &out, prefix: "vite: ", dev: true}
 	w.Write([]byte("Port 5173 is in use, trying another one...\n\x1b[32mPort 5174 is in use, trying another one...\x1b[0m\nVITE ready in 120 ms\nsomething else\n"))

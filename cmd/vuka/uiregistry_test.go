@@ -156,6 +156,7 @@ func TestUIRegistryFetch(t *testing.T) {
 }
 
 func TestRefOf(t *testing.T) {
+	t.Parallel()
 	for v, want := range map[string]string{
 		"v2.11.0":                                     "v2.11.0",
 		"v2.11.0-rc.1":                                "v2.11.0-rc.1",

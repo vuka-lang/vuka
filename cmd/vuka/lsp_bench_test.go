@@ -365,7 +365,7 @@ func TestLSPLatency(t *testing.T) {
 		c, dir, _ = startLSPOpts(t, latencyModule(24), opts)
 		file = "p00/p00.vuka"
 	} else {
-		t.Setenv("GOWORK", "off")
+		t.Setenv("GOFLAGS", "")
 		c = startLSPAt(t, dir, opts)
 	}
 	path := filepath.Join(dir, file)

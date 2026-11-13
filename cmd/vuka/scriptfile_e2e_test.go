@@ -89,8 +89,6 @@ func TestScriptFileE2E(t *testing.T) {
 		"pages/orders/index.go":        scriptOrdersGo,
 		"pages/orders/index.vuka.html": scriptOrdersMarkup,
 	})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

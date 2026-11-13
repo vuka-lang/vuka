@@ -56,6 +56,7 @@ func main() { web.New(web.Options(web.Style("site.css"))).Run("") }
 // order, inline sources, web.Global, layouts of .vuka files and templ
 // components, options through web.Options.
 func TestFindAssets(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod, "main.vuka": assetsPage,
 		"counter.css": "", "parts/b.css": "", "parts/a.css": "", "print.css": "", "layout.css": "", "site.css": "",
 		"hooks/a.ts": "", "hooks/deep/b.ts": "", "hooks/c.js": "", "views/shell.css": "",
@@ -145,6 +146,7 @@ type Home struct{ ui.Live }
 // Go package, pages/private_parts; a _ directory outside pages/ is no
 // source.
 func TestFindAssetsPrivateFolder(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod, "pages/index.vuka.html": privatePage, "pages/_parts/counter.vuka.html": privateCounter,
 		"_drafts/card.vuka.html": strings.ReplaceAll(privateCounter, "Counter", "Card")})
 	pa, err := findAssets(root, "example.com/app")
@@ -174,6 +176,7 @@ func TestFindAssetsPrivateFolder(t *testing.T) {
 }
 
 func TestFindAssetsErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ name, decl, want string }{
 		{"missing", `web.Style("countr.css")`, "error[E0605]: web.Style(\"countr.css\"): no such file\n --> main.vuka:7\n  = help: did you mean counter.css?"},
 		{"glob", `web.Script("hook/*.ts")`, "error[E0605]: web.Script(\"hook/*.ts\"): matches no file\n --> main.vuka:7"},
@@ -202,6 +205,7 @@ func TestFindAssetsErrors(t *testing.T) {
 // :root stay unscoped, :deep reaches into children, :scope is the root;
 // nested rules, groups and keyframes.
 func TestScopeCSS(t *testing.T) {
+	t.Parallel()
 	const s = `[data-vk-s="abc"]`
 	for _, c := range []struct{ in, want string }{
 		{"output { color: red }", "output" + s + " { color: red }"},
@@ -260,6 +264,7 @@ func TestScopeCSS(t *testing.T) {
 // component's markup (or its scripts) never writes is reported, with the
 // nearest name it does write.
 func TestSelectorWarnings(t *testing.T) {
+	t.Parallel()
 	src := `package main
 
 import (
@@ -316,6 +321,7 @@ func (c *C) helper() ui.Node { return <section /> }
 // TestBundleScripts bundles TypeScript with its relative imports into one
 // module listing each script's hooks in order, and lists the methods.
 func TestBundleScripts(t *testing.T) {
+	t.Parallel()
 	root := tempModule(t, map[string]string{"go.mod": webMod,
 		"a.ts":        "import { twice } from \"./lib/math\";\nexport default {\n\tmounted(el: HTMLElement): void { el.dataset.n = String(twice(2)) },\n\tbump(el: HTMLElement, by: number = 1) { return by },\n};\n",
 		"lib/math.ts": "export const twice = (n: number): number => n * 2;\n",
@@ -452,8 +458,6 @@ func TestBuildAssets(t *testing.T) {
 		needs(t, "no tailwindcss on PATH")
 	}
 	root := assetsModule(t, map[string]string{"main.go": e2eMain, "pages/index.vuka.html": e2ePage, "components/label.vuka.html": e2eLabel})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
@@ -540,8 +544,6 @@ func TestBuildAssetsPrivateFolder(t *testing.T) {
 		needs(t, "no tailwindcss on PATH")
 	}
 	root := assetsModule(t, map[string]string{"main.go": e2eMain, "pages/index.vuka.html": privatePage, "pages/_parts/counter.vuka.html": privateCounter})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
@@ -596,6 +598,7 @@ func TestBuildAssetsPrivateFolder(t *testing.T) {
 // in its branches and loops, and the children it passes another component
 // — as constant attributes; another component's don't.
 func TestTemplScopes(t *testing.T) {
+	t.Parallel()
 	src := `package views
 
 templ Shell(items []string, page templ.Component) {
@@ -636,6 +639,7 @@ templ Card() {
 // only ones the browser may call by name; a name that isn't a literal, or
 // that isn't a method of the component, stops the build.
 func TestScriptPushes(t *testing.T) {
+	t.Parallel()
 	src := `package main
 
 import (

@@ -68,8 +68,6 @@ func TestEventModifiersE2E(t *testing.T) {
 		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	root := assetsModule(t, map[string]string{"main.go": pagesMain, "pages/index.vuka.html": modsIndex})
-	t.Setenv("GOWORK", "off")
-	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")

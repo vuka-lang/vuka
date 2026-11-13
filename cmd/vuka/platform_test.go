@@ -12,6 +12,7 @@ import (
 )
 
 func TestExeSuffix(t *testing.T) {
+	t.Parallel()
 	if got := goosExeSuffix("windows"); got != ".exe" {
 		t.Errorf("windows: %q", got)
 	}
@@ -28,6 +29,7 @@ func TestExeSuffix(t *testing.T) {
 // TestNodeBin: on Windows, node_modules/.bin's command is its .cmd shim (or
 // bun's .exe); the extensionless file is a shell script there.
 func TestNodeBin(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	base := filepath.Join(dir, "node_modules", ".bin", "vite")
 	// None installed: Windows points at the .cmd shim an install writes (a
@@ -58,6 +60,7 @@ func TestNodeBin(t *testing.T) {
 }
 
 func TestTailwindInstallHint(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ goos, goarch, has, hasnt string }{
 		{"darwin", "arm64", "brew install tailwindcss", ""},
 		{"windows", "amd64", "tailwindcss-windows-x64.exe", "brew"},
@@ -86,6 +89,7 @@ func TestTailwindStandalone(t *testing.T) {
 }
 
 func TestFileURIPath(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ goos, path, uri string }{
 		{"windows", `C:\Users\me\app\main.vuka`, "/C:/Users/me/app/main.vuka"},
 		{"windows", `\\server\share\x`, "//server/share/x"},
@@ -110,6 +114,7 @@ func TestFileURIPath(t *testing.T) {
 }
 
 func TestProcessAlive(t *testing.T) {
+	t.Parallel()
 	if !processAlive(os.Getpid()) {
 		t.Error("this process isn't alive")
 	}
@@ -144,6 +149,7 @@ func main() {
 // signal it can handle (on Windows, a CTRL_BREAK_EVENT: os.Interrupt), and
 // stops as it does.
 func TestInterrupt(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -176,6 +182,7 @@ func TestInterrupt(t *testing.T) {
 
 // TestRemoveAll: a directory whose binary has just run is removed.
 func TestRemoveAll(t *testing.T) {
+	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "1")
 	writeFile(t, filepath.Join(dir, "sub", "f"), "x")
 	if err := removeAll(dir); err != nil {

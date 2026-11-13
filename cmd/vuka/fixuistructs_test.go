@@ -11,6 +11,7 @@ import (
 // the result, with what the fixer reports, with name.golden; a file it
 // leaves alone has "unchanged" as its golden. -update rewrites them.
 func TestFixUIStructs(t *testing.T) {
+	t.Parallel()
 	cases, _ := filepath.Glob("testdata/fixuistructs/*.in")
 	if len(cases) == 0 {
 		t.Fatal("no cases")
