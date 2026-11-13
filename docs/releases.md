@@ -20,7 +20,56 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## Unreleased
+## v2.19.0 — 2026-11-13
+
+### Live pages
+
+- **Patches on large pages are 20–70× faster.** A patch now morphs only the
+  rows of a loop it changed ([web#99](https://github.com/vuka-lang/web/pull/99),
+  [web#101](https://github.com/vuka-lang/web/pull/101)): keyed children are
+  found by a map rather than a search per child
+  ([web#98](https://github.com/vuka-lang/web/pull/98)), bindings are re-applied
+  only to the morphed rows, and a loop framed by fixed siblings — a table body
+  with a header and footer row — takes the fast path too. One changed cell in
+  a 3000-row table: about 60 ms → under 1 ms. Anything the row scanner can't
+  vouch for falls back to the whole morph, and in development and tests every
+  scoped morph is checked against the whole render (`VUKA_MORPH_VERIFY`).
+- **The live runtime is minified outside development**
+  ([web#100](https://github.com/vuka-lang/web/pull/100)): 40 KB gzipped from
+  70. Development serves the readable source; caching is unchanged.
+
+### JS commands
+
+- **`ui.JS.Reload()`** renders the current page again, and
+  **`ui.JS.Reload("#id")`** renders one region of it
+  ([ui#95](https://github.com/vuka-lang/ui/pull/95),
+  [ui#97](https://github.com/vuka-lang/ui/pull/97)); a navigation's title now
+  comes from the document.
+- **`ui.JS.Remove(sel)`** takes elements off the page, usable as a push's
+  prediction ([ui#96](https://github.com/vuka-lang/ui/pull/96)).
+
+### Windows
+
+- `vuka gen` keeps a `replace` working across drives: a target on another
+  volume is written by its absolute path
+  ([#468](https://github.com/vuka-lang/vuka/pull/468), fixes
+  [#467](https://github.com/vuka-lang/vuka/issues/467)), and the orm module's
+  migration tool runs by the `tool.exe` name Windows builds
+  ([orm#45](https://github.com/vuka-lang/orm/pull/45)).
+- A frontend whose `node_modules` was copied from another operating system is
+  reinstalled instead of failing on missing `.bin` shims
+  ([#466](https://github.com/vuka-lang/vuka/pull/466)).
+
+### Editors
+
+- Emmet abbreviations expand in `.vuka.html` markup in VS Code — between tags
+  only, never in the Go header or inside `{…}`
+  ([#470](https://github.com/vuka-lang/vuka/pull/470)).
+
+### Formatting
+
+- `vuka fmt` lays out multi-line tags and their attribute expressions
+  ([#444](https://github.com/vuka-lang/vuka/pull/444)).
 
 ### UI kit
 
