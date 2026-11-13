@@ -89,8 +89,12 @@ const { readTag, voidElements } = require('./jsx');
 // Ignore Go holes and literal script/style content when looking for open tags.
 // The legacy JSX helper remains available for tolerant grammar tests, while
 // shape editing scans only the markup half of a file.
-function tagsInMarkup(text) {
+// strict stops at a < that starts a tag readTag can't finish, where the
+// text after it is still inside that tag. Each tag's text is where the text
+// before it starts: past the tag, hole, comment or statement line before.
+function tagsInMarkup(text, strict = false) {
   const tags = [];
+  let textStart = 0;
   for (let i = 0; i < text.length; i++) {
     if (i === 0 || text[i - 1] === '\n') {
       const statement = /^[ \t]*(?:\}\s*)?(?:(?:if|for|switch|else|case|default|match)\b|[A-Za-z_][\w., \t]*:?=[^=])/.exec(text.slice(i));
@@ -98,6 +102,7 @@ function tagsInMarkup(text) {
         const end = text.indexOf('\n', i);
         if (end < 0) return tags;
         i = end;
+        textStart = end + 1;
         continue;
       }
     }
@@ -105,6 +110,7 @@ function tagsInMarkup(text) {
       const end = text.indexOf('-->', i + 4);
       if (end < 0) return tags;
       i = end + 2;
+      textStart = end + 3;
     } else if (text[i] === '{' && text[i + 1] === '{') {
       i++;
     } else if (text[i] === '{') {
@@ -128,11 +134,16 @@ function tagsInMarkup(text) {
         else if (text[i] === '}') depth--;
       }
       i--;
+      textStart = i + 1;
     } else if (text[i] === '<') {
       const tag = readTag(text, i);
-      if (!tag) continue;
-      tags.push(tag);
+      if (!tag) {
+        if (strict && /[A-Za-z_/]/.test(text[i + 1] || '')) return tags;
+        continue;
+      }
+      tags.push({ ...tag, text: textStart });
       i = tag.end - 1;
+      textStart = tag.end;
       if (!tag.close && !tag.self && /^(script|style)$/.test(tag.name)) {
         const end = text.indexOf(`</${tag.name}`, i + 1);
         if (end < 0) return tags;
@@ -168,4 +179,14 @@ function closingFor(text, after) {
   return name === undefined ? null : name + (after.startsWith('>') ? '' : '>');
 }
 
-module.exports = { markupStart, markupBefore, tagToClose, closingFor };
+// textNodeStart is where the text node the end of shape markup is in
+// starts, or -1 when the end isn't in one: in a tag or its attributes, a
+// Go hole, a comment, a script or style body, or a statement line. A tag
+// probed onto the end is read as a tag only there.
+function textNodeStart(text) {
+  const probe = '<vuka-text-probe/>';
+  const last = tagsInMarkup(text + probe, true).at(-1);
+  return last && last.name === 'vuka-text-probe' && last.end === text.length + probe.length ? last.text : -1;
+}
+
+module.exports = { markupStart, markupBefore, tagToClose, closingFor, textNodeStart };

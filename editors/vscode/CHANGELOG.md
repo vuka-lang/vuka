@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Emmet abbreviations expand in `.vuka.html` markup only, through the extension's own completion provider (`@vscode/emmet-helper`, as VS Code's Emmet uses): in a text node, after indentation, inside elements and after a tag or `{…}` hole on the line, in both the Go-header and `<script lang="go">` forms. Nothing is offered in the Go header, a hole, a tag's attributes, a comment, a `<script>`/`<style>` body or a statement line, and a component name such as `ui.DataTable` isn't read as a tag and a class. The `emmet.includeLanguages` default is gone: built-in Emmet read the Go header as HTML too. The `emmet.*` settings apply.
+
 ## 0.12.0
 
 - A call in `.vuka.html` markup that gets the render's `ctx` without writing it shows an inlay hint, `ctx`, where it goes, and its hover says the page supplies it. `vuka.inlayHints.implicitContext` turns the hint off. Needs the Vuka v2.10.0 language server.

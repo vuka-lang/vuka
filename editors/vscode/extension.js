@@ -11,6 +11,7 @@ const { formatRoute, moduleRoot } = require('./routes');
 const { extractCommand, nameProblem, extractArguments } = require('./refactor');
 const { organizeMiddleware } = require('./organize');
 const { createResolver } = require('./resolve');
+const { emmetCompletions, triggerCharacters: emmetTriggers } = require('./emmet');
 
 let client;
 let versionItem;
@@ -347,6 +348,44 @@ function typedCloser(document, position) {
   return before !== null && closingFor(before, after) !== null;
 }
 
+// provideEmmet offers the Emmet abbreviation before the cursor in shape
+// markup, as built-in Emmet does in HTML, with its emmet.* settings. A user
+// who maps vuka-html in emmet.includeLanguages has built-in Emmet instead.
+function provideEmmet(document, position) {
+  const emmet = vscode.workspace.getConfiguration('emmet', document);
+  if ((emmet.get('includeLanguages') || {})['vuka-html']) {
+    return undefined;
+  }
+  const config = {
+    showExpandedAbbreviation: emmet.get('showExpandedAbbreviation'),
+    showAbbreviationSuggestions: emmet.get('showAbbreviationSuggestions'),
+    syntaxProfiles: emmet.get('syntaxProfiles'),
+    variables: emmet.get('variables'),
+    preferences: emmet.get('preferences'),
+    excludeLanguages: emmet.get('excludeLanguages'),
+    showSuggestionsAsSnippets: emmet.get('showSuggestionsAsSnippets'),
+  };
+  const list = emmetCompletions(document.languageId, document.getText(), document.offsetAt(position), config);
+  if (!list) {
+    return undefined;
+  }
+  const items = list.items.map((item) => {
+    const c = new vscode.CompletionItem(item.label);
+    const r = item.textEdit.range;
+    c.range = new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character);
+    c.insertText = new vscode.SnippetString(item.textEdit.newText);
+    c.documentation = item.documentation;
+    c.detail = item.detail;
+    c.filterText = item.filterText;
+    c.sortText = item.sortText;
+    if (config.showSuggestionsAsSnippets) {
+      c.kind = vscode.CompletionItemKind.Snippet;
+    }
+    return c;
+  });
+  return new vscode.CompletionList(items, true);
+}
+
 let routesChannel;
 
 // showRoute shows a code lens's routes, then the module's whole table from
@@ -413,6 +452,7 @@ function activate(context) {
       await start();
     }),
     vscode.workspace.onDidChangeTextDocument(closeTag),
+    vscode.languages.registerCompletionItemProvider({ language: 'vuka-html' }, { provideCompletionItems: provideEmmet }, ...emmetTriggers),
     vscode.commands.registerCommand('vuka.serveGoFiles', () => enableGoDropIn(context, false)),
     vscode.commands.registerCommand('vuka.stopServingGoFiles', () => disableGoDropIn(context)),
     vscode.commands.registerCommand('vuka.serveTemplFiles', () => enableTemplDropIn(context, false)),

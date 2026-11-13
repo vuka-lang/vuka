@@ -159,12 +159,20 @@ extensions:
   and finds classes in `class="…"`, the strings of `class={…}`, and the
   strings of Go helpers whose name ends in `Class` or `Classes` — their calls
   and their bodies (`tailwindCSS.experimental.classRegex`).
-- Emmet expands abbreviations in `.vuka.html` files (`emmet.includeLanguages`).
-  Emmet reads the whole file as HTML, so it can suggest an abbreviation for a
-  word typed in the Go header too; `.vuka` files are left out.
 
 A value you set for one of these settings replaces the extension's: add the
 Vuka entries to your own.
+
+Emmet abbreviations expand in `.vuka.html` markup, as in HTML: `div.card>ul>li*3`
+or `.foo` offers its expansion in the completion list (Tab or Enter takes it).
+They expand only in a text node of the markup: never in the Go header (or the
+`<script lang="go">`), in a `{…}` hole, inside a tag or its attributes, in a
+comment, a `<script>` or `<style>` body or an `if`/`for` statement line, and a
+component's name (`ui.DataTable`) is left to the language server. The
+`emmet.*` settings apply (`emmet.showExpandedAbbreviation` set to `never` or
+`vuka-html` in `emmet.excludeLanguages` turns it off). Mapping `vuka-html` in
+`emmet.includeLanguages` hands the file to VS Code's built-in Emmet instead,
+which reads the Go header as HTML too; `.vuka` files have no Emmet.
 
 Run **Vuka: Restart Language Server** after reinstalling vuka.
 
@@ -173,6 +181,6 @@ Run **Vuka: Restart Language Server** after reinstalling vuka.
 Run `npm ci && npm test`. Tests cover logic grammar snapshots, legacy grammar
 recovery, shape fixtures and expected scopes, Go/markup boundary detection,
 tag editing, route filename associations, snippet expansions, toolchain
-integration and the defaults for Tailwind and Emmet. `node test/grammar.test.mjs --update` rewrites logic snapshots;
+integration, the defaults for Tailwind and where Emmet expands. `node test/grammar.test.mjs --update` rewrites logic snapshots;
 `node test/html.test.mjs --update` rewrites shape snapshots. `npm run package`
 builds a local `.vsix`; it does not publish the extension.
