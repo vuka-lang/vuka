@@ -10,10 +10,10 @@ import (
 func TestRelocatedPath(t *testing.T) {
 	relErr := errors.New("Rel: can't make target relative to base")
 	for _, c := range []struct {
-		name          string
-		target, rel   string
-		err           error
-		want          string
+		name        string
+		target, rel string
+		err         error
+		want        string
 	}{
 		{"same volume, relative", "/proj/dep", "../dep", nil, "../dep"},
 		{"same volume, needs dot prefix", "/proj/out/dep", "dep", nil, "./dep"},
