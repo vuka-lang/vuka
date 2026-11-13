@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +17,10 @@ import (
 // pretend vuka: the tests vet with the analyzers they are tested with,
 // never one fetched from the network.
 func TestMain(m *testing.M) {
+	if dir := os.Getenv(childEnv); dir != "" {
+		vukaExecutable = func() (string, error) { return filepath.Join(dir, "vuka"), nil }
+		os.Exit(childCommand(os.Args[1:]))
+	}
 	// A vuka run -watch of a test keeps no build for a later run, unless the
 	// test asks for it (TestRunWatchReuse, with its own VUKA_CACHE).
 	if os.Getenv(reuseEnv) == "" {
@@ -37,6 +43,69 @@ func TestMain(m *testing.M) {
 		os.RemoveAll(vukavetDir)
 	}
 	os.Exit(code)
+}
+
+// childEnv, set, makes the test binary run one vuka command (see vukaIn),
+// its value the directory of the vukavet the parent built.
+const childEnv = "VUKA_TEST_CHILD"
+
+// vukaIn runs vuka args in dir as vuka does: in a child process, the test
+// binary, so that the command has a working directory of its own and the
+// tests running it can run in parallel.
+func vukaIn(dir string, stdout, stderr io.Writer, args ...string) error {
+	vukavet, err := checkoutVukavet()
+	if err != nil {
+		return err
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	c := exec.Command(exe, args...)
+	c.Dir = dir
+	c.Env = append(os.Environ(), childEnv+"="+vukavet)
+	c.Stdout, c.Stderr = stdout, stderr
+	return c.Run()
+}
+
+// childCommand is vuka args run in the child, as the tests run the
+// commands in process: main's commands without its cache trims and notices.
+func childCommand(args []string) int {
+	cmd, args := args[0], args[1:]
+	stdout, stderr := io.Writer(os.Stdout), io.Writer(os.Stderr)
+	var err error
+	switch cmd {
+	case "build", "run", "test", "vet", "install":
+		err = runGo(cmd, args, stdout, stderr)
+	case "routes":
+		err = routesCmd(args, stdout, stderr)
+	case "gen":
+		err = gen(args, stdout)
+	case "eject":
+		err = eject(args, stdout)
+	case "explain":
+		err = explain(args, stdout)
+	case "fix":
+		err = fix(args, stdout)
+	case "fmt":
+		err = vukaFmt(args, stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "vuka: no command %q in the test binary\n", cmd)
+		return 2
+	}
+	if err == nil {
+		return 0
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode()
+	}
+	var st exitStatus
+	if errors.As(err, &st) {
+		return int(st)
+	}
+	printErr(os.Stderr, err)
+	return 1
 }
 
 var (

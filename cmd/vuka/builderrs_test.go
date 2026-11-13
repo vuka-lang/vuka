@@ -627,6 +627,7 @@ func TestCheckParserGaveUp(t *testing.T) {
 // TestBuildReportParserGaveUp: with a package the parser gives up on, every
 // command reports it instead of panicking.
 func TestBuildReportParserGaveUp(t *testing.T) {
+	t.Parallel()
 	const page = "package pages\n\nimport \"example.com/app/links\"\n\n// Links is a page using the package.\ntype Links struct{}\n\n<a href={links.Home()}>{missing}</a>\n"
 	for _, c := range []struct {
 		name, file, src, want string
@@ -636,7 +637,8 @@ func TestBuildReportParserGaveUp(t *testing.T) {
 		{"a Go file of a page's package", "pages/helper.go", strings.Replace(manySyntaxErrors, "package links", "package pages", 1), "expected"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			routesModule(t, map[string]string{
+			t.Parallel()
+			app := routesModuleAt(t, map[string]string{
 				"main.go":               "package main\n\nimport (\n\t\"example.com/app/pages\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
 				"links/links.go":        "package links\n\nfunc Home() string { return \"/\" }\n",
 				"pages/links.vuka.html": page,
@@ -644,7 +646,7 @@ func TestBuildReportParserGaveUp(t *testing.T) {
 			})
 			for _, cmd := range []string{"vet", "build", "test"} {
 				var errOut bytes.Buffer
-				if err := runGo(cmd, []string{"./..."}, io.Discard, &errOut); err == nil {
+				if err := vukaIn(app, io.Discard, &errOut, cmd, "./..."); err == nil {
 					t.Errorf("vuka %s passed", cmd)
 				}
 				if got := errOut.String(); !strings.Contains(got, c.want) {
@@ -653,10 +655,10 @@ func TestBuildReportParserGaveUp(t *testing.T) {
 			}
 			// The route table needs the packages of pages/ alone.
 			var errOut bytes.Buffer
-			err := routesCmd(nil, io.Discard, &errOut)
+			err := vukaIn(app, io.Discard, &errOut, "routes")
 			if inPages := strings.HasPrefix(c.file, "pages/"); inPages != (err != nil) {
 				t.Errorf("vuka routes: %v", err)
-			} else if inPages && !strings.Contains(err.Error()+errOut.String(), c.want) {
+			} else if inPages && !strings.Contains(errOut.String(), c.want) {
 				t.Errorf("vuka routes says:\n%s%s", err, errOut.Bytes())
 			}
 		})

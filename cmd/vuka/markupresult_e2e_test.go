@@ -71,6 +71,7 @@ type Index struct{}
 // TestMarkupResultE2E: a page ranges over a vuka.Result as its value, and
 // an Err takes the page's error path: a 500, the error in the log.
 func TestMarkupResultE2E(t *testing.T) {
+	t.Parallel()
 	repo, _ := filepath.Abs("../..")
 	web := os.Getenv("VUKA_WEB")
 	if web == "" {
@@ -82,11 +83,10 @@ func TestMarkupResultE2E(t *testing.T) {
 		"pages/index.vuka.html":        resultIndex,
 		"pages/broken/index.vuka.html": resultBroken,
 	})
-	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer
-	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+	if err := vukaIn(root, io.Discard, &stderr, "build", "-o", app, "."); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
 	base, _ := serve(t, root, app)

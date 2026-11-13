@@ -20,6 +20,7 @@ import (
 // and builds it again with go build and no vuka command: the ejected Go
 // passes go vet and vukavet, and the two programs answer the same.
 func TestLibraryExample(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -59,7 +60,6 @@ func TestLibraryExample(t *testing.T) {
 	}
 	root := localModule(t, web, files)
 	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
-	t.Chdir(root)
 	bin := t.TempDir()
 	vet := exec.Command("go", "build", "-o", filepath.Join(bin, "vukavet"), ".")
 	vet.Dir = filepath.Join(repo, "cmd/vukavet")
@@ -67,24 +67,26 @@ func TestLibraryExample(t *testing.T) {
 		t.Fatalf("go build vukavet: %v\n%s", err, out)
 	}
 	var stderr bytes.Buffer
-	if err := runGo("build", []string{"-o", filepath.Join(bin, "vuka"), "."}, io.Discard, &stderr); err != nil {
+	if err := vukaIn(root, io.Discard, &stderr, "build", "-o", filepath.Join(bin, "vuka"), "."); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
-	if err := eject([]string{"-rm", "./..."}, io.Discard); err != nil {
-		t.Fatal(err)
+	if err := vukaIn(root, io.Discard, &stderr, "eject", "-rm", "./..."); err != nil {
+		t.Fatalf("vuka eject -rm: %v\n%s", err, stderr.Bytes())
 	}
 	for _, args := range [][]string{{"build", "-o", filepath.Join(bin, "ejected"), "."}, {"vet", "./..."}, {"vet", "-vettool=" + filepath.Join(bin, "vukavet"), "./..."}} {
-		if out, err := exec.Command("go", args...).CombinedOutput(); err != nil {
+		c := exec.Command("go", args...)
+		c.Dir = root
+		if out, err := c.CombinedOutput(); err != nil {
 			t.Fatalf("go %s after vuka eject -rm: %v\n%s", args[0], err, out)
 		}
 	}
-	filepath.WalkDir(".", func(p string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".vuka") {
 			t.Errorf("vuka eject -rm left %s", p)
 		}
 		return nil
 	})
-	if _, err := os.Stat("pages/index_html.go"); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "pages/index_html.go")); err != nil {
 		t.Errorf("vuka eject -rm keeps pages/index.vuka.html compiled to pages/index_html.go: %v", err)
 	}
 

@@ -79,6 +79,7 @@ func orders() components.TableData[entities.Order] {
 // package without type arguments; T comes from its data, and its scoped
 // slot's value is that T.
 func TestGenericInferenceE2E(t *testing.T) {
+	t.Parallel()
 	repo, _ := filepath.Abs("../..")
 	web := os.Getenv("VUKA_WEB")
 	if web == "" {
@@ -90,11 +91,10 @@ func TestGenericInferenceE2E(t *testing.T) {
 		"components/datatable.vuka.html": genInferTable,
 		"pages/index.vuka.html":          genInferIndex,
 	})
-	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer
-	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+	if err := vukaIn(root, io.Discard, &stderr, "build", "-o", app, "."); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
 	base, _ := serve(t, root, app)
