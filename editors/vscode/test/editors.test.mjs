@@ -1,5 +1,5 @@
 // Configuration the extension contributes for other extensions — Tailwind
-// CSS IntelliSense, Emmet, sticky scroll — checked against fixtures: the
+// CSS IntelliSense, sticky scroll — checked against fixtures: the
 // class regexes run the way Tailwind runs them, and the header's scopes
 // stay Go.
 import assert from 'node:assert/strict';
@@ -11,8 +11,9 @@ const pkg = read('../package.json');
 const defaults = pkg.contributes.configurationDefaults;
 
 assert.deepEqual(defaults['tailwindCSS.includeLanguages'], { 'vuka-html': 'html', vuka: 'html' });
-assert.deepEqual(defaults['emmet.includeLanguages'], { 'vuka-html': 'html' });
-assert.ok(!('vuka' in defaults['emmet.includeLanguages']), 'Emmet stays off in .vuka logic files');
+// The extension expands Emmet in shape markup itself (test/emmet.test.mjs);
+// built-in Emmet would read the Go header as HTML too.
+assert.ok(!('emmet.includeLanguages' in defaults), 'built-in Emmet stays off in Vuka files');
 const filters = defaults['tailwindCSS.experimental.classRegex'];
 assert.ok(Array.isArray(filters) && filters.length > 0);
 
@@ -64,8 +65,8 @@ const t0 = Date.now();
 classLists(long);
 assert.ok(Date.now() - t0 < 500, 'class regexes are slow on a long line');
 
-// Emmet reads the document as HTML; the grammar keeps the Go header Go, so
-// brackets, comments and snippets there are Go's.
+// The grammar keeps the Go header Go, so brackets, comments and snippets
+// there are Go's.
 const html = read('../syntaxes/vuka-html.tmLanguage.json');
 const highlighter = await createHighlighter({
   themes: ['github-dark'],

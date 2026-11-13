@@ -170,10 +170,7 @@
           "\\bfunc\\s+(?:\\([^)]*\\)\\s*)?\\w*[cC]lass(?:es|Name)?\\s*\\([^)]*\\)[^{\\n]*\\{([\\s\\S]*?)\\n\\}",
           "\"((?:[^\"\\\\]|\\\\.)*)\""
         ]
-      ],
-      "emmet.includeLanguages": {
-        "vuka-html": "html"
-      }
+      ]
     },
     "configuration": {
       "title": "Vuka",
@@ -351,8 +348,10 @@
     ]
   },
   "dependencies": {
+    "@vscode/emmet-helper": "2.11.0",
     "typescript-language-server": "5.0.1",
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver-textdocument": "1.0.16"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.2.1",
@@ -361,7 +360,7 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/organize.test.mjs && node test/typescript.test.mjs && node test/resolve.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/organize.test.mjs && node test/typescript.test.mjs && node test/resolve.test.mjs && node test/emmet.test.mjs"
   },
   "capabilities": {
     "untrustedWorkspaces": {

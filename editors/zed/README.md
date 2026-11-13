@@ -49,7 +49,13 @@ search for Vuka, **Install**.
 | **Vuka: Extract Component** | asks the new component's name | no: Zed can't ask for the name the server needs |
 | Serving `.go` and `.templ` files through Vuka | offered, set up for you | by hand (see [Go and templ files](#go-and-templ-files)) |
 | Tailwind CSS | set up for you | by hand (see [Settings](#settings)) |
-| Emmet | in `.vuka.html` | no: the Emmet extension's server serves the languages it lists |
+| Emmet | in `.vuka.html` markup | no (see below) |
+
+Zed's Emmet comes from the Emmet extension, whose language server starts
+only for the languages that extension lists; a setting can't add Vuka HTML
+to them, so it can't be turned on for `.vuka.html` files from here or from
+your settings. Were it listed, it would read the Go header as HTML too. The
+**Vuka HTML** snippets cover the shapes of a file.
 
 ## Settings
 

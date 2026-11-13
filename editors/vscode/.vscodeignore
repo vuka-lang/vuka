@@ -2,3 +2,5 @@ test/**
 node_modules/.cache/**
 *.vsix
 node_modules/typescript-language-server/lib/*.map
+node_modules/emmet/dist/*.map
+node_modules/@vscode/emmet-helper/lib/**/*.map
