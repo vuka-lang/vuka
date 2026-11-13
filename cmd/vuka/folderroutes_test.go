@@ -22,6 +22,15 @@ import (
 // ui, plus files (path → source, "" removes one).
 func routesModule(t *testing.T, files map[string]string) string {
 	t.Helper()
+	app := routesModuleAt(t, files)
+	t.Setenv("GOFLAGS", "")
+	t.Chdir(app)
+	return app
+}
+
+// routesModuleAt is routesModule's app, the working directory left as it is.
+func routesModuleAt(t *testing.T, files map[string]string) string {
+	t.Helper()
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	src := filepath.Join("testdata", "routes")
 	filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
@@ -45,8 +54,6 @@ func routesModule(t *testing.T, files map[string]string) string {
 		}
 		writeFile(t, filepath.Join(app, name), src)
 	}
-	t.Setenv("GOFLAGS", "")
-	t.Chdir(app)
 	return app
 }
 
@@ -72,14 +79,15 @@ var routesTestdata, _ = filepath.Abs(filepath.Join("testdata", "routes"))
 // TestFolderRoutes: the route table of the fixture, the files generated for
 // it, and the module building with them in the overlay.
 func TestFolderRoutes(t *testing.T) {
-	app := routesModule(t, nil)
+	t.Parallel()
+	app := routesModuleAt(t, nil)
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	checkGolden(t, "routes.txt", out.Bytes())
 	out.Reset()
-	if err := routesCmd([]string{"-json"}, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes", "-json"); err != nil {
 		t.Fatalf("vuka routes -json: %v", err)
 	}
 	var list []map[string]any
@@ -88,7 +96,7 @@ func TestFolderRoutes(t *testing.T) {
 	}
 
 	out.Reset()
-	if err := gen([]string{"-inplace"}, &out); err != nil {
+	if err := vukaIn(app, &out, &out, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for _, f := range routeFiles {
@@ -102,10 +110,10 @@ func TestFolderRoutes(t *testing.T) {
 		checkGolden(t, strings.NewReplacer("/", "_").Replace(strings.TrimPrefix(f, "pages/")), b)
 	}
 	out.Reset()
-	if err := gen([]string{"-inplace", "-check"}, &out); err != nil {
+	if err := vukaIn(app, &out, &out, "gen", "-inplace", "-check"); err != nil {
 		t.Errorf("vuka gen -inplace -check after gen: %v\n%s", err, out.Bytes())
 	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet with the files on disk: %v\n%s", err, errOut.Bytes())
 	}
 
@@ -114,11 +122,11 @@ func TestFolderRoutes(t *testing.T) {
 	writeFile(t, filepath.Join(app, "pages/orgs/[org]/edit.vuka.html"), editPage)
 	writeFile(t, filepath.Join(app, "pages/orgs/[org]/index.vuka.html"), strings.Replace(orgIndex, "ResetPassword.Path()", "Edit.Path()", 1))
 	out.Reset()
-	if err := gen([]string{"-inplace", "-check"}, &out); err == nil || !strings.Contains(out.String(), "stale: pages/urls/urls_gen.go") {
+	if err := vukaIn(app, &out, &out, "gen", "-inplace", "-check"); err == nil || !strings.Contains(out.String(), "stale: pages/urls/urls_gen.go") {
 		t.Errorf("vuka gen -inplace -check with a new page: %v\n%s", err, out.Bytes())
 	}
 	errOut.Reset()
-	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "build", "-o", os.DevNull, "."); err != nil {
 		t.Errorf("vuka build with a new page: %v\n%s", err, errOut.Bytes())
 	}
 	if b, _ := os.ReadFile(filepath.Join(app, "pages/urls/urls_gen.go")); !strings.Contains(string(b), "Edit") {
@@ -130,7 +138,7 @@ func TestFolderRoutes(t *testing.T) {
 		os.Remove(filepath.Join(app, f))
 	}
 	errOut.Reset()
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet from the overlay: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -157,6 +165,7 @@ var orgIndex = func() string {
 // TestFolderRouteErrors: each mistake of the route table, its code and
 // where it is reported.
 func TestFolderRouteErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name  string
 		files map[string]string
@@ -253,9 +262,10 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0340", "pages/report.vuka.html:8"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			routesModule(t, c.files)
+			t.Parallel()
+			app := routesModuleAt(t, c.files)
 			var out, errOut bytes.Buffer
-			err := routesCmd([]string{"-json"}, &out, &errOut)
+			err := vukaIn(app, &out, &errOut, "routes", "-json")
 			if err == nil {
 				t.Fatalf("no error:\n%s", out.Bytes())
 			}
@@ -277,6 +287,7 @@ func TestFolderRouteErrors(t *testing.T) {
 // folder's path, and is its Path in urls, in the stub the pages are
 // transpiled with as in the real file.
 func TestIndexEndpoints(t *testing.T) {
+	t.Parallel()
 	endpoint := func(pkg, method, params string) string {
 		return "package " + pkg + "\n\nimport \"context\"\n\nfunc " + method + "(ctx context.Context" + params + ") error { return nil }\n"
 	}
@@ -319,13 +330,13 @@ func TestPaths(t *testing.T) {
 }
 `,
 	}
-	app := routesModule(t, files)
+	app := routesModuleAt(t, files)
 	stub := scanRoutes(app, "example.com/app", nil)[0].urlsStub()
 	if _, err := parser.ParseFile(token.NewFileSet(), urlsGoName, stub, 0); err != nil {
 		t.Fatalf("the stub of urls: %v\n%s", err, stub)
 	}
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	for _, want := range []string{
@@ -340,7 +351,7 @@ func TestPaths(t *testing.T) {
 		t.Errorf("a companion file with no method func is a route:\n%s", out.Bytes())
 	}
 	errOut.Reset()
-	if err := runGo("test", []string{"./links"}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "test", "./links"); err != nil {
 		t.Fatalf("vuka test: %v\n%s", err, errOut.Bytes())
 	}
 
@@ -348,7 +359,7 @@ func TestPaths(t *testing.T) {
 	writeFile(t, filepath.Join(app, "pages/admin/auth/login.vuka.html"), "package auth\n\nimport \"example.com/app/pages/urls\"\n\n// Login signs in.\ntype Login struct{}\n\n<a href={urls.Admin.Auth.Path()}>{missing}</a>\n")
 	for _, cmd := range []string{"build", "vet"} {
 		errOut.Reset()
-		if err := runGo(cmd, []string{"."}, io.Discard, &errOut); err == nil {
+		if err := vukaIn(app, io.Discard, &errOut, cmd, "."); err == nil {
 			t.Fatalf("vuka %s passed", cmd)
 		}
 		if got := errOut.String(); !strings.Contains(got, "undefined: missing") || strings.Contains(got, urlsGoName) {
@@ -418,13 +429,14 @@ func TestPatterns(t *testing.T) {
 // earlier releases declared a page, is E0720: the page is its file under
 // pages/, its path its URL.
 func TestFolderRoutesRegistered(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/orgs/[org]/permits/[permit].vuka.html": "",
 		"pages/orgs/[org]/permits/[permit].vuka":      "package permits\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n@web.Live(\"/permit\")\ntype Permit struct {\n\tui.Live\n\tOrg    int\n\tPermit string\n}\n\nfunc NewPermit() *Permit { return &Permit{} }\n\nfunc (x *Permit) Render() ui.Node { return ui.Text(\"\") }\n",
 	})
 	var out bytes.Buffer
-	err := gen([]string{"-inplace"}, &out)
-	if err == nil || !strings.Contains(err.Error(), "@web.Live declares a page outside pages/") {
+	err := vukaIn(app, &out, &out, "gen", "-inplace")
+	if err == nil || !strings.Contains(out.String(), "@web.Live declares a page outside pages/") {
 		t.Fatalf("vuka gen -inplace: want E0720, got %v\n%s", err, out.Bytes())
 	}
 }
@@ -434,18 +446,19 @@ func TestFolderRoutesRegistered(t *testing.T) {
 // sends — named by its file; one without a constructor is built in
 // route.go, and nothing is written into its folder.
 func TestShapePages(t *testing.T) {
-	app := routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/about.vuka.html":   "package pages\n\n// Info is declared above its markup.\ntype Info struct {\n\tVersion string\n}\n\nfunc (p *Info) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
 		"pages/counter.vuka.html": "package pages\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	if !regexp.MustCompile(`GET +/about +pages\.Info `).MatchString(out.String()) || !strings.Contains(out.String(), "pages.Counter (live)") {
 		t.Errorf("vuka routes:\n%s", out.Bytes())
 	}
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	b, _ := os.ReadFile(filepath.Join(app, "pages", "route.go"))
@@ -455,7 +468,7 @@ func TestShapePages(t *testing.T) {
 	if u, _ := os.ReadFile(filepath.Join(app, "pages", "urls", "urls_gen.go")); !regexp.MustCompile(`About += Root\.About`).Match(u) {
 		t.Errorf("urls_gen.go names the page by its type, not its file:\n%s", u)
 	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -464,14 +477,15 @@ func TestShapePages(t *testing.T) {
 // nothing more: only the struct named after the file is a page, whichever
 // way the file is named, and the module builds with them.
 func TestHelperStructs(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/shop/index.vuka.html":      "<script lang=\"go\">\npackage shop\n\ntype Row struct {\n\tName string\n}\n\nfunc (r *Row) Rename(s string) { r.Name = s }\n\ntype Index struct {\n\tRows []Row\n}\n</script>\n\n<p>{len(Rows)}</p>\n",
 		"pages/shop/order-row.vuka.html":  "<script lang=\"go\">\npackage shop\n\ntype cell struct{}\n\ntype OrderRow struct{}\n\nfunc (c cell) Inc() {}\n\nfunc (c cell) Load() error { return nil }\n</script>\n\n<p>row</p>\n",
 		"pages/shop/[item].vuka.html":     "<script lang=\"go\">\npackage shop\n\ntype Line struct {\n\tQty int\n}\n\ntype Item struct {\n\tItem int\n\tline Line\n}\n</script>\n\n<p>{Item}</p>\n",
 		"pages/shop/one_struct.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Anything struct{}\n</script>\n\n<p>one</p>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	for _, want := range []string{`GET +/shop +shop\.Index `, `GET +/shop/order-row +shop\.OrderRow `, `GET +/shop/\{item\} +shop\.Item `, `GET +/shop/one-struct +shop\.Anything `} {
@@ -487,7 +501,7 @@ func TestHelperStructs(t *testing.T) {
 	if regexp.MustCompile(`shop\.\w+ \(live\)`).MatchString(out.String()) {
 		t.Errorf("a helper's methods made a page live:\n%s", out.Bytes())
 	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -495,11 +509,12 @@ func TestHelperStructs(t *testing.T) {
 // TestHelperStructsNoMatch: several structs, none named after the file: the
 // error names the struct expected, where a page's would be declared nowhere.
 func TestHelperStructsNoMatch(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/shop/index.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Item struct {\n\tName string\n}\n\ntype Home struct {\n\titems []Item\n}\n</script>\n\n<p>home</p>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err == nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err == nil {
 		t.Fatalf("no error:\n%s", out.Bytes())
 	}
 	got := errOut.String()
@@ -513,10 +528,11 @@ func TestHelperStructsNoMatch(t *testing.T) {
 // .vuka.html file, and a page whose script uses ?, match and enums is checked
 // like any other.
 func TestScriptVukaVet(t *testing.T) {
+	t.Parallel()
 	const page = "<script lang=\"go\">\npackage shop\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nenum Kind { Cat, Dog }\n\nfunc wait(c chan int) {\n\t<-c\n}\n\nfunc parse(s string) Result[int] {\n\tn := strconv.Atoi(s)?\n\tfmt.Printf(\"%d\", s)\n\treturn Ok(n)\n}\n\nfunc name(k Kind) string {\n\tmatch k {\n\tcase Kind.Cat:\n\t\treturn \"cat\"\n\tcase Kind.Dog:\n\t\treturn \"dog\"\n\t}\n}\n\ntype Index struct{}\n\nfunc (p Index) Label() string { return name(Kind.Dog) + strconv.Itoa(parse(\"1\").UnwrapOr(0)) }\n</script>\n\n<p>{Label()}</p>\n"
-	routesModule(t, map[string]string{"pages/shop/index.vuka.html": page})
+	app := routesModuleAt(t, map[string]string{"pages/shop/index.vuka.html": page})
 	var errOut bytes.Buffer
-	if err := runGo("vet", []string{"./pages/shop/"}, io.Discard, &errOut); err == nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./pages/shop/"); err == nil {
 		t.Fatalf("vuka vet passed:\n%s", errOut.Bytes())
 	}
 	line := strings.Count(page[:strings.Index(page, "fmt.Printf")], "\n") + 1
@@ -532,14 +548,15 @@ func TestScriptVukaVet(t *testing.T) {
 // route.go; one declared by hand is used, and a type registered another way
 // gets none.
 func TestGeneratedConstructors(t *testing.T) {
-	app := routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/files/new.go": "package files\n\n// NewFile is declared by hand.\nfunc NewFile() *File { return &File{} }\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	b, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
@@ -551,7 +568,7 @@ func TestGeneratedConstructors(t *testing.T) {
 	if strings.Contains(string(b), "Card") || strings.Contains(string(b), "Store") {
 		t.Errorf("route.go builds a type that is no page:\n%s", b)
 	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -560,8 +577,9 @@ func TestGeneratedConstructors(t *testing.T) {
 // where the go command sees it, its Go name _id, with line directives back
 // to the sources, and a plain go build builds the module.
 func TestBracketFoldersOnDisk(t *testing.T) {
-	app := routesModule(t, nil)
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	t.Parallel()
+	app := routesModuleAt(t, nil)
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	b, err := os.ReadFile(filepath.Join(app, "pages/orgs/param_org/index_html.go"))
@@ -572,6 +590,7 @@ func TestBracketFoldersOnDisk(t *testing.T) {
 		t.Error("Go written into the [org] folder")
 	}
 	build := exec.Command("go", "vet", "./...", "./pages/orgs/param_org/...")
+	build.Dir = app
 	build.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Errorf("go vet after gen -inplace: %v\n%s", err, out)
@@ -582,14 +601,15 @@ func TestBracketFoldersOnDisk(t *testing.T) {
 // serves none of the folder routes, which vuka routes and vuka vet say
 // (W0701); one that does, under any import name, is quiet.
 func TestRoutesUnserved(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ main, want string }{
 		{"package main\n\nimport _ \"example.com/app/pages\"\n\nfunc main() {}\n", "W0701"},
 		{"package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\tp \"example.com/app/pages\"\n)\n\nfunc main() { web.New(p.Routes()) }\n", ""},
 	} {
 		t.Run(c.want, func(t *testing.T) {
-			routesModule(t, map[string]string{"main.go": c.main})
+			app := routesModuleAt(t, map[string]string{"main.go": c.main})
 			var out, errOut bytes.Buffer
-			if err := routesCmd(nil, &out, &errOut); err != nil {
+			if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 				t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 			}
 			if got := strings.Contains(errOut.String(), "W0701"); got != (c.want != "") {
@@ -605,10 +625,11 @@ func TestRoutesUnserved(t *testing.T) {
 // it alone. A pages/ directory beside no main is no tree. The module's
 // pages/ here is the fixture's, one page in place of its tree.
 func TestMainPages(t *testing.T) {
+	t.Parallel()
 	page := func(pkg, typ, text string) string {
 		return "package " + pkg + "\n\ntype " + typ + " struct{}\n<p>" + text + "</p>\n"
 	}
-	app := routesModule(t, map[string]string{
+	app := routesModuleAt(t, map[string]string{
 		"cmd/a/main.go":                   "package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\t\"example.com/app/cmd/a/pages\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
 		"cmd/a/pages/index.vuka.html":     page("pages", "Home", "a"),
 		"cmd/a/pages/pets/[id].vuka.html": "package pets\n\nimport \"example.com/app/cmd/a/pages/urls\"\n\ntype Pet struct {\n\tID int\n}\n<a href={urls.Pets.ID(ID).Path()}>{ID}</a>\n",
@@ -619,7 +640,7 @@ func TestMainPages(t *testing.T) {
 	os.RemoveAll(filepath.Join(app, "pages"))
 	writeFile(t, filepath.Join(app, "pages", "about.vuka.html"), page("pages", "Info", "the module's"))
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	for _, want := range []string{`GET +/ +pages\.Home `, `GET +/pets/\{id\} +pets\.Pet `, `GET +/about +pages\.About `, `GET +/about +pages\.Info `} {
@@ -633,7 +654,7 @@ func TestMainPages(t *testing.T) {
 	if w := regexp.MustCompile(`warning\[W0701\].*`).FindAllString(errOut.String(), -1); len(w) != 1 || !strings.Contains(w[0], "cmd/b/pages/") {
 		t.Errorf("W0701 is for cmd/b alone: %q\n%s", w, errOut.Bytes())
 	}
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for f, want := range map[string]string{
@@ -646,7 +667,7 @@ func TestMainPages(t *testing.T) {
 			t.Errorf("%s has no %s:\n%s", f, want, b)
 		}
 	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -657,7 +678,8 @@ func TestMainPages(t *testing.T) {
 // so none is left on disk. One whose [id] folder is gone, holding
 // generated Go alone, is removed.
 func TestBracketFolderGoDirs(t *testing.T) {
-	app := routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"main_test.go": "package main\n\nimport (\n\t\"testing\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc TestRoutes(t *testing.T) { _ = pages.Routes() }\n",
 	})
 	os.RemoveAll(filepath.Join(app, "pages"))
@@ -673,7 +695,7 @@ func TestBracketFolderGoDirs(t *testing.T) {
 	var errOut bytes.Buffer
 	for _, cmd := range []string{"test", "vet"} {
 		errOut.Reset()
-		if err := runGo(cmd, []string{"./..."}, io.Discard, &errOut); err != nil {
+		if err := vukaIn(app, io.Discard, &errOut, cmd, "./..."); err != nil {
 			t.Errorf("vuka %s ./...: %v\n%s", cmd, err, errOut.Bytes())
 		}
 	}
@@ -681,17 +703,17 @@ func TestBracketFolderGoDirs(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(app, "pages/old/param_gone")); err == nil {
 		t.Error("the stale pages/old/param_gone is still there")
 	}
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(app, "pages/pets/param_id/index_html.go")); err != nil {
 		t.Errorf("vuka gen -inplace: %v", err)
 	}
-	if err := gen([]string{"-inplace", "-check"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace", "-check"); err != nil {
 		t.Errorf("vuka gen -inplace -check: %v", err)
 	}
 	errOut.Reset()
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet with the files on disk: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -700,18 +722,19 @@ func TestBracketFolderGoDirs(t *testing.T) {
 // as a pointer beside the struct its body binds; an event its markup sends
 // can't be named for an HTTP method.
 func TestPageHandlerDeps(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/pets/store.go":        "package pets\n\n// Store keeps the pets.\ntype Store struct{ Names []string }\n\n// PetForm is a new pet.\ntype PetForm struct {\n\tName string `form:\"name\"`\n}\n",
 		"pages/pets/index.vuka.html": "package pets\n\nimport \"context\"\n\n// Index lists the pets.\ntype Index struct{}\n\nfunc (p *Index) Post(ctx context.Context, s *Store, form PetForm) error { return nil }\n<form method=\"post\"><input name=\"name\"/></form>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
 		t.Fatalf("vuka routes: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
-	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Index lists the pets.\ntype Index struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
+	writeFile(t, filepath.Join(app, "pages/pets/index.vuka.html"), "package pets\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Index lists the pets.\ntype Index struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
 	out.Reset()
 	errOut.Reset()
-	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") || !strings.Contains(errOut.String(), "Index.Delete is the page's DELETE handler, and its markup sends it as an event") {
+	if err := vukaIn(app, &out, &errOut, "routes"); err == nil || !strings.Contains(errOut.String(), "E0709") || !strings.Contains(errOut.String(), "Index.Delete is the page's DELETE handler, and its markup sends it as an event") {
 		t.Errorf("vuka routes with an event named Delete: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -720,14 +743,15 @@ func TestPageHandlerDeps(t *testing.T) {
 // on every navigation (web.ReloadLayout); one reading it in its markup,
 // which renders again for each page, stays.
 func TestLayoutPageReads(t *testing.T) {
-	app := routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/admin/_layout.vuka.html": "package admin\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n// Shell stores the title as it loads.\ntype Shell struct {\n\tChildren ui.Node\n\ttitle    string\n}\n\nfunc (l *Shell) Load(ctx context.Context) error {\n\tl.title = heading(ctx)\n\treturn nil\n}\n\nfunc heading(ctx context.Context) string { return ui.PageTitle(ctx) }\n<section><h1>{title}</h1>{Children}</section>\n",
 		"pages/admin/index.vuka.html":   "package admin\n\n// Index is the admin area.\ntype Index struct{}\n<p>admin</p>\n",
 		"pages/shop/_layout.vuka.html":  "package shop\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n// Shell reads the title as it renders.\ntype Shell struct {\n\tChildren ui.Node\n}\n\nfunc (l *Shell) Load(ctx context.Context) error { return nil }\n\nfunc (l *Shell) Heading(ctx context.Context) string { return ui.PageTitle(ctx) }\n<section><h1>{Heading(ctx)}</h1>{Children}</section>\n",
 		"pages/shop/index.vuka.html":    "package shop\n\n// Index is the shop.\ntype Index struct{}\n<p>shop</p>\n",
 	})
 	var out bytes.Buffer
-	if err := gen([]string{"-inplace"}, &out); err != nil {
+	if err := vukaIn(app, &out, &out, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v\n%s", err, out.Bytes())
 	}
 	b, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
@@ -746,6 +770,7 @@ const urlOrder = "package components\n\nimport \"github.com/vuka-lang/ui/v2\"\n\
 // page whose path has them, and one under a page lacking one is E0340
 // with the parameters it has.
 func TestBareURLParams(t *testing.T) {
+	t.Parallel()
 	t.Run("has them", func(t *testing.T) { bareURLParams(t, true) })
 	t.Run("lacks one", func(t *testing.T) { bareURLParams(t, false) })
 }
@@ -753,16 +778,16 @@ func TestBareURLParams(t *testing.T) {
 func bareURLParams(t *testing.T, has bool) {
 	var out, errOut bytes.Buffer
 	if has {
-		routesModule(t, map[string]string{"components/order.vuka.html": urlOrder,
+		app := routesModuleAt(t, map[string]string{"components/order.vuka.html": urlOrder,
 			"pages/orgs/[org]/orders/[id].vuka.html": "package orders\n\nimport \"example.com/app/components\"\n\n// Id shows an order.\ntype Id struct {\n\tOrg int\n\tID  int64\n}\n\n<components.Order/>\n"})
-		if err := routesCmd([]string{"-json"}, &out, &errOut); err != nil {
+		if err := vukaIn(app, &out, &errOut, "routes", "-json"); err != nil {
 			t.Fatalf("%v\n%s", err, errOut.String())
 		}
 		return
 	}
-	routesModule(t, map[string]string{"components/order.vuka.html": urlOrder,
+	app := routesModuleAt(t, map[string]string{"components/order.vuka.html": urlOrder,
 		"pages/orgs/[org]/orders.vuka.html": "package org\n\nimport \"example.com/app/components\"\n\n// Orders lists them.\ntype Orders struct{ Org int }\n\n<components.Order/>\n"})
-	if err := routesCmd([]string{"-json"}, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0340") ||
+	if err := vukaIn(app, &out, &errOut, "routes", "-json"); err == nil || !strings.Contains(errOut.String(), "E0340") ||
 		!strings.Contains(errOut.String(), "Order.id binds the path parameter {id}") || !strings.Contains(errOut.String(), "{org}") {
 		t.Fatalf("%v\n%s", err, errOut.String())
 	}
@@ -771,12 +796,13 @@ func bareURLParams(t *testing.T, has bool) {
 // TestPageLoadNeverRuns: W0704 for a page's Load nothing calls, not for one
 // its own code does.
 func TestPageLoadNeverRuns(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/unused.vuka.html": "package pages\n\nimport \"context\"\n\ntype Unused struct{ msg string }\n\nfunc (p *Unused) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\n\n<p>{msg}</p>\n",
 		"pages/used.vuka.html":   "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Used struct {\n\tui.Live\n\tmsg string\n}\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	if !strings.Contains(errOut.String(), "W0704") || !strings.Contains(errOut.String(), "Unused.Load") {
@@ -789,11 +815,12 @@ func TestPageLoadNeverRuns(t *testing.T) {
 
 // TestPushedHandlerMethod: E0709 for a Push naming the page's Delete.
 func TestPushedHandlerMethod(t *testing.T) {
-	routesModule(t, map[string]string{
+	t.Parallel()
+	app := routesModuleAt(t, map[string]string{
 		"pages/gone.vuka.html": "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Gone struct{}\n\nfunc (p *Gone) Delete(ctx context.Context) error { return nil }\n\n<button onClick={ui.JS.Push(p.Delete)}>x</button>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") {
+	if err := vukaIn(app, &out, &errOut, "routes"); err == nil || !strings.Contains(errOut.String(), "E0709") {
 		t.Errorf("no E0709: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -801,10 +828,11 @@ func TestPushedHandlerMethod(t *testing.T) {
 // TestCommandsWriteRouteFiles: each command leaves pages/route.go and the
 // typed URLs current on disk, for an editor and plain Go tools.
 func TestCommandsWriteRouteFiles(t *testing.T) {
+	t.Parallel()
 	for _, cmd := range [][]string{{"vet", "./..."}, {"test", "./..."}, {"build", "-o", os.DevNull, "."}} {
 		t.Run(cmd[0], func(t *testing.T) {
-			app := routesModule(t, map[string]string{"pages/about.vuka.html": "package pages\n\ntype About struct{}\n\n<p>about</p>\n"})
-			if err := runGo(cmd[0], cmd[1:], io.Discard, io.Discard); err != nil {
+			app := routesModuleAt(t, map[string]string{"pages/about.vuka.html": "package pages\n\ntype About struct{}\n\n<p>about</p>\n"})
+			if err := vukaIn(app, io.Discard, io.Discard, cmd...); err != nil {
 				t.Logf("vuka %s: %v", cmd[0], err) // no main to build: the files come first
 			}
 			for _, f := range routeFiles {
@@ -819,9 +847,10 @@ func TestCommandsWriteRouteFiles(t *testing.T) {
 // TestTrackedRouteFilesStay: a route file git tracks is the app's to update
 // with vuka gen -inplace, and its -check still reports it after a build.
 func TestTrackedRouteFilesStay(t *testing.T) {
+	t.Parallel()
 	const page = "package pages\n\ntype About struct{}\n\n<p>about</p>\n"
-	app := routesModule(t, map[string]string{"pages/about.vuka.html": page})
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	app := routesModuleAt(t, map[string]string{"pages/about.vuka.html": page})
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for _, args := range [][]string{{"init", "-q"}, {"add", "pages/route.go", "pages/urls/urls_gen.go"}} {
@@ -833,14 +862,14 @@ func TestTrackedRouteFilesStay(t *testing.T) {
 	}
 	before, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
 	writeFile(t, filepath.Join(app, "pages/team.vuka.html"), strings.ReplaceAll(page, "About", "Team"))
-	if err := runGo("vet", []string{"./..."}, io.Discard, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "vet", "./..."); err != nil {
 		t.Logf("vuka vet: %v", err)
 	}
 	if after, _ := os.ReadFile(filepath.Join(app, "pages/route.go")); string(after) != string(before) {
 		t.Errorf("vuka vet rewrote a tracked route.go:\n%s", after)
 	}
 	var out bytes.Buffer
-	if err := gen([]string{"-inplace", "-check"}, &out); err == nil {
+	if err := vukaIn(app, &out, &out, "gen", "-inplace", "-check"); err == nil {
 		t.Errorf("vuka gen -inplace -check passed with a stale tracked route.go:\n%s", out.Bytes())
 	}
 }

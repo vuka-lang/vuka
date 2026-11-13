@@ -138,6 +138,7 @@ func TestQueryFixes(t *testing.T) {
 // forms — orm: tags, queries made for orm.Query, orm.Schema values — and
 // runs the Go: eject -rm writes them as they are written today.
 func TestEjectORM(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -159,11 +160,11 @@ func TestEjectORM(t *testing.T) {
 	}
 	root := localModule(t, web, map[string]string{"main.vuka": ejectORMSrc})
 	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
-	t.Chdir(root)
-	if err := eject([]string{"-rm", "."}, io.Discard); err != nil {
-		t.Fatal(err)
+	var stderr bytes.Buffer
+	if err := vukaIn(root, io.Discard, &stderr, "eject", "-rm", "."); err != nil {
+		t.Fatalf("vuka eject -rm: %v\n%s", err, stderr.Bytes())
 	}
-	src, _ := os.ReadFile("main.go")
+	src, _ := os.ReadFile(filepath.Join(root, "main.go"))
 	for _, want := range []string{
 		`s.Field(&n.Tags, orm.Elements{Column: "tag_list"})`,
 		`s.Field(&n.Title, orm.Column("headline"))`,
@@ -178,7 +179,9 @@ func TestEjectORM(t *testing.T) {
 			t.Errorf("no %s in the ejected main.go:\n%s", want, src)
 		}
 	}
-	out, err := exec.Command("go", "run", ".").CombinedOutput()
+	run := exec.Command("go", "run", ".")
+	run.Dir = root
+	out, err := run.CombinedOutput()
 	if err != nil || string(out) != "found Go\nnone\n" {
 		t.Errorf("go run after vuka eject -rm: %v\n%s", err, out)
 	}

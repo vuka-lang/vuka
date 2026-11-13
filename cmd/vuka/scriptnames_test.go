@@ -274,6 +274,7 @@ func TestScriptsGuide(t *testing.T) {
 // TestScriptsGuideVets: the Go and markup of each example of the
 // Component Scripts guide compile: vuka vet passes on it in an app.
 func TestScriptsGuideVets(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -281,8 +282,6 @@ func TestScriptsGuideVets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	here, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(here) })
 	for i, f := range regexp.MustCompile("(?s)```html\n(.*?)```").FindAllStringSubmatch(string(guide), -1) {
 		code := f[1]
 		if !strings.Contains(code, `<script lang="ts">`) || !strings.Contains(code, `<script lang="go">`) {
@@ -295,11 +294,9 @@ func TestScriptsGuideVets(t *testing.T) {
 		}
 		files[pkg+"/card.go"] = "package " + pkg + "\n\ntype Card struct {\n\tID    int\n\tTitle string\n}\n"
 		files[pkg+"/point.go"] = "package " + pkg + "\n\ntype Point struct {\n\tLabel string\n\tValue float64\n}\n"
-		os.Chdir(here)
 		root := assetsModule(t, files)
-		os.Chdir(root)
 		var stderr bytes.Buffer
-		if err := runGo("vet", []string{"./..."}, io.Discard, &stderr); err != nil {
+		if err := vukaIn(root, io.Discard, &stderr, "vet", "./..."); err != nil {
 			t.Errorf("example %d: vuka vet: %v\n%s", i, err, stderr.String())
 		}
 	}

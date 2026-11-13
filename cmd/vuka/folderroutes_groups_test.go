@@ -34,7 +34,7 @@ var groupPages = map[string]string{
 // files.
 func groupsModule(t *testing.T, files map[string]string) string {
 	t.Helper()
-	app := routesModule(t, nil)
+	app := routesModuleAt(t, nil)
 	os.RemoveAll(filepath.Join(app, "pages"))
 	for name, src := range groupPages {
 		writeFile(t, filepath.Join(app, name), src)
@@ -55,9 +55,10 @@ func groupsModule(t *testing.T, files map[string]string) string {
 // group_console and the private folder as private_parts, made on disk,
 // where vuka gen -inplace writes their Go.
 func TestRouteGroups(t *testing.T) {
+	t.Parallel()
 	app := groupsModule(t, nil)
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	checkGolden(t, "groups_routes.txt", out.Bytes())
@@ -74,11 +75,11 @@ func TestRouteGroups(t *testing.T) {
 		t.Errorf("vuka routes routes the private folder or puts the group in a path:\n%s", out.Bytes())
 	}
 	errOut.Reset()
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet from the overlay: %v\n%s", err, errOut.Bytes())
 	}
 	noGoDirs(t, app)
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for _, f := range []string{"pages/admin/group_console/index_html.go", "pages/admin/group_console/users/param_id_html.go", "pages/private_parts/card_html.go"} {
@@ -90,11 +91,11 @@ func TestRouteGroups(t *testing.T) {
 	checkGolden(t, "groups_urls_gen.go", urls)
 	route, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
 	checkGolden(t, "groups_route.go", route)
-	if err := gen([]string{"-inplace", "-check"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace", "-check"); err != nil {
 		t.Errorf("vuka gen -inplace -check: %v", err)
 	}
 	errOut.Reset()
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet with the files on disk: %v\n%s", err, errOut.Bytes())
 	}
 }
@@ -102,6 +103,7 @@ func TestRouteGroups(t *testing.T) {
 // TestRouteGroupErrors: each mistake a route group or a private folder
 // makes, its code and where it is reported.
 func TestRouteGroupErrors(t *testing.T) {
+	t.Parallel()
 	page := func(pkg, typ string) string { return "package " + pkg + "\n\ntype " + typ + " struct{}\n<p>x</p>\n" }
 	shell := func(pkg string) string {
 		return "package " + pkg + "\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Shell struct {\n\tChildren ui.Node\n}\n<div>{Children}</div>\n"
@@ -127,9 +129,10 @@ func TestRouteGroupErrors(t *testing.T) {
 			"E0724", []string{"pages/index.vuka.html:3"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			groupsModule(t, c.files)
+			t.Parallel()
+			app := groupsModule(t, c.files)
 			var out, errOut bytes.Buffer
-			err := routesCmd([]string{"-json"}, &out, &errOut)
+			err := vukaIn(app, &out, &errOut, "routes", "-json")
 			if err == nil {
 				t.Fatalf("no error:\n%s", out.Bytes())
 			}
@@ -152,11 +155,12 @@ func TestRouteGroupErrors(t *testing.T) {
 // the home page lives in one of the groups. vuka routes -json gives each
 // route its root.
 func TestRootLayouts(t *testing.T) {
+	t.Parallel()
 	shell := func(pkg, typ, id string) string {
 		return "package " + pkg + "\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype " + typ + " struct {\n\tChildren ui.Node\n}\n<html><body id=\"" + id + "\">{Children}</body></html>\n"
 	}
 	page := func(pkg, typ string) string { return "package " + pkg + "\n\ntype " + typ + " struct{}\n<p>x</p>\n" }
-	app := routesModule(t, nil)
+	app := routesModuleAt(t, nil)
 	os.RemoveAll(filepath.Join(app, "pages"))
 	for name, src := range map[string]string{
 		"pages/(site)/_layout.vuka.html": shell("site", "Site", "site"),
@@ -171,7 +175,7 @@ func TestRootLayouts(t *testing.T) {
 		writeFile(t, filepath.Join(app, name), src)
 	}
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	for _, want := range []string{`GET +/ +site\.Home .* site\.Site\n`, `GET +/cart +shop\.Cart .* shop\.Shop\n`} {
@@ -180,7 +184,7 @@ func TestRootLayouts(t *testing.T) {
 		}
 	}
 	out.Reset()
-	if err := routesCmd([]string{"-json"}, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "routes", "-json"); err != nil {
 		t.Fatalf("vuka routes -json: %v\n%s", err, errOut.Bytes())
 	}
 	var list []folderRoute
@@ -201,6 +205,7 @@ func TestRootLayouts(t *testing.T) {
 // command sees it: vuka build, test and vet take them, an error in one is
 // reported at it, and after vuka gen -inplace a plain go build does too.
 func TestGoInRouteFolders(t *testing.T) {
+	t.Parallel()
 	app := groupsModule(t, map[string]string{
 		"pages/admin/(console)/stats/index.go":       "package stats\n\nimport (\n\t\"context\"\n\t\"strings\"\n)\n\n// Index is GET /admin/stats.\ntype Index struct{}\n\nfunc (*Index) Get(ctx context.Context) (string, error) { return Count(3), nil }\n\n// Count names n orders.\nfunc Count(n int) string { return strings.Repeat(\"o\", n) }\n",
 		"pages/admin/(console)/stats/index_test.go":  "package stats\n\nimport \"testing\"\n\nfunc TestCount(t *testing.T) {\n\tif Count(2) != \"oo\" {\n\t\tt.Fatal(Count(2))\n\t}\n}\n",
@@ -213,12 +218,12 @@ func TestGoInRouteFolders(t *testing.T) {
 		"pages/_parts/util.go":                       "package parts\n\n// Upper is s in capitals.\nfunc Upper(s string) string { return s }\n",
 	})
 	var errOut bytes.Buffer
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Fatalf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 	var out bytes.Buffer
 	errOut.Reset()
-	if err := runGo("test", []string{"./pages/..."}, &out, &errOut); err != nil {
+	if err := vukaIn(app, &out, &errOut, "test", "./pages/..."); err != nil {
 		t.Fatalf("vuka test: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
 	for _, want := range []string{"ok  \texample.com/app/pages/admin/group_console/stats", "ok  \texample.com/app/pages/admin/group_console/users", "ok  \texample.com/app/pages/orders/param_order"} {
@@ -227,12 +232,12 @@ func TestGoInRouteFolders(t *testing.T) {
 		}
 	}
 	out.Reset()
-	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`GET +/admin/stats +stats\.Index\.Get \(endpoint\) +pages/admin/\(console\)/stats/index\.go:11`).Match(out.Bytes()) {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`GET +/admin/stats +stats\.Index\.Get \(endpoint\) +pages/admin/\(console\)/stats/index\.go:11`).Match(out.Bytes()) {
 		t.Errorf("vuka routes: %v\n%s", err, out.Bytes())
 	}
 
 	errOut.Reset()
-	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err != nil {
+	if err := vukaIn(app, io.Discard, &errOut, "build", "-o", os.DevNull, "."); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, errOut.Bytes())
 	}
 	noGoDirs(t, app)
@@ -241,13 +246,13 @@ func TestGoInRouteFolders(t *testing.T) {
 	total := filepath.Join(app, "pages/orders/[order]/total.go")
 	writeFile(t, total, "package order\n\n// Total is an order's total.\nfunc Total(id int) string { return id * 10 }\n")
 	errOut.Reset()
-	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err == nil || !strings.Contains(errOut.String(), "pages/orders/[order]/total.go:4:") {
+	if err := vukaIn(app, io.Discard, &errOut, "build", "-o", os.DevNull, "."); err == nil || !strings.Contains(errOut.String(), "pages/orders/[order]/total.go:4:") {
 		t.Errorf("vuka build with an error in total.go: %v\n%s", err, errOut.Bytes())
 	}
 	writeFile(t, total, "package order\n\nimport \"strconv\"\n\n// Total is an order's total.\nfunc Total(id int) string { return strconv.Itoa(id * 10) }\n")
 
 	// gen -inplace writes the copies, and a plain go build builds them.
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for _, f := range []string{"pages/admin/group_console/stats/index.go", "pages/admin/group_console/users/label_test.go", "pages/orders/param_order/total.go", "pages/private_parts/util.go"} {

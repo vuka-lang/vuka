@@ -14,6 +14,7 @@ import (
 // that go build and go vet take with no vuka command, and the programs
 // print what they printed built by vuka.
 func TestEject(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
@@ -29,12 +30,11 @@ func TestEject(t *testing.T) {
 		}
 		writeFile(t, filepath.Join(root, ex, "main.vuka"), string(src))
 	}
-	t.Chdir(root)
 	bin := t.TempDir()
 	want := map[string][]byte{}
 	for _, ex := range examples {
 		var stderr bytes.Buffer
-		if err := runGo("build", []string{"-o", filepath.Join(bin, ex), "./" + ex}, io.Discard, &stderr); err != nil {
+		if err := vukaIn(root, io.Discard, &stderr, "build", "-o", filepath.Join(bin, ex), "./"+ex); err != nil {
 			t.Fatalf("vuka build %s: %v\n%s", ex, err, stderr.Bytes())
 		}
 		out, err := exec.Command(filepath.Join(bin, ex)).CombinedOutput()
@@ -46,31 +46,31 @@ func TestEject(t *testing.T) {
 
 	// One file, without -rm: its generated Go beside it, the source kept.
 	var out bytes.Buffer
-	if err := eject([]string{"users/main.vuka"}, &out); err != nil {
-		t.Fatal(err)
+	if err := vukaIn(root, &out, &out, "eject", "users/main.vuka"); err != nil {
+		t.Fatalf("vuka eject: %v\n%s", err, out.Bytes())
 	}
-	if _, err := os.Stat("users/main_vuka.go"); err != nil || !strings.Contains(out.String(), "wrote users/main_vuka.go") {
+	if _, err := os.Stat(filepath.Join(root, "users/main_vuka.go")); err != nil || !strings.Contains(out.String(), "wrote users/main_vuka.go") {
 		t.Fatalf("vuka eject users/main.vuka: %v\n%s", err, out.String())
 	}
-	if _, err := os.Stat("shapes/main_vuka.go"); err == nil {
+	if _, err := os.Stat(filepath.Join(root, "shapes/main_vuka.go")); err == nil {
 		t.Error("ejecting users/main.vuka wrote shapes' Go too")
 	}
 
 	out.Reset()
-	if err := eject([]string{"-rm", "./..."}, &out); err != nil {
-		t.Fatal(err)
+	if err := vukaIn(root, &out, &out, "eject", "-rm", "./..."); err != nil {
+		t.Fatalf("vuka eject: %v\n%s", err, out.Bytes())
 	}
 	for _, ex := range examples {
 		if !strings.Contains(out.String(), "ejected "+ex+"/main.vuka: "+ex+"/main.go") {
 			t.Errorf("vuka eject -rm doesn't report %s:\n%s", ex, out.String())
 		}
-		if _, err := os.Stat(filepath.Join(ex, "main.vuka")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, ex, "main.vuka")); err == nil {
 			t.Errorf("%s/main.vuka is still there", ex)
 		}
-		if _, err := os.Stat(filepath.Join(ex, "main_vuka.go")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, ex, "main_vuka.go")); err == nil {
 			t.Errorf("%s/main_vuka.go is still there", ex)
 		}
-		src, err := os.ReadFile(filepath.Join(ex, "main.go"))
+		src, err := os.ReadFile(filepath.Join(root, ex, "main.go"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,6 +82,7 @@ func TestEject(t *testing.T) {
 	}
 	for _, args := range [][]string{{"build", "-o", bin, "./..."}, {"vet", "./..."}} {
 		c := exec.Command("go", args...)
+		c.Dir = root
 		if out, err := c.CombinedOutput(); err != nil {
 			t.Fatalf("go %s after vuka eject -rm: %v\n%s", args[0], err, out)
 		}

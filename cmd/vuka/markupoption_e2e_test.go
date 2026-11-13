@@ -60,6 +60,7 @@ type Index struct{}
 // TestMarkupOptionE2E: a served page reads vuka.Options as their values:
 // Some shows the value, None nothing, and never fails the page.
 func TestMarkupOptionE2E(t *testing.T) {
+	t.Parallel()
 	repo, _ := filepath.Abs("../..")
 	web := os.Getenv("VUKA_WEB")
 	if web == "" {
@@ -71,11 +72,10 @@ func TestMarkupOptionE2E(t *testing.T) {
 		"components/badge.vuka.html": optionBadge,
 		"pages/index.vuka.html":      optionIndex,
 	})
-	t.Chdir(root)
 
 	app := filepath.Join(t.TempDir(), "app")
 	var stderr bytes.Buffer
-	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+	if err := vukaIn(root, io.Discard, &stderr, "build", "-o", app, "."); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
 	base, _ := serve(t, root, app)
