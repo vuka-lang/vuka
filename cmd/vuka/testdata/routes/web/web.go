@@ -62,3 +62,5 @@ func ReloadLayout[T any]() RouteOption {
 
 func Request(ctx context.Context) *http.Request { return nil }
 func UseOf(mw any) RouteOption                  { return option{} }
+
+func MountPath(ctx context.Context, p string) string { return p }

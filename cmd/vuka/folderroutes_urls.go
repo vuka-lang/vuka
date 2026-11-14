@@ -123,8 +123,8 @@ func (t *routeTree) urlsStub() []byte {
 	root.prune()
 	root.nameTypes(map[string]bool{"pageURL": true})
 	var b strings.Builder
-	b.WriteString(routesHeading + "package " + urlsDirName + "\n\nvar Root = new" + upperFirst(root.typ) + "(\"\")\n")
-	b.WriteString("\ntype pageURL struct{ path string }\n\nfunc (p pageURL) Path() string { return p.path }\n")
+	b.WriteString(routesHeading + "package " + urlsDirName + "\n\nimport (\n\t\"context\"\n\n\tweb \"github.com/vuka-lang/web/v2\"\n)\n\nvar Root = new" + upperFirst(root.typ) + "(\"\")\n")
+	b.WriteString("\ntype pageURL struct{ path string }\n\nfunc (p pageURL) Path() string { return p.path }\n\nfunc (p pageURL) URL(ctx context.Context) string { return web.MountPath(ctx, p.path) }\n")
 	var walk func(n *urlNode)
 	walk = func(n *urlNode) {
 		taken := map[string]bool{"Path": n.index}
@@ -147,6 +147,7 @@ func (t *routeTree) urlsStub() []byte {
 		fmt.Fprintf(&b, "\nfunc new%s(path string) %s { return %s{%s} }\n", upperFirst(n.typ), n.typ, n.typ, strings.Join(inits, ", "))
 		if n.index {
 			fmt.Fprintf(&b, "\nfunc (u %s) Path() string { return u.path }\n", n.typ)
+			fmt.Fprintf(&b, "\nfunc (u %s) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }\n", n.typ)
 		}
 		for _, c := range n.children {
 			if name := c.name(); c.param && !taken[name] {
@@ -280,6 +281,22 @@ func (t *routeTree) urlsFile() []byte {
 	}
 	collect(root)
 	im := newImports(t.pagesPath+"/"+urlsDirName, nil, append(names, "u", "p", "path", "text", "segs", "seg", "i")...)
+	needURL := false
+	var scanURL func(n *urlNode)
+	scanURL = func(n *urlNode) {
+		if n.index || len(n.pages) > 0 {
+			needURL = true
+		}
+		for _, c := range n.children {
+			scanURL(c)
+		}
+	}
+	scanURL(root)
+	var ctxQ, webQ string
+	if needURL {
+		ctxQ = im.name("context", "context")
+		webQ = im.name("github.com/vuka-lang/web/v2", "web")
+	}
 	var b strings.Builder
 	pageType := false
 	var walk func(n *urlNode)
@@ -321,6 +338,7 @@ func (t *routeTree) urlsFile() []byte {
 				ret = `"/"`
 			}
 			fmt.Fprintf(&b, "\n// Path is the path of %s.\nfunc (u %s) Path() string { return %s }\n", strings.TrimSuffix(what, "/"), n.typ, ret)
+			fmt.Fprintf(&b, "\n// URL is Path carrying the app's mount prefix.\nfunc (u %s) URL(ctx %s.Context) string { return %s.MountPath(ctx, %s) }\n", n.typ, ctxQ, webQ, ret)
 		}
 		for _, c := range n.children {
 			if !c.param {
@@ -351,6 +369,7 @@ func (t *routeTree) urlsFile() []byte {
 	}
 	if pageType {
 		head.WriteString("\n// pageURL is a page's path.\ntype pageURL struct{ path string }\n\n// Path is the page's path.\nfunc (p pageURL) Path() string { return p.path }\n")
+		fmt.Fprintf(&head, "\n// URL is Path carrying the app's mount prefix.\nfunc (p pageURL) URL(ctx %s.Context) string { return %s.MountPath(ctx, p.path) }\n", ctxQ, webQ)
 	}
 	return gofmt(head.String() + b.String())
 }

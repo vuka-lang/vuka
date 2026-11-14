@@ -18,6 +18,9 @@ func TestTemplateReadsContext(t *testing.T) {
 		{"receiver", `<p>{ctx.Title}</p>`, "func (ctx Card) View()", false},
 		{"local", "ctx := \"local\"\n<p>{ctx}</p>", "", false},
 		{"variable", "var ctx string\n<p>{ctx}</p>", "", false},
+		// A block body's apostrophe (in plain text) must not swallow the
+		// holes after it: the ctx read past it is still seen.
+		{"apostrophe before ctx", "if ok {\n<p>Single Window's name</p>\n}\n<a href={u.URL(ctx)}>go</a>", "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := templateReadsContext([]byte(tc.body), tc.header, nil); got != tc.want {

@@ -737,6 +737,15 @@ func goParts(src []byte) string {
 			i++
 			continue
 		}
+		// A block opener — the { ending an if/for/switch/case/func/else
+		// header, already captured whole by goLine above — is not a hole:
+		// its body is markup (text, nested holes), scanned on from here.
+		// Treating it as a hole would run holeEnd into the body's
+		// apostrophes and braces. (A := line is not a block, so its own
+		// trailing hole is still a hole.)
+		if blockOpener.MatchString(text[strings.LastIndexByte(text[:i], '\n')+1 : i]) {
+			continue
+		}
 		end := holeEnd(text, i+1)
 		if end < 0 {
 			break
@@ -773,6 +782,12 @@ func selectorRoots(code string) map[string]bool {
 }
 
 var goLine = regexp.MustCompile(`^\s*(func\s|if\s|for\s|switch\s|case\s|default:|} else|[\w, ]+:=)`)
+
+// blockOpener matches the start of a markup control-flow header whose
+// trailing { opens a body of markup, not a hole: if/for/switch/case/
+// default/else/func. Unlike goLine it leaves out := assignments, which
+// open no block, so a { later on such a line stays a hole.
+var blockOpener = regexp.MustCompile(`^\s*(func\s|if\s|for\s|switch\s|case\s|default:|} else)`)
 
 // holeEnd is the index of the } closing the hole whose Go starts at i, past
 // nested braces and quoted strings; -1 when nothing closes it.
