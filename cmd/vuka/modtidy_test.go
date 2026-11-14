@@ -60,10 +60,11 @@ func requires(mod, path string) bool {
 }
 
 // sameTree fails when running changed the files of the tree, other than
-// go.mod and go.sum.
+// go.mod, go.sum and the keep-file (modkeep_test.go tests that).
 func sameTree(t *testing.T, dir string, before []string) {
 	t.Helper()
-	if after := treeFiles(t, dir); !slices.Equal(before, after) {
+	after := slices.DeleteFunc(treeFiles(t, dir), func(f string) bool { return f == filepath.Join(keepDir, keepName) })
+	if !slices.Equal(before, after) {
 		t.Errorf("the module's files changed:\nbefore %v\nafter  %v", before, after)
 	}
 }

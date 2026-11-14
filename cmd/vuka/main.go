@@ -343,6 +343,9 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if overlay, gens, linkMsg, err = moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
 		return err
 	}
+	if (cmd == "build" || cmd == "install") && len(pkgs) > 0 {
+		syncKeep(root, modPath, pkgs, gens, stderr)
+	}
 	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
 		fmt.Fprintln(stderr, linkMsg)
 	}
