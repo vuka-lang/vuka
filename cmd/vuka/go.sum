@@ -86,6 +86,8 @@ github.com/vuka-lang/ui/v2 v2.19.1-0.20261116064251-6ba792f0570b h1:adw9r1/jxC+v
 github.com/vuka-lang/ui/v2 v2.19.1-0.20261116064251-6ba792f0570b/go.mod h1:9+C3lrfwapfdbCOCf5EM4PcI88il4sWTl2MPR9Ngu/c=
 github.com/vuka-lang/ui/v2 v2.20.0 h1:LvIaEq+EJYKtacqs1zdZShpz5vHyvyC6FbEarP2C9EE=
 github.com/vuka-lang/ui/v2 v2.20.0/go.mod h1:LhH7wnI1SzYhzm/0mYCtJPJ6WknQ0ylg8RXKFDBaecs=
+github.com/vuka-lang/ui/v2 v2.21.0 h1:vAB3LgNNCLAZbLNrWch4HuUofAhOIGtWdxAwkFdnOy8=
+github.com/vuka-lang/ui/v2 v2.21.0/go.mod h1:xDqacSX7DWB6Kcbi87aCDGYKcxZf0TTgpSOKv2eQ82g=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348 h1:8x1CeJOb6kaNQ3rgCC75M2f3bW4b6zBAbZJXhi0F/KQ=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029044028-67e5ce673348/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818 h1:zsu1nUA1Tdw4CAbAMdCFc6WIsu2UusNf/oc5U5qpvBc=
@@ -232,6 +234,8 @@ github.com/vuka-lang/vuka/v2 v2.19.0 h1:+gEM2SwPLSmHA2xMEmGBteajv6VZpDXQCoESqRqx
 github.com/vuka-lang/vuka/v2 v2.19.0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.20.0 h1:c+sfQRb0zgfsk2UeMJaco4hBsOL4Kuoo0p0Y6WVbvws=
 github.com/vuka-lang/vuka/v2 v2.20.0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.21.0 h1:cKiH+2ZaG3TtCuxkgND7Wy1OXuzyEQixdxbhE49Jits=
+github.com/vuka-lang/vuka/v2 v2.21.0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55 h1:tL10drZNfzP/oE8Ee8cDBJ99aq8QP9ef4pvsMbwQqg0=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55/go.mod h1:owktz7Dp3M9s+VTFrfYRnbIetlQ051Lm8KRtsn1m2LI=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105112256-a7ee386c7090 h1:FtuhSkKQt5AnmXsO+TWAqfe3WvwafrKwmZH/w9P2VyQ=
@@ -266,6 +270,8 @@ github.com/vuka-lang/web/v2 v2.19.1-0.20261116034953-7a3a8b43315b h1:9z6HULf+fZ+
 github.com/vuka-lang/web/v2 v2.19.1-0.20261116034953-7a3a8b43315b/go.mod h1:yJMqZHBhx/PlH5Ev7UmfidhfCD1qMrtG13yp0Qm566c=
 github.com/vuka-lang/web/v2 v2.20.0 h1:ivRABPCb2x1hluLtoivWoHB+LcyhcL8N82KZSCHDmKE=
 github.com/vuka-lang/web/v2 v2.20.0/go.mod h1:gt6bTCKPKSY1DPAc4BmLXE86ic1aZj2mwxnjqNaa7C8=
+github.com/vuka-lang/web/v2 v2.21.0 h1:yLJ+GqzoiKdV4MwribKzHcjNS7gaaZcfZAjGwa0nypA=
+github.com/vuka-lang/web/v2 v2.21.0/go.mod h1:Lhd+rxR/nyscClj9PSxxlB6EhQgqXo9MeqCtQPePPB8=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
