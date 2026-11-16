@@ -152,6 +152,7 @@ func main() {
 		// For lsp too: the protocol runs over stdin and stdout, and the
 		// editor shows a server's stderr in its log.
 		warnCompilerAge(os.Stderr)
+		warnStaleToolchain(os.Stderr)
 	}
 	switch cmd {
 	case "build", "run", "test", "vet", "install":

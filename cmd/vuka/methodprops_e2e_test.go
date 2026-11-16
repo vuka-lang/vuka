@@ -281,6 +281,7 @@ func TestMethodPropsE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
+	out = withoutStaleToolchain(out)
 	if string(out) != mpWant {
 		t.Errorf("got:\n%s\nwant:\n%s", out, mpWant)
 	}
