@@ -4,7 +4,12 @@
 // folder: urls.Orgs.Org(7).Edit.Path().
 package urls
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/web/v2"
+)
 
 // Root is the folder pages/.
 var Root = newRootURL("")
@@ -19,6 +24,9 @@ type pageURL struct{ path string }
 
 // Path is the page's path.
 func (p pageURL) Path() string { return p.path }
+
+// URL is Path carrying the app's mount prefix.
+func (p pageURL) URL(ctx context.Context) string { return web.MountPath(ctx, p.path) }
 
 // rootURL is the folder pages/.
 type rootURL struct {
@@ -51,6 +59,9 @@ func newAdminURL(path string) adminURL {
 // Path is the path of the folder pages/admin.
 func (u adminURL) Path() string { return u.path }
 
+// URL is Path carrying the app's mount prefix.
+func (u adminURL) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }
+
 // adminAuthURL is the folder pages/admin/auth/.
 type adminAuthURL struct {
 	path  string
@@ -74,6 +85,9 @@ func newAdminUsersURL(path string) adminUsersURL { return adminUsersURL{path: pa
 // Path is the path of the folder pages/admin/users.
 func (u adminUsersURL) Path() string { return u.path }
 
+// URL is Path carrying the app's mount prefix.
+func (u adminUsersURL) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }
+
 // ID is pages/admin/users/[id], for its parameter.
 func (u adminUsersURL) ID(id int) adminUsersIDURL {
 	return newAdminUsersIDURL(u.path + "/" + strconv.Itoa(id))
@@ -88,3 +102,6 @@ func newAdminUsersIDURL(path string) adminUsersIDURL { return adminUsersIDURL{pa
 
 // Path is the path of the parameter pages/admin/users/[id].
 func (u adminUsersIDURL) Path() string { return u.path }
+
+// URL is Path carrying the app's mount prefix.
+func (u adminUsersIDURL) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }
