@@ -1,0 +1,19 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+// List has a statement in its markup: no block of it is guarded, though its
+// loop reads only tracked state.
+type List struct {
+	ui.Live
+	rows []string
+}
+
+func (l *List) Add(s string) { l.rows = append(l.rows, s) }
+<ul>
+  n := len(rows)
+  for _, r := range rows {
+    <li>{r}</li>
+  }
+  <li>{n}</li>
+</ul>

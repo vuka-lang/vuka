@@ -85,6 +85,13 @@ func On(fn any) any {
 
 func String(ctx context.Context, n Node) (string, error) { return ui.String(ctx, n) }
 
+// Guard and GuardNode build a guarded block's nodes when called: the
+// golden cases see what the compiler guarded and with what, not what a
+// session keeps.
+func Guard(site uint64, nodes func() []Node, deps ...any) Node { return ui.Group(nodes()) }
+
+func GuardNode(site uint64, node func() Node, deps ...any) Node { return node() }
+
 // HTML is ui's, its attribute holes written as attribute sets so a binding
 // can write two attributes.
 func HTML(src string, args ...any) Node {

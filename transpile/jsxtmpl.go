@@ -813,6 +813,7 @@ var (
 // setting a ui.Node — and returns the variable.
 func (w *jsxWriter) block(n *jsxBlock) string {
 	q := w.q
+	g := w.guardOf(n)
 	outer := w.inBlock
 	w.inBlock = true
 	defer func() { w.inBlock = outer }()
@@ -834,6 +835,9 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 		defer func() { w.streaming, w.inLoop = streaming, inLoop }()
 		name := w.varName(lowerFirst(w.nodesName(firstBody(n))) + "s")
 		w.stmts(func() {
+			if g != nil {
+				w.guardOpen(g, name, "[]"+q+"Node")
+			}
 			w.gen("var " + name + " []" + q + "Node\n")
 			w.keep(n.heads[0])
 			if len(n.bodies[0]) > 0 {
@@ -843,12 +847,18 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 				w.gen(")")
 			}
 			w.gen("\n}\n")
+			if g != nil {
+				w.guardClose(g, name)
+			}
 		})
 		return name
 	}
 	// A branch picks one Node: the block is that Node, nil when none.
 	name := w.varName(lowerFirst(w.nodesName(firstBody(n))))
 	w.stmts(func() {
+		if g != nil {
+			w.guardOpen(g, name, q+"Node")
+		}
 		w.gen("var " + name + " " + q + "Node\n")
 		body := func(ns []jsxNode) {
 			if len(ns) > 0 {
@@ -891,6 +901,9 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 			w.gen("}")
 		}
 		w.gen("\n")
+		if g != nil {
+			w.guardClose(g, name)
+		}
 	})
 	return name
 }

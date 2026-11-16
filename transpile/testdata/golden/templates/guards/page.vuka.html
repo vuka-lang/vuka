@@ -1,0 +1,69 @@
+package main
+
+import (
+	"fmt"
+	"strconv"
+	"time"
+
+	ui "vukatest.local/stateui"
+)
+
+// Page's loops and branches are guarded when they read only tracked state
+// and props that compare: each says below why it is or isn't.
+type Page struct {
+	ui.Live
+	Title  string
+	Limit  int
+	Tags   []string
+	Clock  *Clock
+	rows   []Row
+	open   bool
+	note   string
+	cache  []string `vuka:"-"`
+}
+
+func (p *Page) Add(name string) { p.rows = append(p.rows, Row{ID: len(p.rows), Name: name}) }
+func (p *Page) Drop(id int)     { p.rows = p.rows[:0] }
+func (p *Page) count() int      { return len(p.rows) }
+func (p *Page) shown() string   { return p.note + " " + strconv.Itoa(p.count()) }
+func (p *Page) stamp() string   { return time.Now().Format("15") }
+func (p *Page) mark() string    { p.note = "seen"; return "" }
+<main>
+  <h1>{Title}</h1>
+  {/* guarded: rows, the Limit prop; strconv and fmt.Sprintf are pure */}
+  <ul>
+    for _, r := range rows {
+      <li key={r.ID} onClick={func() { p.Drop(r.ID) }}>{r.Name} {strconv.Itoa(r.ID)} {fmt.Sprintf("%d", Limit)}</li>
+    }
+  </ul>
+  {/* guarded: open, and note and rows through methods of the page */}
+  if open {
+    <p>{shown()}</p>
+  } else {
+    <p>closed</p>
+  }
+  {/* not: a slice prop */}
+  for _, t := range Tags {
+    <b>{t}</b>
+  }
+  {/* not: a field tagged vuka:"-" */}
+  for _, c := range cache {
+    <i>{c}</i>
+  }
+  {/* not: a pointer prop */}
+  if Clock != nil {
+    <p>{Clock.Zone}</p>
+  }
+  {/* not: time.Now isn't pure */}
+  if open {
+    <p>{stamp()}</p>
+  }
+  {/* not: mark writes state */}
+  if open {
+    <p>{mark()}</p>
+  }
+  {/* not: a component's tag */}
+  for _, r := range rows {
+    <Badge label={r.Name}/>
+  }
+</main>

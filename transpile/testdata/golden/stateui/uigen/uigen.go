@@ -21,6 +21,7 @@ func (a *Assign[T]) Get() T             { return a.v }
 func (a *Assign[T]) Set(v T)            { a.v, a.n = v, a.n+1 }
 func (a *Assign[T]) Update(f func(T) T) { a.v, a.n = f(a.v), a.n+1 }
 func (a *Assign[T]) Writes() int        { return a.n }
+func (a *Assign[T]) Version() uint64    { return uint64(a.n) }
 
 func UseState[T any](initial T) stateui.State[T] { return stateui.GenState("", false, initial) }
 func UsePageState[T any](initial T) stateui.State[T] {

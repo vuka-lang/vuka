@@ -717,6 +717,49 @@ A click in one row of a thousand renders that row only. Markup must read
 nothing but props, tracked fields and `vuka:"-"` fields that don't change
 its output; [verification](/ui/live#verification) catches one that does.
 
+### Loops and Branches That Didn't Change {#guarded-blocks}
+
+Inside a render, a loop or branch keeps its last frame when nothing it reads
+changed. The title changing doesn't render the rows again:
+
+```html
+<h1>{title}</h1>
+<table>
+  {/* kept unless rows changed */}
+  for _, r := range rows {
+    <tr key={r.ID}><td>{r.Name}</td><td>{strconv.Itoa(r.Qty)}</td></tr>
+  }
+</table>
+```
+
+The compiler guards a loop or branch when everything it reads is something
+it can see: tracked fields, props that are a number, a string or a bool,
+the loop's own variables, constants, builtins like `len`, conversions,
+`strconv`, `strings`, `unicode`, `math` and `fmt.Sprint` functions, and
+functions and methods of the package doing the same — `{total()}` reading
+`rows` is guarded by `rows`. A handler (`onClick={func() { … }}`, a method
+value) runs later, so only what it captures counts. Anything else leaves
+that block to render with the rest of the render:
+
+- a field that isn't tracked (a dependency, a field tagged `` `vuka:"-"` ``),
+  or a prop that's a slice, map, pointer, func or interface;
+- a variable from outside the block, or any statement in the markup;
+- calling another function or method, such as `time.Now()`, or one that
+  writes state;
+- a component's tag, or a block inside a loop.
+
+A guarded block reading only tracked state is kept even in a component
+with a plain field, which renders again at every event: only what reads
+the plain field renders.
+
+The session keeps a block's frame and its handlers, and diffs a kept frame
+by identity, so a kept table of a thousand rows costs little more than the
+rest of the render ([numbers](/ui/live#numbers)). A block that renders a
+stateful component, a form, a state, a lazy or Temporary region, a stream
+or a library's random id renders every time, as does one inside a `key`.
+[Verification](/ui/live#verification) renders kept blocks too and fails
+when one differs.
+
 ### Where Its Methods Live {#where-its-methods-live}
 
 A shape's methods may sit in its header or in a `.vuka` file of the same
