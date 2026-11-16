@@ -28,7 +28,8 @@ vuka mod why|vendor|graph|… [args]
 vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
-vuka gen [-check] [-code-only] [-o build]
+vuka gen [-code-only] [-o build]
+vuka gen -check [dir | dir/...]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka | file.vuka.html
@@ -462,6 +463,12 @@ and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
 
+`vuka gen -check` keeps those files honest in CI: it writes nothing and
+fails when a generated file in the source tree is out of date with its
+`.vuka` source; `vuka gen -inplace -check` also fails when one is missing.
+It never looks at [`build/`](/guide/how-it-works#the-build-module), which
+is the build's output.
+
 Rendering remains authored in shape files. Page registrations are generated
 from `pages/`, while services are explicitly registered on the app. Use
 `vuka explain` to inspect lowering rather than copying generated rendering
@@ -778,6 +785,20 @@ command's version and the vuka it compiles with; `-n` prints the go commands ins
 an app (build, run, test, vet, install, gen, eject, explain, routes, graphql,
 build-islands, lsp) warn once, on stderr, when it is older than the vuka the app's go.mod
 requires ([The command's compiler](/project/versions#command-compiler)).
+
+They also warn when the workspace points at a local copy of the compiler — a `go.work`
+`use` of a vuka checkout, or a directory `replace` of `github.com/vuka-lang/vuka/v2` or
+`github.com/vuka-lang/vuka/cmd/vuka/v2` in go.work or the app's go.mod — while the
+command was built from the published module. Edits to that copy don't reach the command,
+since the compiler is part of it:
+
+```text
+warning: this vuka command was built with the published github.com/vuka-lang/vuka/v2 v2.19.0, not the local copy this workspace points at; its edits aren't in this run: go run github.com/vuka-lang/vuka/cmd/vuka/v2 from here (or rebuild the command from the local source)
+```
+
+Run the command with `go run github.com/vuka-lang/vuka/cmd/vuka/v2` from inside the
+workspace, which builds it from the local copy. A local copy of ui or web needs no
+warning: it reaches the app through the app's own build.
 
 ## Releasing {#release}
 

@@ -678,6 +678,65 @@ markup — a `<section id="orders">` around the table — the page, with the
 components it renders, its state still kept. Give the part a component of
 its own, as the table above, to keep the render small.
 
+### Rendering a Region in the Same Reply {#reload-in-reply}
+
+The command above has the browser ask for the region once the reply has
+arrived: a second round trip. When the server already knows the region
+must render again — an event's handler changed what it lists, a broadcast
+told the page — `Reload("#id")` called on the component (the method its
+`ui.Live` gives it) carries the region's render in the reply itself:
+
+```html
+<script lang="go">
+package orders
+
+import (
+    "context"
+    "example.com/app/components"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Board struct {
+    ui.Live
+    orders *services.Orders
+}
+
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error {
+    b.Subscribe("orders")
+    return nil
+}
+
+func (b *Board) ShipPaid(ctx context.Context) error {
+    if err := b.orders.ShipPaid(ctx); err != nil {
+        return err
+    }
+    b.Reload("#orders")
+    return nil
+}
+
+func (b *Board) Update(m services.OrderPlaced) {
+    b.Reload("#orders")
+}
+</script>
+
+<button onClick={ShipPaid}>Ship paid orders</button>
+<components.OpenOrders />
+```
+
+`OpenOrders` takes no props and reads the open orders from its service as
+it renders, into a `<table id="orders">`; nothing in the page's state says
+it changed. `Reload("#orders")` renders the instance whose last render has
+the element with that id — the table here — again, with the components
+inside it, each mounted as it is, and the reply carries what changed: no
+command is pushed and no request follows. It works from an event's handler
+and from an `Update`, which has no event from the browser to answer.
+
+An id the instance's last render doesn't have falls back to the
+browser-side `Reload("#id")`, which reports it in development. `Reload`
+takes one `"#id"`; anything else panics. Without a session it does nothing.
+
 ## Server Patches {#server-patches}
 
 A patch reconciles server output with the browser. Stable keys preserve logical

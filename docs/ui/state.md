@@ -143,6 +143,25 @@ them as before, its transitions its own:
 - **An error** rendering the content shows in the region, not as the
   page's error.
 
+`seen` also waits for the region to scroll near the viewport: the content
+renders the first time the browser sees it, not as soon as the page shows
+it far below the fold. This footer's recent orders cost nothing on a visit
+that never scrolls down to them, on live pages and pages that aren't live
+alike:
+
+```html
+<footer>
+  <ui.Lazy when={true} seen>
+    <RecentOrders userID={UserID}/>
+  </ui.Lazy>
+</footer>
+```
+
+In Go it is `ui.Lazy(ui.LazyProps{When: true, Seen: true, Children: …})`.
+A browser without `IntersectionObserver` asks as soon as the region shows,
+so the content loads as it would without `seen` rather than never. It is
+what [`WhenSeen`](/ui/stateful#when-seen) is to a deferred field group.
+
 Regions nest: one inside another asks for its content once the outer one
 has rendered it and it shows. `lazy` on a component without `show`, or
 with a value other than `"each"`, is [E0106](/errors/E0106).

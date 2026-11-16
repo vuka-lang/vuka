@@ -426,35 +426,84 @@ From Go, `web.FullLoad()` is a route option, and
 
 ## Prefetching Pages {#prefetch}
 
-A link the browser will load as a page (a `ui.Link` on a page without a
-live connection) is fetched ahead when the pointer rests on it for a
-moment, when it gets the focus, or when a finger touches it, so it opens
-at once. On a page that isn't live the runtime fetches the navigation's
-reply itself, at most three at a time, and a click within 30 seconds uses
-it instead of asking again.
+A link is made ready before it is clicked when the pointer rests on it
+for a moment, when it gets the focus, or when a finger touches it, so the
+next page shows at once. `prefetch="viewport"` does it as soon as the link
+scrolls into view, for the one link a page is mostly followed by;
+`prefetch="off"` never does. An ordinary `<a>` opts in with
+`data-vk-prefetch` (or `data-vk-prefetch="viewport"`).
 
-`prefetch="viewport"` fetches it as soon as it scrolls into view, for the
-one link a page is mostly followed by; `prefetch="off"` never does. An
-ordinary `<a>` opts in with `data-vk-prefetch` (or
-`data-vk-prefetch="viewport"`).
+Only same-origin links to another page are made ready: never a link with
+`download` or a `target`, another origin, or when the visitor's browser
+asks to save data.
 
-Only same-origin links to another page are fetched, with `GET`: never a
-link with `download` or a `target`, another origin, or when the visitor's
-browser asks to save data. The browser keeps the response for the
-navigation and drops it after 30 seconds.
+### On a Live Page {#prefetch-on-a-live-page}
+
+On a live page, hovering or focusing a `ui.Link` to another page (not a
+`patch` or `reload` link) renders that page ahead over the connection: the server runs its route, with its
+middleware and gates, and renders the page in a session of its own, its
+mount hook included. The click then takes that render: the route and the
+mount hook don't run again, and the page arrives as its mount hook left it,
+live. This list's titles open each order with no wait for its query:
+
+```html
+<ul>
+  for _, o := range orders {
+    <li key={o.ID}><ui.Link href={"/orders/" + o.Number}>{o.Number}</ui.Link></li>
+  }
+</ul>
+```
+
+- **What runs at the hover.** The route and the page's mount hook. The
+  page's [deferred fields](/ui/stateful#deferred-fields) don't start
+  loading: they start once the page is opened, as they do without a
+  hover. A stream the mount hook fills arrives with the page.
+- **How many.** A connection holds at most three pages rendered ahead, each
+  for 30 seconds. `prefetch="viewport"` renders the whole page too, as a
+  hover does.
+- **When the render isn't used.** A page rendered ahead is dropped, its
+  components unmounted, when its 30 seconds run out, when the visitor goes
+  to another page, when the connection ends, and when a
+  [broadcast](/web/live#broadcasts) reaches a topic it subscribed to. The
+  click then mounts the page as it would without a hover. The click mounts
+  it too when the visitor is no longer who hovered, when a `LiveCheck`
+  fails, or when a message was flashed since the hover. A route that
+  redirects or doesn't answer with a page holds nothing: the click takes
+  the usual path.
+- **Messages.** The render ahead reads a copy of the connection's
+  [context processor](/web/context-processors) state: a flash message it
+  shows appears with the page the click opens, once, and the page on
+  screen shows nothing of it.
+- **Turning it off.** `web.LiveAdopt(0)` (the option that also stops a
+  join from adopting the session its page's request mounted) renders
+  nothing ahead: a hover only runs the route, and the click mounts the
+  page.
+
+> [!WARNING]
+> A hover runs the page's mount hook for a page the visitor may never
+> open. Keep the mount hook to reading what the page shows; leave writes
+> (marking an order as seen, counting a view) to an event or the page's
+> `Update`.
+
+The [toolbar](/web/toolbar) shows a page opened from a hover with the route
+run and the render that happened at the hover.
+
+### On a Page That Isn't Live {#prefetch-on-a-page-that-isnt-live}
+
+A link the browser will load as a page is fetched with `GET`. On a page
+that isn't live the runtime fetches the navigation's reply itself, at most
+three at a time, and a click within 30 seconds uses it instead of asking
+again. Other links are left to the browser, which keeps the response for
+the navigation and drops it after 30 seconds.
 
 > [!WARNING]
 > The request carries `Sec-Purpose: prefetch`, but it is the page's
 > ordinary render, so a page's `GET` must be safe to run without the visitor
 > seeing it.
 
-A live page's session doesn't start on a prefetch: what it mounts waits,
+A live page's session doesn't start on such a fetch: what it mounts waits,
 parked, for the page to open, and its connection joins then, without
 mounting again. Its mount hook runs once, however the page was reached.
-
-A link that moves a live page over its connection isn't fetched: the
-server runs its route when it is followed and sends only what changed below
-the layouts the pages share.
 
 ## Moving the Page from the Server and from Commands {#from-the-server-and-from-commands}
 
@@ -595,6 +644,78 @@ analytics script:
 ```js
 addEventListener("vk:navigate", (e) => analytics.page(e.detail.url));
 ```
+
+### Animating Page Changes {#view-transitions}
+
+A move to another page can crossfade instead of swapping at once.
+`data-vk-transitions` on the root layout's `<html>` runs each navigation
+to another page through the browser's View Transitions API:
+
+```html
+<html lang="en" data-vk-transitions>
+```
+
+The old page fades into the new one, and an element given the same CSS
+`view-transition-name` on both pages morphs from one to the other, with no
+script of your own. This rule moves a product's picture from the list to
+its page:
+
+```css
+.product-photo { view-transition-name: product-photo }
+::view-transition-group(*) { animation-duration: .2s }
+```
+
+Only moves that change the page animate: a navigation over the connection,
+one over HTTP on a page that isn't live, and back and forward between
+pages. A patch, a reload and a page load don't. Without the API, or when
+the visitor asks for reduced motion, the page changes at once, as it does
+without the attribute.
+
+### Showing a Visited Page at Once {#snapshots}
+
+Back and forward to a page you came from show it at once. The page a
+navigation leaves is kept as it looks — its markup, title and scroll — and
+going back or forward to it shows that copy while the server renders the
+page; the fresh render then morphs in over it, as any navigation's does.
+The ten most recent pages are kept.
+
+While the copy shows, `<html>` carries `data-vk-preview`, a CSS hook for
+marking it as not yet current:
+
+```css
+html[data-vk-preview] main { opacity: .85 }
+```
+
+- **Submits are held.** A form in the copy is the page as it was, its
+  fields and tokens a render the server no longer has: a submit while the
+  copy shows is dropped, the fresh render a moment away.
+- **What isn't kept.** A page with a [stream](/web/streams) is never kept,
+  since its rows are the browser's; nor is a page whose markup is over
+  1MB. A value shown with [`ui.ShowOnce`](/web/live#show-once) is kept
+  empty.
+- **On every navigation.** `data-vk-snapshots` on `<html>` shows a kept
+  page for links to it too, not only for back and forward.
+- **Opting out.** `data-vk-no-snapshot` on `<html>` or `<body>` keeps no
+  copies: back and forward wait for the server, as before.
+
+The copy is only what the visitor sees first: the connection, its token
+and the navigation go on as they would without it.
+
+### The Back/Forward Cache {#bfcache}
+
+Live pages stay eligible for the browser's back/forward cache, so leaving
+the site and coming back with the back button restores the page as it was
+instead of loading it again. The runtime closes the page's connection as
+the page is hidden, and connects again at once when the browser shows it
+from the cache, as a [reconnect](/web/live#connections-and-reconnects):
+the page joins a fresh session and its render morphs into what the cache
+kept. A page whose token expired meanwhile
+[recovers in place](/web/live#recovering-in-place).
+
+The runtime listens for `beforeunload` only while a form with
+`data-vk-confirm-leave` is on the page, since that listener keeps a page
+out of some browsers' cache. Under `vuka run`, the development socket keeps
+pages out of the cache.
 
 ## When a Link Loads a Page {#when-it-s-a-page-load}
 
