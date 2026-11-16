@@ -178,6 +178,19 @@ two protocol versions:
 | — the same rows with plain state | 182 / 1.66 ms | 63 / 2.9 ms |
 | a page of 100 counters, one clicked: bytes / time | 154 / 65 µs | 62 / 102 µs |
 
+Guarded blocks, v2 only, measured on a busier machine than the table above
+(main's 1000-row table took 2.25 ms there): `BenchmarkGuardTable`, a
+1000-row table in one component under a title.
+
+| | guarded | unguarded |
+|---|---|---|
+| the title changes: bytes / time | 65 / 27 µs | 63 / 2.2 ms |
+| a cell changes, so the rows render: bytes / time | 89 / 2.3 ms | 89 / 2.1 ms |
+
+A kept block costs the comparison of its deps and nothing for its rows: the
+diff skips the kept frame by identity. A block that renders again costs a
+walk of what it built, to see that it can be kept, about 5–10% of its render.
+
 A v2 render builds a tree instead of a string, so a component that renders
 again costs about 1.5× the CPU of v1; skipping tracked components is what makes large
 pages cheap, and v2 makes the replies small.
