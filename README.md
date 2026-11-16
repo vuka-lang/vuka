@@ -417,8 +417,9 @@ cd build && go build ./... && go test ./... && go vet ./...
 The sync is incremental (only changed files are written, deleted sources are
 removed), compile errors in `build/` point at the `.vuka` lines, and a
 `.vuka-build` marker means vuka never syncs over a directory it didn't make.
-`vuka new` adds `/build/` to `.gitignore`. `vuka gen -check` fails when
-`build/` is out of date, for CI.
+`vuka new` adds `/build/` to `.gitignore`. `build/` is output, so
+`vuka gen -check` never looks at it: it fails when a generated file in the
+source tree is out of date, for CI.
 
 ## Roadmap
 

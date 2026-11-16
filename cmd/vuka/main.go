@@ -69,10 +69,14 @@ Usage:
 	        frontend's build, for //go:embed: //go:generate go tool vuka build
 	        -islands; -watch keeps them built for web.Dev. vuka build-islands
 	        is the deprecated name
-	vuka gen [-check] [-o build]
+	vuka gen [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
+	vuka gen -check [dir | dir/...]
+	        fail if a generated file in the source tree is stale; build/ is
+	        output and never checked
 	vuka gen -inplace [-check] [dir | dir/...]
-	        write the generated Go beside each .vuka file instead
+	        write the generated Go beside each .vuka file instead; -check
+	        also fails when one is missing
 	vuka eject [-rm] [file.vuka… | dir | dir/...]
 	        gen -inplace for the files or packages named; -rm deletes each
 	        .vuka file and keeps its Go (x.go) as the source, building with
@@ -693,20 +697,22 @@ func sameFile(a, b string) bool {
 // gen writes the build/ module: the module with each .vuka file replaced by
 // its generated Go, which plain Go tools build. -inplace writes the generated
 // files beside the .vuka files instead. With -check it writes nothing and
-// fails if anything is out of date. -code-only leaves out what only serving
-// pages needs (stylesheets, scripts, islands, static files), for tools that
-// build the program to run something else, such as the ORM's migrations.
+// fails if a generated file in the source tree is out of date (build/ is the
+// build's output, never checked); with -inplace, if one is missing too.
+// -code-only leaves out what only serving pages needs (stylesheets,
+// scripts, islands, static files), for tools that build the program to run
+// something else, such as the ORM's migrations.
 func gen(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("gen", flag.ContinueOnError)
-	check := fs.Bool("check", false, "report generated files that are missing or stale, write nothing")
+	check := fs.Bool("check", false, "report generated files in the source tree that are stale (and, with -inplace, missing), write nothing")
 	inplace := fs.Bool("inplace", false, "write each generated file beside its .vuka file instead of the build module")
 	out := fs.String("o", "build", "the build module's directory, relative to the module root")
 	codeOnly := fs.Bool("code-only", false, "leave out stylesheets, scripts, islands and static files: for a tool that runs the program without serving pages")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if !*inplace {
-		return genModule(*out, *check, *codeOnly, stdout)
+	if !*inplace && !*check {
+		return genModule(*out, *codeOnly, stdout)
 	}
 	patterns := fs.Args()
 	if len(patterns) == 0 {
@@ -719,7 +725,7 @@ func gen(args []string, stdout io.Writer) error {
 	stale := 0
 	for _, f := range files {
 		old, err := os.ReadFile(f.Target)
-		if err == nil && bytes.Equal(old, f.Src) {
+		if err == nil && bytes.Equal(old, f.Src) || err != nil && !*inplace {
 			continue
 		}
 		rel, _ := filepath.Rel(root, f.Target)
@@ -737,7 +743,7 @@ func gen(args []string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, "wrote", rel)
 	}
 	if stale > 0 {
-		return fmt.Errorf("%d generated file(s) out of date; run vuka gen", stale)
+		return fmt.Errorf("%d generated file(s) out of date; run vuka gen -inplace", stale)
 	}
 	return nil
 }
@@ -898,7 +904,7 @@ func relativeLines(src []byte, dir, target string) []byte {
 	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+to))
 }
 
-func genModule(out string, check, codeOnly bool, stdout io.Writer) error {
+func genModule(out string, codeOnly bool, stdout io.Writer) error {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
@@ -942,23 +948,11 @@ func genModule(out string, check, codeOnly bool, stdout io.Writer) error {
 	if !filepath.IsAbs(out) {
 		out = filepath.Join(root, out)
 	}
-	res, err := load.Mirror(root, out, gens, check)
+	res, err := load.Mirror(root, out, gens, false)
 	if err != nil {
 		return err
 	}
 	rel, _ := filepath.Rel(root, out)
-	if check {
-		for _, f := range res.Written {
-			fmt.Fprintln(stdout, "stale:", filepath.Join(rel, f))
-		}
-		for _, f := range res.Removed {
-			fmt.Fprintln(stdout, "extra:", filepath.Join(rel, f))
-		}
-		if n := len(res.Written) + len(res.Removed); n > 0 {
-			return fmt.Errorf("%s is out of date (%d file(s)); run vuka gen", rel, n)
-		}
-		return nil
-	}
 	fmt.Fprintf(stdout, "%s: %d written, %d removed\n", rel, len(res.Written), len(res.Removed))
 	return nil
 }

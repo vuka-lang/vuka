@@ -71,7 +71,8 @@ cd build && go build ./... && go test ./... && go vet ./...
 ```
 
 The sync is incremental, and compile errors there still point at your `.vuka`
-lines. `vuka gen -check` fails in CI when it is out of date.
+lines. `build/` is output: `vuka gen -check` doesn't check it, only the
+generated files in your source tree.
 
 ## Tracking Go
 
