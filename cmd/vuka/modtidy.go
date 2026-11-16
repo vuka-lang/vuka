@@ -37,8 +37,14 @@ mod tidy in a temporary copy of the module holding that Go as files, and
 copies back go.mod and go.sum alone: nothing generated is written to the
 module. It prints the requirements it added and removed.
 
-	-check   change nothing: exit 1 when go.mod or go.sum isn't tidy
-	         (for CI), saying what vuka mod tidy would change
+It also writes vukakeep/vukakeep.go, a file under a build tag nothing sets
+(so the binary never holds it) that blank-imports the external packages
+only .vuka files import. A plain go mod tidy reads it, and so keeps those
+requirements instead of dropping them. vuka build keeps it current too; it
+is not written where no such package exists.
+
+	-check   change nothing: exit 1 when go.mod, go.sum or the keep-file
+	         isn't tidy (for CI), saying what vuka mod tidy would change
 	-e, -v, -go, -compat
 	         go mod tidy's own flags (go help mod tidy)
 
@@ -123,20 +129,36 @@ func modTidy(args []string, stdout, stderr io.Writer) error {
 	if res.ormByGoRun() {
 		fmt.Fprintln(stderr, "vuka mod tidy: note: the build runs the orm's tool (for the models' typed fields) with go run, whose go.sum entries tidy drops;\n  go get -tool "+ormModule+"/cmd/orm declares it, and they are kept")
 	}
+	stale, err := keepStale(root, res.keep)
+	if err != nil {
+		return errors.Join(err, restore())
+	}
 	if *check {
-		if !res.changed() {
+		if !res.changed() && !stale {
 			return nil
 		}
-		what := "go.mod and go.sum aren't"
-		switch {
-		case bytes.Equal(res.oldMod, res.newMod):
-			what = "go.sum isn't"
-		case bytes.Equal(res.oldSum, res.newSum):
-			what = "go.mod isn't"
+		if res.changed() {
+			what := "go.mod and go.sum aren't"
+			switch {
+			case bytes.Equal(res.oldMod, res.newMod):
+				what = "go.sum isn't"
+			case bytes.Equal(res.oldSum, res.newSum):
+				what = "go.mod isn't"
+			}
+			fmt.Fprintf(stderr, "vuka mod tidy -check: %s tidy\n", what)
+			for _, c := range changes {
+				fmt.Fprintln(stderr, "\t"+c)
+			}
 		}
-		fmt.Fprintf(stderr, "vuka mod tidy -check: %s tidy\n", what)
-		for _, c := range changes {
-			fmt.Fprintln(stderr, "\t"+c)
+		if stale {
+			what := "is missing"
+			switch {
+			case res.keep == nil:
+				what = "is no longer needed"
+			case fileExists(keepPath(root)):
+				what = "is out of date"
+			}
+			fmt.Fprintf(stderr, "vuka mod tidy -check: %s/%s %s; vuka mod tidy writes it\n", keepDir, keepName, what)
 		}
 		return exitStatus(1)
 	}
@@ -146,7 +168,7 @@ func modTidy(args []string, stdout, stderr io.Writer) error {
 	for _, c := range changes {
 		fmt.Fprintln(stdout, c)
 	}
-	return nil
+	return writeKeep(root, res.keep, stdout)
 }
 
 // tidyResult is a go mod tidy run in a copy of the module.
@@ -159,7 +181,8 @@ type tidyResult struct {
 	oldSum, newSum []byte
 	hadSum, hasSum bool
 	gens           []load.Generated
-	transpileErr   error // the module didn't all transpile: tidy read the imports of what didn't
+	transpileErr   error  // the module didn't all transpile: tidy read the imports of what didn't
+	keep           []byte // the keep-file the module's .vuka imports call for; nil: none
 }
 
 func (r *tidyResult) changed() bool {
@@ -382,6 +405,9 @@ func tidyPass(root, modPath string, tidyArgs []string, stderr io.Writer) (*tidyR
 	}
 	gens, overlay, terr := tidyTranspile(root, modPath, pkgs, filepath.Join(tmp, "gen"))
 	res.gens, res.transpileErr = gens, terr
+	if res.keep, err = keepSource(root, modPath, pkgs, gens); err != nil {
+		return nil, err
+	}
 
 	copyDir, err := tidyCopyDir(tmp, res.oldMod)
 	if err != nil {
@@ -577,6 +603,9 @@ func copyModule(root, dst string, mod []byte, overlay string) error {
 		}
 		if _, ok := replace[path]; ok {
 			return nil // the overlay's, below
+		}
+		if isKeepFile(root, path) {
+			return nil // the copy is tidied without it: a stale one would keep what nothing imports
 		}
 		return copyFile(path, filepath.Join(dst, strings.TrimPrefix(path, root)))
 	})
