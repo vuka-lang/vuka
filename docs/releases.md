@@ -21,6 +21,117 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.20.0 — 2026-11-16
+
+### Live pages: navigation
+
+- **The next page renders on hover.** On a live page, resting on or
+  focusing a `ui.Link` renders the page it leads to ahead of time, its
+  components' Mount included, and the click shows that render
+  ([web#109](https://github.com/vuka-lang/web/issues/109),
+  [ui#101](https://github.com/vuka-lang/ui/issues/101)). A flash or a
+  broadcast between hover and click, another identity or a failed check
+  drops it; at most three are held, for 30 seconds. `web.LiveAdopt(0)`
+  turns it off. A `prefetch="viewport"` link now mounts its whole page.
+- **View Transitions** ([web#114](https://github.com/vuka-lang/web/issues/114)).
+  With `<html data-vk-transitions>`, a navigation that changes the page
+  runs inside the browser's View Transitions API; a patch of the same page
+  doesn't.
+- **Back and forward paint at once**
+  ([web#115](https://github.com/vuka-lang/web/issues/115)). The last ten
+  pages visited are kept as snapshots; back or forward shows one under
+  `data-vk-preview` while the fresh render arrives, then morphs it in.
+  `data-vk-snapshots` keeps them for every navigation, `data-vk-no-snapshot`
+  opts a page out.
+- **Live pages enter the back/forward cache**
+  ([web#124](https://github.com/vuka-lang/web/issues/124)). The socket
+  closes on `pagehide` and rejoins on `pageshow`; `beforeunload` is set
+  only while a form asks to confirm leaving, where before it kept every
+  page out of the cache.
+- **Keyed reorders apply as moves**
+  ([web#116](https://github.com/vuka-lang/web/issues/116)): reordering a
+  keyed list takes 1–3 ms instead of 11–15 ms. A name clash in the runtime
+  that could blank a list on the fallback path is fixed.
+
+### Live pages: loading and memory
+
+- **Deferred groups load when seen**
+  ([web#113](https://github.com/vuka-lang/web/issues/113)).
+  `@ui.Defer("comments").WhenSeen()` loads a group once its fallback
+  scrolls into view; `ui.Skeleton{For: "comments"}` is a placeholder for
+  it. Without IntersectionObserver the group loads at once.
+- **`ui.Lazy` waits to be seen** and **a region renders in the same reply**
+  ([web#119](https://github.com/vuka-lang/web/issues/119)). `Seen: true`
+  renders a lazy region the first time it scrolls into view, on live pages
+  and others. `Reload("#id")` from a handler or an `Update` puts that
+  region's render in the reply being built, with no second round trip.
+- **Deferred parts stream into the first response**
+  ([web#123](https://github.com/vuka-lang/web/issues/123)). The shell is
+  sent first and each part follows in the same response as it finishes,
+  when the request is a document load and the CSP allows inline scripts.
+  The load event now waits for the slowest part, up to the parts window.
+- **`ui.Temporary`** ([web#118](https://github.com/vuka-lang/web/issues/118)).
+  `<ui.Temporary of={Rows}>` sends its content once; the server then keeps
+  none of its rendered form, and sends it again only when `of` holds a new
+  value. A 2,000-row list takes a few hundred bytes of a connection's
+  memory instead of about 1.1 MB.
+- **`ui.ShowOnce`** ([web#111](https://github.com/vuka-lang/web/issues/111)).
+  A value, such as a new API key, is shown and kept through patches until
+  the page is left; back, forward and snapshots can't bring it back.
+  `ui.ShowOnceKey()` gives a fresh key for each value.
+
+### Live pages: connection
+
+- **Recovery in place** ([web#112](https://github.com/vuka-lang/web/issues/112)).
+  When the server closes with "must load again" (4001), the page first
+  fetches itself and morphs in place, and reloads only if that fails.
+- **Server-Sent Events fallback**
+  ([web#121](https://github.com/vuka-lang/web/issues/121)). After three
+  failed sockets, or an upgrade stalled for five seconds, a page talks over
+  `GET /_vuka/live?transport=sse` with its messages as POSTs, and remembers
+  the choice for five minutes.
+
+### Development and testing
+
+- **`viewtest` drives live pages** ([web#126](https://github.com/vuka-lang/web/issues/126)).
+  `viewtest.Open(t, app, "/path")` opens a page over its real connection
+  in the test process — `Click`, `Fill`, `Submit`, `Navigate`, `Hover`,
+  `ScrollTo`, `Expect(…).Text(…)` — and `viewtest.Browse` runs the same
+  test in headless Chrome. A locator is a CSS selector, a field name or a
+  button's text. See [Testing](/web/testing).
+- **The toolbar shows each page's connection**
+  ([web#125](https://github.com/vuka-lang/web/issues/125)): joins (adopted
+  or fresh), drops, recoveries and their causes, in a Connection panel.
+- **A 500 says where it came from in development**
+  ([web#102](https://github.com/vuka-lang/web/issues/102)). The log line
+  keeps the query and names the route's handler and where it is
+  registered, and for a `ui.Must` failure the app's file and line.
+  Production lines are unchanged.
+- **The command warns when it isn't your compiler**
+  ([#478](https://github.com/vuka-lang/vuka/issues/478)). Run in a
+  workspace pointing at a local copy of the compiler, a `vuka` built from
+  the published one says its edits aren't in the run, and how to fix it.
+- **`vuka gen -check` checks the source tree only**
+  ([#477](https://github.com/vuka-lang/vuka/issues/477)); a stale `build/`
+  is output, not drift.
+- **`go mod tidy` is safe** ([#474](https://github.com/vuka-lang/vuka/pull/474),
+  fixes [#473](https://github.com/vuka-lang/vuka/issues/473)). `vuka`
+  writes a keep-file importing what only generated code uses, so a plain
+  `go mod tidy` keeps those requirements.
+
+### Compiler
+
+- A route decorator on an `@ui.Island` type makes a routed island instead
+  of reporting E0720 ([#471](https://github.com/vuka-lang/vuka/pull/471)).
+
+### Fixes
+
+- Hover prefetch ran a section layout in the old navigation's slot, so a
+  layout's live components could keep another section's state.
+- A page whose render is opaque and whose only live need was a lazy region
+  got no runtime script, so the region never loaded.
+- A live session closed twice unmounted its components twice.
+
 ## v2.19.0 — 2026-11-13
 
 ### Live pages
