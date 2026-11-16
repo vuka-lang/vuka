@@ -6,8 +6,6 @@ import (
 	"errors"
 
 	"github.com/vuka-lang/ui/v2"
-	"github.com/vuka-lang/web/v2"
-	"github.com/vuka-lang/web/v2/auth"
 )
 
 // Board reads the visitor and the request directly.
@@ -18,26 +16,26 @@ type Board struct {
 func NewBoard() *Board { return &Board{} }
 
 func (b *Board) Approve(ctx context.Context) error {
-	if !auth.Can(ctx, "orders.approve") {
+	if !perms.Has("orders.approve") {
 		return errors.New("forbidden")
 	}
 	return nil
 }
 
 func (b *Board) title(ctx context.Context) string {
-	if u := auth.Current(ctx); u != nil {
+	if u := user; u != nil {
 		return u.ID
 	}
-	return web.Request(ctx).PathValue("id")
+	return request.Params["id"]
 }
 </script>
 
 <section>
-  if auth.Can(ctx, "orders.approve") {
+  if perms.Has("orders.approve") {
     <button onClick={Approve}>Approve</button>
   }
-  if auth.Current(ctx).Can("orders.view") {
-    <p>{web.Request(ctx).URL.Path} {len(web.Request(ctx).URL.Query())}</p>
+  if perms.Has("orders.view") {
+    <p>{request.Path} {len(request.Query)}</p>
   }
   <b>{title(ctx)}</b>
 </section>
