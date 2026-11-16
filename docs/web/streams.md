@@ -30,6 +30,7 @@ Measured with ui's `BenchmarkStreamMemory` (v2 join, then one row inserted).
 | A keyed slice field | Lists up to a few hundred rows that the server sorts, filters or counts, whose rows hold live component state, or whose every render must reflect the whole list. The default. |
 | Paging (`?page=` with a patch, [navigation](/web/navigation)) | Lists people address: a page number in the URL, the back button, "page 3 of 40". The server holds one page. |
 | A stream | Lists that grow while the page is open or that the browser accumulates: a chat, a log tail, a notification feed, [infinite scroll](#infinite-scroll), a table of thousands of rows loaded in chunks. The server holds nothing between replies. |
+| A [`ui.Temporary`](/web/live#temporary) region | A large list sent once and then only looked at, or replaced whole: a report's rows. The field keeps its value; the session forgets the rendered rows. |
 
 What a stream gives up follows from the server not holding the rows: it
 can't count them, sort them, filter them in place, read them in a handler,

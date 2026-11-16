@@ -279,6 +279,176 @@ what it rendered before.
 > Give list rows an `id` or a `key` for stable identity across inserts and
 > removals.
 
+A reorder of a keyed loop applies as moves: the browser keeps each row's
+element and moves it into its new place, and only the rows whose content
+changed are morphed.
+
+## Showing a Value Once {#show-once}
+
+Some values exist once: an API token or a recovery code an action just
+made, a one-time download link. The page shows it, the visitor copies it,
+and nothing on the server should keep it. `<ui.ShowOnce>` shows such a
+value and keeps it on screen until the visitor leaves the page, even once
+the server has forgotten it:
+
+```html
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type APITokens struct {
+	ui.Live
+	token    string
+	tokenKey string
+	tokens   *Tokens
+}
+
+func (p *APITokens) Create(ctx context.Context) error {
+	t, err := p.tokens.New(ctx)
+	if err != nil {
+		return err
+	}
+	p.token, p.tokenKey = t, ui.ShowOnceKey()
+	return nil
+}
+</script>
+
+<main>
+  <button onClick={Create}>Create a token</button>
+  <ui.ShowOnce id="token" key={tokenKey} class="rounded border p-4">
+    <p>Copy it now: it won't be shown again.</p>
+    <code>{token}</code>
+  </ui.ShowOnce>
+</main>
+```
+
+`key` names the value shown; `ui.ShowOnceKey()` makes a fresh one. While
+the page renders a key, `<ui.ShowOnce>` renders its children; with no key
+(`""`, nil, any zero value) it renders an empty element and its children
+don't render.
+
+In the browser:
+
+- **A render with no key, or the same key, leaves it as it is.** An event's
+  render of a page that cleared the field, a broadcast's, a reconnect's (a
+  fresh session, the value gone) and the page [recovering in
+  place](#recovering-in-place) all keep what is shown. The page needn't
+  hold the value to keep it on screen, and the browser never asks for it
+  again.
+- **A render with another key replaces it**: a second token made on the
+  same page takes the first one's place. Give each value its own key rather
+  than a count, which starts over when the page loads again.
+- **Leaving the page takes it off**: a navigation to another page, back and
+  forward included, even where that page has a `<ui.ShowOnce>` of the same
+  `id`. The [copy](/web/navigation#snapshots) back and forward show of the
+  page holds it empty. A patch of the page's URL keeps it.
+
+It always renders one element, whose id is `ui.ShowOnceID(id)`
+(`vk-once-token` above), for a JS command or a test to target. In Go it is
+`ui.ShowOnce{ID: "token", Key: key, Class: "…", Children: …}`:
+
+```go
+type TokenPanel struct {
+	ui.Live
+	token    string
+	tokenKey string
+}
+
+func (p *TokenPanel) Render() ui.Node {
+	return ui.El("main", nil,
+		ui.ShowOnce{ID: "token", Key: p.tokenKey, Children: ui.El("code", nil, ui.Text(p.token))})
+}
+```
+
+## Content Sent Once {#temporary}
+
+A report of two thousand rows, sent once and then only looked at, would
+stay in the connection's memory for as long as the page is open: the
+session keeps every render to diff the next one against. `<ui.Temporary>`
+sends its content once, then forgets its rendered form:
+
+```html
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type SalesReport struct {
+	ui.Live
+	rows   []OrderRow
+	picked string
+	orders *Orders
+}
+
+@ui.Mount
+func (r *SalesReport) mount(ctx context.Context) error {
+	rows, err := r.orders.Report(ctx)
+	r.rows = rows
+	return err
+}
+
+func (r *SalesReport) Refresh(ctx context.Context) error {
+	rows, err := r.orders.Report(ctx)
+	r.rows = rows
+	return err
+}
+
+func (r *SalesReport) Pick(n string) { r.picked = n }
+</script>
+
+<main>
+  <p>Picked: {picked}</p>
+  <button onClick={Refresh}>Refresh</button>
+  <section>
+    <ui.Temporary of={rows}>
+      <table>
+        for _, o := range rows {
+          <tr key={o.Number}>
+            <td>{o.Number}</td>
+            <td>{o.Total}</td>
+            <td><button onClick={Pick(o.Number)}>Pick</button></td>
+          </tr>
+        }
+      </table>
+    </ui.Temporary>
+  </section>
+</main>
+```
+
+For a list of 2,000 rows of about 100 bytes each, what the session keeps
+of the region went from about 1.1MB per connection to a few hundred bytes.
+
+- **Sent once.** The join's render sends the region whole. Later renders
+  of the page leave it as the browser has it: it isn't compared, and isn't
+  in the patch. Clicking Pick above sends only the `<p>`.
+- **Sent again when `of` is a new value**: a new slice, map or pointer, a
+  slice of another length, a different string, number or bool (a struct
+  or array compares its fields). Refresh assigns a new slice, so the table
+  is sent again. Changing the elements of the same slice in place doesn't
+  count: assign a new slice, or pass a version the page bumps as `of`.
+- **The field stays.** The Go value is still the page's, for its handlers
+  to read; a page done with the data may clear the field itself. The
+  content still renders on each render, so its handlers stay registered.
+- **Placed inside an element** of the component, as the `<section>` above,
+  not as the component's root.
+
+When the region's surroundings must be sent whole (the page joins or
+mounts again, an element around it changes its markup), the content is
+sent with them. A page's first HTML response and a page without a live
+connection render it as any content. In Go it is
+`ui.Temporary(ui.TemporaryProps{Of: rows, Children: table})`. For a list
+that grows while the page is open, a [stream](/web/streams) holds nothing
+at all.
+
 ## Browser Attributes and Events {#browser-attributes-and-events}
 
 These attributes and document events tune the runtime:
@@ -489,6 +659,40 @@ and joins again.
 > On a reconnect the route runs again and the state starts over: what wasn't
 > saved elsewhere is lost, and events sent while disconnected are dropped.
 
+### Recovering in Place {#recovering-in-place}
+
+When the server says the page must load again — it closes the connection
+with 4001, for an expired or bad token, a failing `LiveCheck`, or
+`app.CloseLive` — the runtime first recovers in place: it fetches the
+page's URL over HTTP, patches the body with the reply and joins with the
+fresh token it carries. The document stays, with its scroll, its history
+entry and what its scripts keep; the patch follows the usual
+[rules](#patches), so a form's unsaved fields fare as in any patch. The
+route runs for the fetch as for a page load, so a visitor whose sign-in
+ended gets what the route answers them, such as a redirect to sign in.
+
+A reply that can't be patched — a redirect, another document, a page that
+isn't live, another build of the app — loads the document instead. So does
+a second 4001 within 10 seconds of a recovery: then the page reloads for
+real, and once more within 10 seconds leaves it closed, with the error in
+the console.
+
+### The Event Stream Fallback {#the-event-stream-fallback}
+
+Some networks have proxies that refuse WebSocket upgrades. After three
+sockets in a row fail to open, or one upgrade stalls for 5 seconds, the
+runtime goes live over server-sent events instead: a
+`GET /_vuka/live?transport=sse` stream carries the server's messages down,
+and each of the browser's messages is a `POST`. Everything above the
+transport is the same: joins, events, navigations, broadcasts and deferred
+loads, the same tokens, origins and limits on connections. A browser with
+no WebSocket at all uses the stream from the start.
+
+The switch is remembered in the tab (`sessionStorage`) for 5 minutes, so
+the pages loaded after it don't each wait through failed sockets; after
+that the runtime tries a socket again at its next reconnect. The stream
+isn't compressed with permessage-deflate as a socket is.
+
 ### Limits on Connections {#limits-on-connections}
 
 Each is an option with a default; 0 lifts it.
@@ -501,7 +705,7 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveMaxConnsPerIP(n)` | the sockets from one client address (`web.ClientIP`, so through [trusted proxies](/web/deployment#behind-a-proxy)); 100. One beyond is refused with 429 |
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
 | `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page; 30s; 0 for never |
-| `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so the mount hook runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
+| `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so the mount hook runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join, and renders no page ahead on a link's hover ([Navigation](/web/navigation#prefetch-on-a-live-page)) |
 | `web.LiveCompression(m)` | how sockets compress messages (permessage-deflate, negotiated with each client): `web.NoContextTakeover` (the default), `web.ContextTakeover` or `web.Off`. See [Compression](#compression) |
 
 ### Compression {#compression}
@@ -534,7 +738,8 @@ A page is checked when it mounts: its join and each navigation run its
 route through the app's middleware and gates, as a page load does. Its
 events and broadcasts trust what it mounted with. A `LiveCheck` failing — a
 session ended, a permission revoked — closes the page with 4001, and it
-reloads, its route answering for the browser; it catches what changes while
+[recovers in place](#recovering-in-place), its route answering for the
+browser; it catches what changes while
 a page sits open without the app hearing of it. A library that ends a
 session itself closes its pages at once with `app.CloseLive(match)`, which
 closes every joined page whose context `match` picks.
@@ -563,8 +768,8 @@ the identity that rendered it — a library that signs visitors in registers
 the comparison with `web.LiveIdentity`, and anything uncertain mounts
 fresh.
 
-A bad or expired token closes the connection with code 4001, and the runtime
-reloads the page (at most once in 10 seconds) for a fresh one. A library
+A bad or expired token closes the connection with code 4001, and the page
+[recovers in place](#recovering-in-place) with a fresh one. A library
 ending sign-ins ([auth](/web/auth#live-pages)) closes a page the same way:
 at once when it ends the sign-in itself (`app.CloseLive`), else at its next
 `LiveCheckEvery` check (30 seconds).
@@ -590,7 +795,8 @@ The transport is Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | `join` | runs the route; a second `join` on the same connection starts over |
 | `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL. Never to a URL that isn't a path or `http`/`https`: an `error` instead |
 | `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does only for an `Update` taking `web.URLParams` ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a mount hook, `Update` or render failing answers `error`, nothing staying mounted |
-| close 4001 | invalid or expired token, or a `LiveCheck` failed: reload |
+| `GET /_vuka/live?transport=sse&t=<token>` | the [event stream](#the-event-stream-fallback) a page falls back to; the browser's messages are `POST`s to `/_vuka/live?c=<id>`, one message each |
+| close 4001 | invalid or expired token, or a `LiveCheck` failed: recover in place, then reload |
 | close 4002 | the page sat idle (`LiveIdleTimeout`): join again once the page is in view |
 | close 1008 | no `join` within `LiveJoinTimeout` |
 | close 4004 | the route isn't a live page: the error message precedes it; no retry |

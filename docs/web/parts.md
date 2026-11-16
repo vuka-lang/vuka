@@ -12,9 +12,9 @@ shows nothing until then.
 A page that isn't live can show itself at once and fill in its slow parts
 afterwards, with no client code and no live connection. You mark the slow
 method `@ui.Defer`; the markup that calls it is its **part**. The page is
-sent whole with a stand-in for each part — the browser has loaded it while
-the slow methods still run — and each part follows as soon as its method
-returns.
+sent with a stand-in for each part — the browser shows it while the slow
+methods still run — and each part follows as soon as its method returns,
+in the same response when it can ([below](#arrives)).
 
 ## Deferring a Method
 
@@ -216,10 +216,45 @@ Everything that isn't deferred runs first: guards, every layout's `Load`,
 the page's other methods. So the status and the headers are decided before
 anything is sent, and a redirect, a 404 or a sign-in still answers as it
 does for any page. Each deferred method starts as the render meets its
-part, so it runs while the rest of the page renders. Then the page is sent
-whole, each part's fallback in its place, and its response ends: the
-browser has loaded the page — its `load` event fired, no spinner on the
-tab — while the slow methods still run on the server.
+part, so it runs while the rest of the page renders.
+
+### Streamed in the First Response {#streamed}
+
+When the browser loads the page as its document, the parts come in the
+same response. The page is sent up to the runtime's script tag, each
+part's fallback in its place, and flushed, so the browser shows it at
+once; the response stays open, and each part is written as its method
+returns — a group's together — and moved into its place by a one-line
+inline script. The runtime's tag and the end
+of the page follow the last part. The page's complete first paint needs no
+request after it.
+
+The parts stream when all of these hold:
+
+- the request is a document load (`Sec-Fetch-Dest: document` or `iframe`),
+  not a navigation's fetch, a prefetch or a `HEAD`;
+- the response writer flushes (it, or a writer it wraps, is an
+  `http.Flusher`);
+- the page's `Content-Security-Policy`, if it has one, allows inline
+  scripts (`'unsafe-inline'` without a nonce or hash beside it).
+
+> [!NOTE]
+> A streamed page's `load` event waits for its slowest part, up to
+> `web.PartsWindow` (30 seconds): the tab shows the page as loading until
+> then. A part still running when the window runs out keeps its fallback,
+> and the runtime asks for it as below.
+
+The page's methods keep the request's cancellation: the visitor going away
+cancels them. A shell shorter than 2KB is padded, so proxies that hold a
+response until some bytes arrive pass it on.
+
+### Asked for After the Page {#asked-for}
+
+Otherwise — a navigation over HTTP, a writer that doesn't flush, a policy
+refusing inline scripts, `web.PartsWindow(0)` — the page is sent whole,
+each part's fallback in its place, and its response ends: the browser has
+loaded the page — its `load` event fired, no spinner on the tab — while
+the slow methods still run on the server.
 
 Once the page has loaded, the runtime asks for its parts: a request of its
 own to the page's URL. Each part is sent as its method returns — a group's
@@ -269,8 +304,8 @@ then matched by their key, not by their place in the list.
 > visitor without JavaScript sees its fallback. Don't defer what they must
 > see: a page's main content, its title, what a search engine indexes.
 
-The parts need no inline script: a page whose Content-Security-Policy
-refuses inline scripts gets them as any page does.
+A page whose Content-Security-Policy refuses inline scripts gets its
+parts by the runtime's request: only streaming needs an inline script.
 
 A page that holds a live component, and a page rendered for a form posted
 without script, render their parts in place: the methods run before the

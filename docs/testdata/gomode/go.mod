@@ -7,10 +7,10 @@ go 1.27
 replace github.com/vuka-lang/vuka/v2 => ../../..
 
 require (
-	github.com/vuka-lang/orm/v2 v2.17.1-0.20261108075058-3076328ab66f
-	github.com/vuka-lang/ui/v2 v2.17.1-0.20261108080333-fd6299cc8d1d
-	github.com/vuka-lang/vuka/v2 v2.17.1-0.20261107123553-9156bdf7ad26
-	github.com/vuka-lang/web/v2 v2.17.1-0.20261107182730-97a7cd9b4901
+	github.com/vuka-lang/orm/v2 v2.18.0
+	github.com/vuka-lang/ui/v2 v2.19.1-0.20261116031934-16ca1e1f9153
+	github.com/vuka-lang/vuka/v2 v2.19.0
+	github.com/vuka-lang/web/v2 v2.19.1-0.20261116034953-7a3a8b43315b
 )
 
 require (

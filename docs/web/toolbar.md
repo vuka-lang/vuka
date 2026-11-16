@@ -72,6 +72,28 @@ ignored the batch or found it out of step.
 
 ![A live page's messages](/toolbar-live.png)
 
+### Connection
+
+Why did the page reload? Why does it keep reconnecting? On a live page,
+the Connection panel is its connection's life as a timeline: each socket
+the browser opened (a reconnect when one came before it), each join —
+whether it adopted the session the page's request mounted or mounted the
+page fresh, and in which protocol version — and each close the server
+sent, with its code, the reason the browser got and why: `app.CloseLive`,
+a failing `LiveCheck`, a gate refusing the page, the idle or join
+deadline, a bad token, a refused join, the app stopping. A socket that
+ended without the server closing it says how: the browser closed it, a
+write failed, pings went unanswered. A navigation over the connection
+shows as the connection leaving one page and arriving at the next. Each
+page keeps its latest 100 events.
+
+Above the timeline is the state now, derived from the events: connected,
+connecting, recovering, idle, moved or disconnected, since when. The
+handle shows a dot while the page is connected, and the state in words
+otherwise. A page that [recovered in place](/web/live#recovering-in-place)
+is labelled so in the list of requests, and its Connection panel says why
+the connection before it closed, with a link to the earlier record.
+
 ### States
 
 The page's [browser state](/ui/state): each component instance's

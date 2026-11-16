@@ -530,6 +530,88 @@ A page backed by its [island](/web/islands#deferred-fields) defers fields
 the same way; its component reads `live.stats.pending` and
 `live.stats.error` instead.
 
+### Loading a Group When Seen {#when-seen}
+
+A section far below the fold — a post's comments, related products — costs
+its query on every visit, even one that never scrolls that far.
+`@ui.Defer("group").WhenSeen()` leaves the group unloaded until its
+fallback scrolls near the viewport. The fallback says which group it
+stands in for: a `<ui.Skeleton for="group">`, or any element with
+`{ui.DeferFallback("group")...}`:
+
+```html
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type PostPage struct {
+	ui.Live
+	comments []Comment @ui.Defer("comments").WhenSeen()
+	related  []Post    @ui.Defer("related").WhenSeen()
+	posts    *Posts
+}
+
+@ui.Loads("comments")
+func (p *PostPage) loadComments(ctx context.Context) error {
+	comments, err := p.posts.Comments(ctx)
+	p.comments = comments
+	return err
+}
+
+@ui.Loads("related")
+func (p *PostPage) loadRelated(ctx context.Context) error {
+	related, err := p.posts.Related(ctx)
+	p.related = related
+	return err
+}
+</script>
+
+<article>
+  <section>
+    <ui.Await key="comments">
+      <slot:pending><ui.Skeleton for="comments" lines={4} /></slot:pending>
+      <ul>
+        for _, c := range comments {
+          <li key={c.ID}>{c.Text}</li>
+        }
+      </ul>
+    </ui.Await>
+  </section>
+  if Loading("related") {
+    <div class="h-64" {ui.DeferFallback("related")...}>Loading related posts…</div>
+  } else {
+    <RelatedPosts posts={related} />
+  }
+</article>
+```
+
+The page's other groups start as soon as it joins; `comments` starts once
+the skeleton comes within 200 pixels of the viewport, and `related` once
+its placeholder does. Each group is asked for once per page, and its patch
+replaces the fallback as an eager group's does.
+
+- **The fallback must be marked.** A group loading when seen whose
+  fallback is never marked never loads. `ui.Skeleton`'s `For` and
+  `ui.DeferFallback` mark it; on a group that loads at once they do
+  nothing. In Go the field attribute is `ui.Defer("comments").WhenSeen()`,
+  and the skeleton `ui.Skeleton{For: "comments", Lines: 4}`.
+- **One field waiting makes the group wait.** A group waits when any of
+  its fields says so.
+- **Without `IntersectionObserver`** every marked fallback asks as soon as
+  the page joins, so the groups load as eager ones do rather than never.
+- **Without a live session** — a form posted without script — the page
+  loads every group before it renders, these included. A page backed by
+  its island asks for its groups itself.
+- **Seen while disconnected** or on its way to another page, a fallback is
+  looked at again on the next patch or join.
+
+Leaving the page cancels a load the browser asked for, as it does the rest.
+
 ## Receiving Messages {#messages}
 
 A component subscribed to a topic receives what the transport publishes on

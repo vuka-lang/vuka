@@ -159,6 +159,10 @@ just the table, and `Load` runs again:
 <ui.Button on={ui.JS.Push(Save).Success(ui.JS.Reload("#records"))}>Save</ui.Button>
 ```
 
+On a live page, `Save` can call `Reload("#records")` itself instead: the
+table's render then comes in `Save`'s reply, with no second request
+([Rendering a Region in the Same Reply](/ui/js#reload-in-reply)).
+
 ## Row Actions {#actions}
 
 `<slot:actions let={row}>` is a row's menu, behind a button at the end of

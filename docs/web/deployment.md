@@ -61,6 +61,31 @@ directory above it.
 > security fixes (`net/http`, `crypto/tls` and others) the binary doesn't
 > get otherwise.
 
+### The 500 Log Line {#the-500-log-line}
+
+Every 500 is logged with its error. In production the line is the method,
+the path and the error:
+
+```text
+web: 500 GET /orders: connection refused
+```
+
+In development (`vuka run`, `web.Dev()`, `VUKA_ENV=development`) it says
+where the error came from: the query is kept, `| handler` names the route's
+handler with its file and line, and `| at` names the line of your code the
+error surfaced through, when it is still known:
+
+```text
+web: 500 GET /orders?page=2: table missing | handler main.ShowOrders at orders.vuka:12 | at store.go:41 (orders.List)
+```
+
+The `| at` part appears for a failure that panics where it happens — a
+`ui.Must` in markup, the coercion a call returning `(T, error)` gets there —
+since the stack still holds the failing line. An error a handler returns
+has had its stack unwound by the time it is logged, so its line carries
+`| handler …` alone. The response, a `web.OnError` handler and the
+production line are the same either way.
+
 ## Security Headers
 
 Every response carries `X-Content-Type-Options: nosniff`,
