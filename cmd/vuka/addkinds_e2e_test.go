@@ -98,13 +98,14 @@ type Charts struct{}
 	}
 	os.Remove(charts)
 
-	// A page is its file under pages/: a route decorator on its type is E0720.
+	// A route decorator on an island's type routes the page it backs
+	// (#471), and the scaffold vets with no warnings.
 	reports := filepath.Join(dir, "pages", "reports.vuka")
 	src := strings.Replace(read(t, reports), "@ui.Island\n", "@web.Live(\"/reports\")\n@ui.Island\n", 1)
 	src = strings.Replace(src, "\t\"github.com/vuka-lang/ui/v2\"\n", "\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n", 1)
 	os.WriteFile(reports, []byte(src), 0o644)
-	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err == nil || !strings.Contains(string(out), "@web.Live declares a page outside pages/") {
-		t.Errorf("vet with @web.Live on a page: %v\n%s", err, out)
+	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err != nil || strings.Contains(string(out), "warning[") {
+		t.Errorf("vet with @web.Live on a routed island: %v\n%s", err, out)
 	}
 }
 

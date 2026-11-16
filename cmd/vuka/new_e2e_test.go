@@ -197,7 +197,7 @@ func TestNewEndToEnd(t *testing.T) {
 		return res.StatusCode, res.Header.Get("Location")
 	}
 
-	if code, body := get("/login"); code != 200 || !strings.Contains(body, `src="/static/logo.svg"`) || !strings.Contains(body, `name="remember"`) {
+	if code, body := get("/login"); code != 200 || !strings.Contains(body, `src="/static/logo`) || !strings.Contains(body, `name="remember"`) {
 		t.Fatalf("the login page: %d", code)
 	}
 	if code, to := login("not the password"); code != 303 || !strings.HasPrefix(to, "/login?error=invalid") {
@@ -249,7 +249,7 @@ func browserCheck(t *testing.T, base, password string) {
 	}
 	ch := launchChrome(t)
 	p := ch.open(base+"/login", 1280, 860)
-	logo := `(() => { const i = document.querySelector('img[src="/static/logo.svg"]'); return i && i.complete && i.naturalWidth > 0 })()`
+	logo := `(() => { const i = document.querySelector('img[src^="/static/logo"]'); return i && i.complete && i.naturalWidth > 0 })()`
 	background := `getComputedStyle(document.querySelector("form").closest("div")).backgroundColor`
 	p.wait(logo)
 	light := p.eval(background)

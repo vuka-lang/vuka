@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 
 	"{%.Module%}/layouts"
 )
@@ -31,8 +32,8 @@ func (l Layout) Title(ctx context.Context) string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>{Title(ctx)}</title>
-    <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
-    <script src="/static/forms.js"></script>
+    <link rel="icon" type="image/svg+xml" href={web.Asset("/static/logo.svg")} />
+    <script src={web.Asset("/static/forms.js")}></script>
   </head>
   <body class="h-full font-sans text-slate-900 dark:text-slate-100">{Children}</body>
 </html>
