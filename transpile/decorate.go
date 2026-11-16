@@ -207,7 +207,8 @@ var pageVerbs = map[string]bool{"Get": true, "Post": true, "Put": true, "Patch":
 // pageDecorator reports a's decorator when it declares a page — @web.Live,
 // or a route decorator on a type (E0720): a page is a file under pages/,
 // which vuka registers. A route decorator on a function declares a handler,
-// which stays.
+// and on an @ui.Island type a routed island (the page its component backs);
+// both stay.
 func (e *engine) pageDecorator(f *fileState, a *Attr) bool {
 	pkgName, sel, ok := strings.Cut(a.Name, ".")
 	if !ok || sel != "Live" && !pageVerbs[sel] {
@@ -217,6 +218,9 @@ func (e *engine) pageDecorator(f *fileState, a *Attr) bool {
 		return false
 	}
 	if gd, ok := a.decl.(*ast.GenDecl); sel != "Live" && (!ok || gd.Tok != token.TYPE) {
+		return false
+	}
+	if gd, ok := a.decl.(*ast.GenDecl); ok && gd.Tok == token.TYPE && e.declaredIslands[a.Decl] {
 		return false
 	}
 	file := "pages/…"
