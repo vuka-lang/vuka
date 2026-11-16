@@ -53,6 +53,19 @@ the `github.com/vuka-lang/vuka` package your module requires.
   keyed list takes 1–3 ms instead of 11–15 ms. A name clash in the runtime
   that could blank a list on the fallback path is fixed.
 
+### Live pages: rendering
+
+- **Loops and branches that didn't change aren't rendered again**
+  ([#288](https://github.com/vuka-lang/vuka/issues/288)). The compiler
+  guards a loop or branch that reads only tracked state, its own loop
+  variables and pure functions; while those reads are unchanged the runtime
+  keeps the block's last frame. On a 1,000-row table in one component, an
+  event that changes only the title takes 27 µs instead of 2.2 ms. A block
+  reading anything the compiler can't vouch for — a plain field, an outside
+  variable, a component tag, a stream — renders as before, and
+  `VUKA_LIVE_VERIFY` renders every kept block anyway and fails the event if
+  it differs. See [guarded blocks](/ui/stateful#guarded-blocks).
+
 ### Live pages: loading and memory
 
 - **Deferred groups load when seen**
