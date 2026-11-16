@@ -21,7 +21,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.20.1 — unreleased
+## v2.21.0 — 2026-11-16
 
 - **`<ui.Suspense>` works on live pages.** It waits for the `@ui.Loads`
   groups of the `@ui.Defer` fields named in `for={tiles, tabs}`, or of
@@ -29,6 +29,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
   when a loader fails, then the body. Before, it rendered at once and its
   fallback never showed. A live page's boundary reading no deferred field
   is [W0352](/errors/W0352). See [Parts of a Page](/web/parts#suspense-live).
+- **A new app vets clean.** The scaffold links its logo, favicon and
+  `forms.js` through `web.Asset`, so `vuka vet` no longer warns (W0404) on
+  a fresh app ([#480](https://github.com/vuka-lang/vuka/issues/480)).
+- The `vuka fix ctx-vars` tests compare against the rewrite again
+  ([#479](https://github.com/vuka-lang/vuka/issues/479)); the fixer itself
+  was unaffected.
 
 ## v2.20.0 — 2026-11-16
 
