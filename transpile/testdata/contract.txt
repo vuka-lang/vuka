@@ -7,7 +7,8 @@
 # .vuka.html file's client state and tracked server state; ui.LiveSchema,
 # the lowering of a live page's hook and field attributes (@ui.Mount,
 # @ui.OnChange, @ui.Loads, @ui.Bind, @ui.URL, @ui.Defer); ui.HTML, the
-# lowering of a .vuka.html file's markup, and ui.IslandPage, an island
+# lowering of a .vuka.html file's markup, and ui.Guard and ui.GuardNode, its
+# guarded loops and branches; and ui.IslandPage, an island
 # page's. Public so the generated code builds with go build, ejected code
 # included; not an API a person writes (vukavet reports a hand-written
 # use: W0105, W0306, W0106), so it is the compiler's to change. web.Routes
@@ -228,6 +229,8 @@ public github.com/vuka-lang/web/v2/auth.Current
 public github.com/vuka-lang/web/v2/auth.Identity
 public github.com/vuka-lang/web/v2/auth.Perms
 
+generated github.com/vuka-lang/ui/v2.Guard
+generated github.com/vuka-lang/ui/v2.GuardNode
 generated github.com/vuka-lang/ui/v2.HTML
 generated github.com/vuka-lang/ui/v2.IslandPage
 generated github.com/vuka-lang/ui/v2.LiveSchema

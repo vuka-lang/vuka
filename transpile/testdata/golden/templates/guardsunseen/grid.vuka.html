@@ -1,0 +1,20 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+// Grid's inner loop reads only tracked state, but runs once per row: the
+// outer loop is guarded, the inner one with it.
+type Grid struct {
+	ui.Live
+	rows []string
+	cols []string
+}
+<table>
+  for _, r := range rows {
+    <tr>
+      for _, c := range cols {
+        <td>{r}{c}</td>
+      }
+    </tr>
+  }
+</table>

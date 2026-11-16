@@ -150,14 +150,17 @@ until it navigates or joins again; a browser loads the URL itself. A
 Components whose state is all tracked are skipped when nothing they
 read changed — see [Change tracking](/ui/stateful#change-tracking). Skipping
 is what makes large pages cheap: a thousand row components, one clicked,
-renders one.
+renders one. Inside a component that renders again, a loop or branch whose
+tracked fields and props are the same keeps its last frame without running
+([guarded blocks](/ui/stateful#guarded-blocks)): a thousand-row table under
+a title that changed renders the title.
 
 ## Verification {#verification}
 
 In tests (`testing.Testing()`) and with `VUKA_LIVE_VERIFY=1`, a session
-renders every component it would skip and fails the event with an error
-naming it when the output differs (a plain field changed, or `Render` read
-something else); it also checks that frames sharing a fingerprint render the
+renders every component it would skip, and every loop or branch it would
+keep, and fails the event with an error naming it when the output differs
+(a plain field changed, or `Render` read something else); it also checks that frames sharing a fingerprint render the
 same statics. `VUKA_LIVE_VERIFY=0` turns it off; `live.Verify` is the
 default for new sessions.
 
@@ -209,7 +212,10 @@ rest. See `examples/loadtest`'s README for running it.
 
 - A live component re-renders with its whole page on every event,
   unless its state is all tracked; the reply is still only what
-  changed.
+  changed. Inside it, a loop or branch reading only tracked fields and
+  props that compare keeps its frame; one reading anything else, or inside
+  a loop, renders. A row of a loop renders with its loop: a table where one
+  cell changes renders every row, unless the rows are components.
 - [Handler ids](/reference/live-protocol#handler-ids) go by the nearest `key`:
   an item's insertion leaves the others' ids alone, and a click raced by a patch
   reaches its item or fails as a no-handler error. A list without keys still
@@ -232,5 +238,4 @@ rest. See `examples/loadtest`'s README for running it.
   the page is open (a chat, a log tail, infinite scroll) is a
   [stream](/web/streams), whose rows the session drops once their reply is
   written.
-- Next: spot-level skipping inside a component's render, presence and flash
-  messages.
+- Next: presence and flash messages.

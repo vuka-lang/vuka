@@ -24,10 +24,14 @@ func (b *Board) Add(name string) {
 
 //line board.vuka.html:14
 func (b *Board) Render() ui.Node {
-	var ps []ui.Node
-	for _, r := range b.rows.Get() {
-		ps = append(ps, ui.HTML(`<p>{r.Name}</p>`, r.Name))
-	}
+	ps := ui.Guard(0x823cb3de05cd4d3a, func() []ui.Node {
+		var ps []ui.Node
+//line board.vuka.html:16
+		for _, r := range b.rows.Get() {
+			ps = append(ps, ui.HTML(`<p>{r.Name}</p>`, r.Name))
+		}
+		return ps
+	}, b.rows.Version())
 //line board.vuka.html:14
 	return ui.HTML(`
 <section>

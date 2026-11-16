@@ -175,6 +175,7 @@ forms.go key
 graphql.go name
 graphql.go op.name
 graphqlloader.go l.fetch
+guards.go name
 htmlfile.go h.recvType
 jsxcomp.go id.Name
 jsxcomp.go n
