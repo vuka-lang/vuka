@@ -21,6 +21,15 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.20.1 — unreleased
+
+- **`<ui.Suspense>` works on live pages.** It waits for the `@ui.Loads`
+  groups of the `@ui.Defer` fields named in `for={tiles, tabs}`, or of
+  those its body reads: `<slot:fallback>` while any loads, `<slot:error>`
+  when a loader fails, then the body. Before, it rendered at once and its
+  fallback never showed. A live page's boundary reading no deferred field
+  is [W0352](/errors/W0352). See [Parts of a Page](/web/parts#suspense-live).
+
 ## v2.20.0 — 2026-11-16
 
 ### Live pages: navigation

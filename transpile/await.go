@@ -102,6 +102,9 @@ func (e *engine) checkAwait(f *fileState) {
 				if n.isAwait(f) {
 					e.awaitErrors(f, n)
 				}
+				if n.isSuspense(f) && e.liveBoundary(f) {
+					e.suspenseLive(f, n)
+				}
 				walk(n.kids)
 			case *jsxBlock:
 				for _, b := range n.bodies {

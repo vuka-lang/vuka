@@ -387,8 +387,55 @@ A boundary arrives as a part does: after the page, in the request for its
 parts, with the same behaviour without JavaScript and under a
 Content-Security-Policy, and over an HTTP navigation. In the
 toolbar it is a span named `Suspense`, the deferred methods it called
-inside it. Where parts don't stream — a live page, a fragment, a test —
-the boundary renders in place, `<slot:error>` in its place when it fails.
+inside it. Where parts don't stream — a fragment, a test — the boundary
+renders in place, `<slot:error>` in its place when it fails. A live page's
+boundary waits for its deferred groups instead (below).
+
+### On a live page {#suspense-live}
+
+A live page loads its slow data in `@ui.Loads` loaders, not in its markup,
+so its boundary waits for those instead: the groups of the `@ui.Defer`
+fields named in `for={…}`, or, without `for`, of the deferred fields its
+body reads. `<slot:fallback>` shows while any of them loads, `<slot:error>`
+once a loader failed, and the body when all have loaded.
+
+```vuka-html
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Dashboard struct {
+	ui.Live
+	tiles []string @ui.Defer("stats")
+	tabs  []string @ui.Defer("board")
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error { return nil }
+
+@ui.Loads("board")
+func (d *Dashboard) loadBoard(ctx context.Context) error { return nil }
+</script>
+
+<ui.Suspense for={tiles, tabs}>
+  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+  <slot:error><p role="alert">The dashboard could not be loaded.</p></slot:error>
+  for _, t := range tiles {
+    <p>{t}</p>
+  }
+  <p>{len(tabs)} tabs</p>
+</ui.Suspense>
+```
+
+It is the `Loading` and `LoadErr` branches written once for all the
+groups. A boundary that reads no deferred field waits for nothing and
+renders at once ([W0352](/errors/W0352)); `for={…}` naming something
+that isn't a deferred field is [E0352](/errors/E0352).
 
 In Go a boundary is `ui.Suspense(fallback, errorNode, func(ctx
 context.Context) ui.Node { … })`, its body the function: what it calls runs

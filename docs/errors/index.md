@@ -209,6 +209,7 @@ same page in the terminal.
 | [W0313](./W0313) | A depends tag names a field the form lacks |
 | [W0320](./W0320) | A form component named by its former name in ui |
 | [W0351](./W0351) | A Suspense wait list names a binding it never shows |
+| [W0352](./W0352) | A Suspense on a live page waits for nothing |
 
 ## Routes and the web app
 

@@ -1,0 +1,41 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+	"errors"
+
+	ui "vukatest.local/stateui"
+)
+
+// Dashboard's boundaries wait for its deferred groups.
+type Dashboard struct {
+	ui.Live
+	tiles []string @ui.Defer("stats")
+	tabs  []string @ui.Defer("board")
+	notes string   @ui.Defer("notes")
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error {
+	d.tiles = []string{"Vacancies", "Posts"}
+	return nil
+}
+
+@ui.Loads("board")
+func (d *Dashboard) loadBoard(ctx context.Context) error {
+	d.tabs = []string{"Letters"}
+	return nil
+}
+
+@ui.Loads("notes")
+func (d *Dashboard) loadNotes(ctx context.Context) error { return errors.New("notes are down") }
+</script>
+
+<main>
+  <ui.Suspense>
+    <slot:fallback><i>loading</i></slot:fallback>
+    <p>static</p>
+  </ui.Suspense>
+  <p>{len(tiles)} {len(tabs)} {notes}</p>
+</main>

@@ -1,0 +1,1 @@
+W0352 page.vuka.html:36:3: <ui.Suspense> on live Dashboard waits for nothing: its body reads no deferred field, so it renders at once; read a field marked @ui.Defer("group") inside it, or name the fields to wait for with for={…}

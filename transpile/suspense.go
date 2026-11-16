@@ -90,6 +90,10 @@ func (w *jsxWriter) suspense(el *jsxElem) {
 		}
 		w.piece(s.kids)
 	}
+	if groups := w.f.susGroups[el]; len(groups) > 0 {
+		w.suspenseAwait(el, groups)
+		return
+	}
 	w.gen(q + "Suspense(")
 	slot(fallback)
 	w.gen(", ")
@@ -116,7 +120,9 @@ func (e *engine) checkSuspense(f *fileState) {
 			case *jsxElem:
 				if n.isSuspense(f) {
 					e.suspenseErrors(f, n)
-					e.suspenseBindings(f, n)
+					if !e.liveBoundary(f) {
+						e.suspenseBindings(f, n)
+					}
 				}
 				walk(n.kids)
 			case *jsxBlock:
