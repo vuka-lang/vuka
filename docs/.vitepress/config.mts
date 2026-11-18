@@ -216,6 +216,7 @@ export default defineConfig({
           { text: 'Errors', link: '/errors/' },
           { text: 'Project Settings (vuka.toml)', link: '/reference/vuka-toml' },
           { text: 'Live Protocol', link: '/reference/live-protocol' },
+          { text: 'Known Limits', link: '/reference/known-limits' },
         ],
       },
       {

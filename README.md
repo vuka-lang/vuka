@@ -5,7 +5,7 @@
 **Docs: [vuka-lang.github.io](https://vuka-lang.github.io/)**
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
-function and method overloading, typed attributes, decorators, and JSX
+enums, function and method overloading, typed attributes, decorators, and JSX
 components (rendered by the [UI library](https://github.com/vuka-lang/ui), on templ), with Elixir-style
 multi-clause functions on the way. It transpiles to plain Go and builds with the
 go command you already have.
@@ -98,11 +98,18 @@ their type from where the value goes (`return Err(e)` in a function returning
 `vuka.Of(os.ReadFile(p))` wraps a Go call, `r.Get()` hands back `(T, error)`.
 Your module needs the dependency: `go get github.com/vuka-lang/vuka/v2`.
 
-**`?`** ends a statement: `x := f()?`, `x = f()?`, `var x = f()?`,
-`return f()?` or `f()?`. The operand is Go's `(T…, error)`, an `error`, a
-Result, or an Option (in a function returning an Option). On failure the
-function returns: zero values plus the error, `Err(e)`, or `None`, whichever
-its results call for. The operand stays where it is, so nothing is reordered.
+See [Result & Option](https://vuka-lang.github.io/features/result-option).
+
+**`?`** unwraps the call before it and returns from the function on failure.
+It works anywhere an expression does: `x := f()?`, `return f()?`, `f()?`,
+`total := price(ctx, item)? * qty(ctx, cart)?`, and in the header of an `if`,
+`for` or `switch`. The operand is Go's `(T…, error)`, an `error`, a Result, or
+an Option (in a function returning an Option). On failure the function returns
+zero values plus the error, `Err(e)`, or `None`, whichever its results call
+for. The exceptions, each E0110: a `case` of a `switch` or `select`, a `for`
+loop's post statement, and markup. An `error` alone yields no value, so its `?`
+ends a statement, and a `?` inside a closure returns from the closure. See
+[The ? Operator](https://vuka-lang.github.io/features/try).
 
 **`match`** is a statement of cases, tried in order:
 
@@ -120,6 +127,16 @@ its results call for. The operand stays where it is, so nothing is reordered.
 and None, true and false, or a case that takes anything), and a case after one
 that matches everything is an error; both are reported before Go sees the code.
 
+See [match](https://vuka-lang.github.io/features/match).
+
+**Enums.** `enum Status { Draft, Sent, Paid }` declares the variants and
+everything Go makes you write around them: `Status.Draft` to name one,
+`Values()`, `Parse(text)` (a Result), `String()`, `Valid()`, and the JSON and
+`database/sql` methods, so an enum field reads, writes and stores with no more
+code. An enum may be a string or an integer type with values (`Admin = "admin"`),
+or its variants may carry fields (`Circle{Radius float64}`) and take methods.
+`match` on an enum must cover every variant. See [Enums](https://vuka-lang.github.io/features/enums).
+
 **Overloading.** Functions and methods may share a name when their parameter
 types differ. Each declaration is named after its parameters' types, as Go would
 name it (`areaCircle`, `AddIntInt`), and each
@@ -127,6 +144,8 @@ call goes to the overload that best fits its arguments' static types: identical
 types beat an untyped constant's default type, which beats any other assignable
 value. A tie is a compile error that lists the candidates. Calls whose argument
 types come from other overloaded calls resolve too.
+
+See [Overloading](https://vuka-lang.github.io/features/overloading).
 
 **Attributes** come before a top-level declaration:
 
@@ -136,6 +155,8 @@ types come from other overloaded calls resolve too.
 | `@deprecated("…")` | adds a `Deprecated:` paragraph |
 | `@export("Name")` | generates `Name`, a wrapper with the declaration's signature: how Go code reaches one overload |
 | `@T` / `@pkg.T{…}` | any Go type, bare or as a composite literal; the generated code type-checks it |
+
+See [Attributes](https://vuka-lang.github.io/features/attributes).
 
 **Decorators** wrap a declaration, Python-style. The simplest kind works on
 any function, whatever its signature:
@@ -204,6 +225,8 @@ the binary; `f.Bytes()` reads it, and with ui, `templx.Components(f)` gives a
 `.templ` file's components with their parameter names — also for a `.templ`
 file in a subdirectory, which is a package of its own (`package views`).
 
+See [Decorators](https://vuka-lang.github.io/features/decorators).
+
 **Static fields and methods** belong to a type, as in Kotlin or Java:
 
 ```go
@@ -257,6 +280,8 @@ fields; `self` there is the embedded `User`. Calls that pass `self` must not
 have side effects in the receiver expression (Vuka uses it twice). The
 [orm](https://github.com/vuka-lang/orm) library's models are built this way.
 
+See [Statics & Self](https://vuka-lang.github.io/features/statics).
+
 **Field attributes and references.** A struct field takes typed attributes
 after it (after its tag, if any), and `Type.Field` — meaningless in Go — is a
 typed reference to the field:
@@ -282,6 +307,8 @@ key's `Related() *U`). Its type follows the field's — `StringRef` has
 `Contains`, `OrderedRef` has `Gt`, `NullableRef` has `IsNil` — and its
 predicates are `vuka.Pred[Post]`, so an API taking them rejects a `User`
 field. Hover and go to definition on a reference land on the field.
+
+See [Field Attributes & References](https://vuka-lang.github.io/features/fields).
 
 **Dependency injection** comes from a type decorator, with no annotations on
 fields: a struct's pointer and interface fields are its dependencies.
@@ -316,6 +343,8 @@ var providers []any
 func Component(t *vuka.Type) { providers = append(providers, t.New) }
 func Module() nexus.Option  { return nexus.Provide(providers...) }
 ```
+
+See [Dependency Injection](https://vuka-lang.github.io/features/dependency-injection).
 
 **CLI**
 
@@ -423,7 +452,7 @@ source tree is out of date, for CI.
 
 ## Roadmap
 
-1. Enums (sum types) with exhaustive `match`; lambdas, `?.`, `??`, tuples, functional helpers (the rest of
+1. Lambdas, `?.`, `??`, tuples, functional helpers (the rest of
    [Dingo](https://github.com/MadAppGang/dingo)'s set)
 2. Multi-clause functions with patterns and guards; arity overloading for default
    arguments; Elixir-style module attributes (`@max 3`, read as `@max`)
@@ -447,11 +476,16 @@ them (`vuka gen -inplace`, and `vuka gen -inplace -check` in CI).
 
 ## Known limits
 
+The list is kept in the docs: [Known Limits](https://vuka-lang.github.io/reference/known-limits).
+
+<!-- known-limits:begin -->
 - Overloads are resolved within a package; calling another package's overloads
-  goes through its `@export` names.
-- Generic functions can't be overloaded yet.
+  goes through its `@export` names. See [Overloading](https://vuka-lang.github.io/features/overloading).
+- Generic functions can't be overloaded yet ([E0120](https://vuka-lang.github.io/errors/E0120)).
 - Go's own error messages, outside the editor, show the overloads' Go names (`areaInt`).
 - An overloaded method can't satisfy an interface method of the plain name.
-- `?` ends a statement; it can't sit inside a larger expression, or in an
-  `if`, `for` or `switch` header.
-- Struct patterns of generic types aren't supported yet.
+- `?` works anywhere an expression does, with three exceptions, each
+  [E0110](https://vuka-lang.github.io/errors/E0110): a `case` of a `switch` or `select`, a `for` loop's post
+  statement, and markup. See [The ? Operator](https://vuka-lang.github.io/features/try).
+- Struct patterns of generic types aren't supported yet. See [match](https://vuka-lang.github.io/features/match).
+<!-- known-limits:end -->
