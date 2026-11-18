@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,6 +36,20 @@ type buildReport struct {
 	groups    []errGroup        // the packages' errors, lower packages first
 	importers []diag.Diagnostic // errors of files that only import a failing package
 	raw       []string          // what the go command said that isn't a package's errors
+	blame     map[string]string // an importer's error (blameKey) → the failing package it follows from
+}
+
+// blameKey names an importer's error in buildReport.blame.
+func blameKey(d diag.Diagnostic) string {
+	return fmt.Sprintf("%s:%d:%d:%s", d.Span.File, d.Span.Line, d.Span.Col, d.Code)
+}
+
+// culprit is the failing package the importer error d follows from.
+func (r *buildReport) culprit(d diag.Diagnostic) string {
+	if c := r.blame[blameKey(d)]; c != "" {
+		return c
+	}
+	return culpritOf(d.Message)
 }
 
 // errGroup is the errors of one package.
@@ -108,8 +123,8 @@ func (r *buildReport) write(w io.Writer, o reportOptions) {
 	diag.Footer(&b, slices.DeleteFunc(slices.Clone(shown), func(d diag.Diagnostic) bool { return d.Code == "E0002" }), ro)
 	if o.verbose && len(r.importers) > 0 {
 		fmt.Fprintf(&b, "\nthe %s that couldn't build because of %s:\n", importerNoun(r.importers, wd, len(importerFiles(r.importers)) != 1), countWord(r.errs(), "it", "them"))
-		for _, d := range relDiags(slices.Clone(r.importers), wd) {
-			fmt.Fprintf(&b, "  %s: imports %s\n", d.Span, culpritOf(d.Message))
+		for i, d := range relDiags(slices.Clone(r.importers), wd) {
+			fmt.Fprintf(&b, "  %s: imports %s\n", d.Span, r.culprit(r.importers[i]))
 		}
 	}
 	if line := r.summary(wd); line != "" {
@@ -225,6 +240,7 @@ type buildInput struct {
 	root, modPath string
 	overlay       string
 	gens          []load.Generated
+	imports       map[string][]string // the module's packages' imports, by import path; nil: read from the overlay
 }
 
 // transpileReport is the report of a transpile that failed with err; nil
@@ -247,6 +263,11 @@ func transpileReport(in buildInput, err error) *buildReport {
 		}
 	}
 	own, follow := in.check(culprits, in.dropped(ds))
+	known := map[string]bool{} // culprits failing themselves
+	for c, ds := range own {
+		known[c] = slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Code != "E0005" && d.Severity != diag.Warning })
+	}
+	roots, blamed := in.rootCauses(ds, known)
 	byPkg := map[string][]diag.Diagnostic{}
 	goErrs := map[string]int{} // how many of byPkg's are Go's, after Vuka's
 	var order []string
@@ -270,8 +291,23 @@ func transpileReport(in buildInput, err error) *buildReport {
 			byPkg[c], order = nil, append(order, c)
 		}
 	}
+	for _, path := range in.depOrder(slices.Sorted(maps.Keys(roots))) {
+		for _, d := range roots[path] {
+			add(path, d)
+		}
+	}
 	for _, d := range ds {
-		if d.Code != "E0005" || d.Severity == diag.Warning {
+		switch c := blamed[in.pkgOf(d.Span.File)]; {
+		case d.Code == "E0005" && d.Severity != diag.Warning:
+		case c != "" && d.Severity != diag.Warning:
+			// It follows from the failing package it imports: said by
+			// the count of what couldn't build, and by -v.
+			r.importers = append(r.importers, d)
+			if r.blame == nil {
+				r.blame = map[string]string{}
+			}
+			r.blame[blameKey(d)] = c
+		default:
 			add(in.pkgOf(d.Span.File), d)
 		}
 	}
@@ -282,6 +318,9 @@ func transpileReport(in buildInput, err error) *buildReport {
 	}
 	reported := map[string]bool{} // the packages whose own errors are shown
 	for path := range byPkg {
+		reported[path] = true
+	}
+	for path := range blamed {
 		reported[path] = true
 	}
 	for _, c := range culprits {
@@ -351,12 +390,86 @@ func transpileReport(in buildInput, err error) *buildReport {
 	return r
 }
 
-// sortPos sorts ds by file and line.
+// rootCauses are the module's packages that fail themselves, by import
+// path with their errors, that the packages ds has transpile errors in
+// import, directly or not, and the packages whose errors follow from them
+// (by the failing package): their types are invalid in those, so what they
+// report says little about the packages' own code.
+func (in buildInput) rootCauses(ds []diag.Diagnostic, known map[string]bool) (map[string][]diag.Diagnostic, map[string]string) {
+	failing := map[string]bool{}
+	for _, d := range ds {
+		if p := in.pkgOf(d.Span.File); p != "" && d.Code != "E0005" && d.Severity != diag.Warning {
+			failing[p] = true
+		}
+	}
+	if len(failing) == 0 {
+		return nil, nil
+	}
+	ov, _ := readOverlay(in.overlay)
+	ctx := overlayContext(ov)
+	deps := map[string][]string{} // a package → the module's packages it imports, all the way down
+	var closure func(p string, seen map[string]bool)
+	closure = func(p string, seen map[string]bool) {
+		imports, ok := in.imports[p]
+		if !ok {
+			if bp, _ := ctx.ImportDir(in.dirOf(p), 0); bp != nil {
+				imports = bp.Imports
+			}
+		}
+		for _, imp := range imports {
+			if in.inModule(imp) && !seen[imp] {
+				seen[imp] = true
+				closure(imp, seen)
+			}
+		}
+	}
+	var candidates []string
+	have := map[string]bool{}
+	for p := range failing {
+		seen := map[string]bool{}
+		closure(p, seen)
+		deps[p] = slices.Sorted(maps.Keys(seen))
+		for _, d := range deps[p] {
+			if _, ok := known[d]; !ok && !failing[d] && !have[d] {
+				have[d] = true
+				candidates = append(candidates, d)
+			}
+		}
+	}
+	own, _ := in.check(in.depOrder(candidates), nil)
+	roots := map[string][]diag.Diagnostic{}
+	for _, c := range candidates {
+		if slices.ContainsFunc(own[c], func(d diag.Diagnostic) bool { return d.Code != "E0005" && d.Severity != diag.Warning }) {
+			roots[c] = own[c]
+		}
+	}
+	causes := func(p string) bool { return known[p] || len(roots[p]) > 0 }
+	blamed := map[string]string{}
+	for p, imported := range deps {
+		for _, d := range imported {
+			if causes(d) && (blamed[p] == "" || d < blamed[p]) {
+				blamed[p] = d
+			}
+		}
+	}
+	if len(blamed) == 0 {
+		return nil, nil
+	}
+	return roots, blamed
+}
+
+// sortPos sorts ds by file and line, an internal error (E0001) after the
+// others of its file: it follows from them.
 func sortPos(ds []diag.Diagnostic) {
 	slices.SortStableFunc(ds, func(a, b diag.Diagnostic) int {
 		switch {
 		case a.Span.File != b.Span.File:
 			return strings.Compare(a.Span.File, b.Span.File)
+		case (a.Code == "E0001") != (b.Code == "E0001"):
+			if a.Code == "E0001" {
+				return 1
+			}
+			return -1
 		case a.Span.Line != b.Span.Line:
 			return a.Span.Line - b.Span.Line
 		}
@@ -508,6 +621,15 @@ func (in buildInput) dirOf(path string) string {
 		return root
 	}
 	return filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(path, in.modPath+"/")))
+}
+
+// pkgImports is the imports of pkgs by import path.
+func pkgImports(pkgs []*load.Package) map[string][]string {
+	out := make(map[string][]string, len(pkgs))
+	for _, p := range pkgs {
+		out[p.ImportPath] = p.Imports
+	}
+	return out
 }
 
 // pkgOf is the import path of the module's package file is in.

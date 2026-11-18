@@ -304,7 +304,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	ro := reportOptions{color: colorFor(stderr), verbose: slices.Contains(args, "-v"), all: cmd == "vet"}
 	if len(pkgs) > 0 {
 		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
-			in := buildInput{root, modPath, overlay, gens}
+			in := buildInput{root: root, modPath: modPath, overlay: overlay, gens: gens, imports: pkgImports(pkgs)}
 			rep := transpileReport(in, err)
 			left := scope.report(rep, in)
 			if scope == nil || rep == nil || !rep.empty() {
@@ -458,7 +458,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	if blocks != nil {
 		blocks.flush()
-		blocks.report(stderr, err, buildInput{root, modPath, overlay, gens}, ro)
+		blocks.report(stderr, err, buildInput{root: root, modPath: modPath, overlay: overlay, gens: gens, imports: pkgImports(pkgs)}, ro)
 	}
 	r.flush()
 	if err == nil && vetFailed {

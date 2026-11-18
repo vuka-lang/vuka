@@ -747,3 +747,66 @@ func TestUnusedImportPosition(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildReportRootCause: a package whose Go doesn't type-check is the
+// one error vuka vet shows, first: what the pages importing it report,
+// their state assigned from its functions in a type it left invalid, is
+// counted with the pages that couldn't build, and listed with -v.
+func TestBuildReportRootCause(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	for _, file := range []string{"m.go", "m.vuka"} {
+		t.Run(file, func(t *testing.T) { rootCause(t, file) })
+	}
+}
+
+func rootCause(t *testing.T, file string) {
+	files := map[string]string{
+		"main.go":        "package main\n\nimport (\n\t\"example.com/app/pages\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc main() { web.New(pages.Routes()).Run(\"\") }\n",
+		"models/" + file: "package models\n\ntype Item struct{ N int }\n\nfunc Pair() (Foo, error) { return Foo{}, nil }\n\nfunc Items() ([]Item, error) { return nil, nil }\n",
+	}
+	for _, d := range []string{"a", "b", "c"} {
+		files["pages/"+d+"/index.vuka.html"] = "package " + d + `
+
+import (
+	"context"
+
+	"example.com/app/models"
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Index struct {
+	ui.Live
+	items []models.Item
+	err   error
+}
+
+func (p *Index) Reload(ctx context.Context) {
+	p.items, p.err = models.Items()
+}
+
+<ul>{for _, it := range items { <li>{it.N}</li> }}</ul>
+`
+	}
+	t.Chdir(localModule(t, webCheckout(t), files))
+	var stderr bytes.Buffer
+	if runGo("vet", []string{"./..."}, io.Discard, &stderr) == nil {
+		t.Fatal("vet passed")
+	}
+	out := stderr.String()
+	golden(t, "rootcause-"+strings.ReplaceAll(file, ".", "-")+".golden", out)
+	switch {
+	case !strings.HasPrefix(out, "error[E0002]: undefined: Foo\n --> models/"+file+":5:14"):
+		t.Errorf("the root cause isn't first:\n%s", out)
+	case strings.Contains(out, "pages/") || strings.Contains(out, "E0001"):
+		t.Errorf("an error of the pages that follow from it:\n%s", out)
+	case !strings.HasSuffix(out, "2 errors in 1 package · 3 pages couldn't build because of them\n"):
+		t.Errorf("the summary:\n%s", out)
+	}
+	stderr.Reset()
+	runGo("vet", []string{"-v", "./..."}, io.Discard, &stderr)
+	if v := stderr.String(); !strings.Contains(v, "pages/a/index.vuka.html:17:2: imports example.com/app/models\n") {
+		t.Errorf("vet -v:\n%s", v)
+	}
+}

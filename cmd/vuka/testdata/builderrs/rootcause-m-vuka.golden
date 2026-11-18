@@ -1,0 +1,13 @@
+error[E0002]: undefined: Foo
+ --> models/m.vuka:5:14
+  |
+5 | func Pair() (Foo, error) { return Foo{}, nil }
+  |              ^^^
+
+error[E0002]: undefined: Foo
+ --> models/m.vuka:5:35
+  |
+5 | func Pair() (Foo, error) { return Foo{}, nil }
+  |                                   ^^^
+
+2 errors in 1 package · 3 pages couldn't build because of them
