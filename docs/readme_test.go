@@ -2,8 +2,10 @@ package docs
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -96,5 +98,43 @@ func TestReadmeMatchesDocs(t *testing.T) {
 				t.Errorf("Roadmap line %q names %q, which has a docs page (features/%s)", strings.TrimSpace(line), ttl, name)
 			}
 		}
+	}
+}
+
+var semverTag = regexp.MustCompile(`^v2\.(\d+)\.(\d+)$`)
+
+// TestLatestTagHasReleaseNotes requires docs/releases.md to have a heading
+// for the highest v2.x.y tag of the checkout, so a release can't go out
+// without its notes.
+func TestLatestTagHasReleaseNotes(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git command")
+	}
+	out, err := exec.Command("git", "tag", "--list", "v2.*").Output()
+	if err != nil {
+		t.Skip("not a git checkout")
+	}
+	var latest string
+	var lm, lp int
+	for _, tag := range strings.Fields(string(out)) {
+		m := semverTag.FindStringSubmatch(tag)
+		if m == nil {
+			continue
+		}
+		mi, _ := strconv.Atoi(m[1])
+		pa, _ := strconv.Atoi(m[2])
+		if latest == "" || mi > lm || (mi == lm && pa > lp) {
+			latest, lm, lp = tag, mi, pa
+		}
+	}
+	if latest == "" {
+		t.Skip("no v2 tags")
+	}
+	b, err := os.ReadFile("releases.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?m)^## ` + regexp.QuoteMeta(latest) + `(\s|$)`).Match(b) {
+		t.Errorf("docs/releases.md has no \"## %s\" heading for the latest tag", latest)
 	}
 }

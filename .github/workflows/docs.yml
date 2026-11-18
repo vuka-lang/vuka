@@ -35,6 +35,8 @@ jobs:
           go-version: stable
           cache-dependency-path: docs/testdata/gomode/go.sum
       - run: npm ci
+      - name: docs tests
+        run: go test .
       - run: npm run build
       - name: playground in Chrome
         env:
@@ -85,3 +87,21 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # The site's own workflow only runs on a schedule GitHub may throttle, so a
+  # docs push asks it to deploy now.
+  # TODO(owner): create SITE_DEPLOY_TOKEN (a fine-grained token with Actions: write on vuka-lang/vuka-lang.github.io)
+  site:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: deploy the site
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "SITE_DEPLOY_TOKEN is not set; the site deploys on its own schedule"
+            exit 0
+          fi
+          gh workflow run deploy.yml -R vuka-lang/vuka-lang.github.io
