@@ -210,6 +210,7 @@ same page in the terminal.
 | [W0320](./W0320) | A form component named by its former name in ui |
 | [W0351](./W0351) | A Suspense wait list names a binding it never shows |
 | [W0352](./W0352) | A Suspense on a live page waits for nothing |
+| [W0353](./W0353) | A loader sets a field that isn't deferred to its group |
 
 ## Routes and the web app
 

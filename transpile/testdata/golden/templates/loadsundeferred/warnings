@@ -1,0 +1,3 @@
+W0353 page.vuka.html:21:2: `rows` is set in `load` (`@ui.Loads("rows")`) but isn't `@ui.Defer("rows")`; the page won't see the value; mark it @ui.Defer("rows"), or set it in Mount
+W0353 page.vuka.html:22:2: `tiles` is set in `load` (`@ui.Loads("rows")`) but isn't `@ui.Defer("rows")`; the page won't see the value; mark it @ui.Defer("rows"), or set it in Mount
+W0353 page.vuka.html:29:2: `loaded` is set in `loadStats` (`@ui.Loads("stats")`) but isn't `@ui.Defer("stats")`; the page won't see the value; mark it @ui.Defer("stats"), or set it in Mount

@@ -263,6 +263,7 @@ func (e *engine) run() {
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
+		e.loadsWrites()
 		for _, f := range e.vuka {
 			e.droppedHandlers(f)
 			e.implicitLive(f)

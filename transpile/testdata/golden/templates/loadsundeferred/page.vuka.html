@@ -1,0 +1,45 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+type Dashboard struct {
+	ui.Live
+	ready bool     @ui.Defer("rows")
+	rows  []string
+	tiles []string @ui.Defer("stats")
+	other string   @ui.Defer("other")
+	loaded bool
+}
+
+@ui.Loads("rows")
+func (d *Dashboard) load(ctx context.Context) error {
+	d.rows, d.ready = []string{"a"}, true
+	d.tiles = []string{"b"}
+	return nil
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error {
+	d.tiles = []string{"b"}
+	d.loaded = true
+	return nil
+}
+
+@ui.Loads("other")
+func (d *Dashboard) loadOther(ctx context.Context) error {
+	d.other = "x"
+	return nil
+}
+</script>
+
+<main>
+  <ui.Suspense for={ready}>
+    for _, r := range rows { <p>{r}</p> }
+  </ui.Suspense>
+  <p>{len(tiles)} {other} {loaded}</p>
+</main>
