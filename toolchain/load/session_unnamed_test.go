@@ -196,6 +196,7 @@ static.go staticGoName(s.typeName, s.name)
 static.go staticGoName(tn.Name(), member)
 static.go x.Sel.Name
 streams.go f.html.shape.Type
+suspenselive.go f.html.recvType
 target.go name
 targets.go a.Name
 targets.go sel
