@@ -121,7 +121,7 @@ Each message type means:
 
 | | |
 |---|---|
-| `join` | the first message: the server renders the page; the reply is `render`. `"v":2` asks for [version 2](#protocol-v2-render-trees) |
+| `join` | the first message: the server renders the page; the reply is `render`. `"v":2` asks for [version 2](#protocol-v2-render-trees). `build`, the page's `data-vk-build-id`, names the build that rendered it: a server of another build replies `error` (`live: the page was rendered by another build`) and closes with the reload status, and the page loads again ([rolling deploys](/web/deployment#rolling-deploys)); a join without it is accepted |
 | `event` | `target` is the handler's id from its `data-vk-on-…`; `event` the DOM event; `value` the element's value (a checkbox's `checked` as `"true"`/`"false"`); `key` a keyboard event's key; `form` a submit's fields (`FormData`, each name to its values) |
 | `render` | `html` replaces the page container's content |
 | `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. The morph matches `data-vk-key` among siblings, so keyed rows move instead of being rewritten. `error`, when set, is a handler's message, for the page to show |

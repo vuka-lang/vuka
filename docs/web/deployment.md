@@ -202,6 +202,25 @@ Several replicas behind one hostname need a shared `web.LiveKey(key)` for
 [live pages](/web/live#security), and a `web.WithRelay(r)` for broadcasts to
 reach every replica.
 
+### Rolling Deploys {#rolling-deploys}
+
+During a rolling deploy, replicas of the old and the new build serve the same
+hostname, and a tab opened before the deploy may reconnect to a new replica.
+The page names the build that rendered it, so a tab never talks to another
+build's server:
+
+- A live page's socket sends its build when it joins. A replica of another
+  build refuses the join and closes the socket with the reload status, and the
+  page loads again from the new build.
+- A page that isn't live sends its build with each in-place navigation
+  (`Vk-Navigate`), and another build answers that the page must load as a
+  document.
+
+The build is the runtime's version and the hashes of the app's static assets
+and CSS, so a deploy that changes neither keeps open tabs as they are. A page
+whose runtime predates this check sends no build when it joins and is
+accepted as before; it reloads on the deploy after.
+
 ## Using Another Router {#routers}
 
 The default router is `net/http`'s `ServeMux` with Go 1.22 patterns
