@@ -60,7 +60,10 @@ URL of the page you are on: the next page of a list, a filter, a tab. A
 On a patch, the route runs again for the new URL, and a
 [Live page](/web/live) that takes the URL stays mounted and keeps its state.
 Its props are bound from the URL again, and the reply is the usual patch:
-only what changed.
+only what changed. A page without an `Update` can't take a patch: it mounts
+again, as for a navigate. In development that is warned about once for each
+route (in the log and the [toolbar](/web/toolbar)'s Logs panel), so a tab
+bar that lost its state is found: add `Update(ctx, params)` below.
 
 ### Taking the URL in Update {#taking-the-url-in-update}
 

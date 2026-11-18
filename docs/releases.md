@@ -21,6 +21,43 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.22.0 — 2026-11-18
+
+- **`vuka vet` shows the failing package first.** When a package doesn't
+  compile, the pages and packages importing it no longer list the errors that
+  only follow from it (E0150 on state assigned from its invalid types,
+  E0001 "produced Go that doesn't parse", "X doesn't compile"). The package's
+  own errors come first and the rest is one count:
+  `2 errors in 1 package · 3 pages couldn't build because of them`; `-v` lists
+  the files and the package each follows from. An internal error (E0001) is
+  listed after the other errors of its file. Fix the first package, and vet
+  shows what the pages then report.
+- **vuka cleans up after itself.** The `vuka-…` folders vuka makes in the
+  temporary directory, and the `go-build…` folders of the go commands it
+  starts (they now work in a folder of vuka's, `GOTMPDIR`; one you set is
+  kept), are removed when vuka ends, also on Ctrl-C or SIGTERM, which vuka now
+  passes on to the go command and waits for. A vuka killed outright leaves
+  folders the next one removes, once their process is gone and they are two
+  hours old: only folders vuka marked, never other tools'. Folders of earlier
+  versions carry no mark and stay.
+- **A patch link to a page without `Update` is warned about.** In
+  development, `data-vk-link="patch"` (a tab bar, a pager) to a live page with
+  no `Update(ctx, params)` logs a warning once for each route, which the
+  toolbar's Logs panel shows too: the page mounts again and loses its
+  state. See [Patch or Navigate](/web/navigation#patch-or-navigate).
+- **Navigation settles deferred loads.** A navigation ends the old page's
+  deferred loads before the next route runs, and interrupts the render a load
+  is applying, including on a page with an `Update`; a patch ask on a page
+  without one ends them first too.
+- **`ui.Source.Count` for `ui.LoadPage`.** An app that keeps a large table's
+  total for a while hands it to `LoadPage`, which then counts nothing without
+  a search; with one, `Page.All` is `Count`'s and `Page.Total` the search's own
+  count. See [`ui.LoadPage`](/ui/datatable#loadpage).
+- **`ui.Dialog` sizes `"xl"` and `"full"`.** `"xl"` is up to 72rem wide;
+  `"full"` the viewport less a margin, wide and tall, for a document's
+  preview. The size classes also apply now: `.vk-dialog--sm` and `--lg` were
+  out-ranked by the dialog's own width, and a dialog of either stayed 32rem.
+
 ## v2.21.0 — 2026-11-16
 
 - **`<ui.Suspense>` works on live pages.** It waits for the `@ui.Loads`

@@ -89,6 +89,10 @@ counts the rows before the search (`Page.All`) and after it
 | `Search` | narrows the set to a non-empty search term; without it the search is ignored |
 | `Sorts` | maps a column's sort key to the field it orders by (`"author": "author__name"`); a key it doesn't list is ignored |
 | `Default` | the order when no sort applies: a field, a leading `-` for descending |
+| `Count` | `func(ctx) (int, error)`: the number of `Rows` without a search, for an app that keeps a large table's total for a while; nil counts the rows |
+
+With `Count`, `Page.All` is its number and a page without a search costs no
+count query; with a search, `Page.Total` is still the search's own count.
 
 Without `Sorts`, a sort key the table's columns declare is the field's name
 itself, so `sort="title"` on the column is all you write. A key the address
