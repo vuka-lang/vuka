@@ -82,7 +82,7 @@ func routeTable(root, modPath string) (routeTrees, *routesResult, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return nil, nil, err
 	}

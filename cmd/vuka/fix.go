@@ -122,7 +122,7 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 	if m.pkgs, err = load.Discover(root, modPath, root, true, nil); err != nil {
 		return 0, err
 	}
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return 0, err
 	}

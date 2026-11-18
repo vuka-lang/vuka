@@ -191,7 +191,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start gopls: %w", err)
 	}
-	tmp, err := os.MkdirTemp("", "vuka-lsp-")
+	tmp, err := mkTemp("vuka-lsp-")
 	if err != nil {
 		return err
 	}

@@ -178,7 +178,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		dir = real
 	}
-	tmp, err := os.MkdirTemp("", "vuka-watch-")
+	tmp, err := mkTemp("vuka-watch-")
 	if err != nil {
 		return err
 	}

@@ -162,6 +162,7 @@ func main() {
 		}
 		go trimCaches(time.Now())
 		go trimGoBuildCache(time.Now())
+		go sweepTemp(os.TempDir(), time.Now())
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
 		err = newProject(os.Args[2:], os.Stdin, os.Stdout)
@@ -257,6 +258,9 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			return runWatch(args, stdout, stderr)
 		}
 	}
+	defer sessionTemp()()
+	defer interruptible()()
+	signalsOwned.Store(false)
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
@@ -290,11 +294,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	goArgs := []string{cmd}
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer removeTemp(tmp)
 	routes := scanRoutes(root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		return err
@@ -437,24 +441,25 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		blocks = &blockWriter{next: r, respell: r.respell}
 		c.Stderr = blocks
 	}
-	if cmd == "run" {
-		// A signal stops what vuka started beside the program and goes on to
-		// the go command; vuka waits for it to exit.
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-		defer signal.Stop(sig)
-		if err = c.Start(); err == nil {
-			go func() {
-				for s := range sig {
+	// A signal stops what vuka started beside the program and goes on to
+	// the go command; vuka waits for it to exit, and removes its directories.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sig)
+	if err = c.Start(); err == nil {
+		signalsOwned.Store(true)
+		go func() {
+			for s := range sig {
+				if cmd == "run" {
 					stopTailwind()
-					c.Process.Signal(s)
+				}
+				c.Process.Signal(s)
+				if cmd == "run" {
 					stopFrontend()
 				}
-			}()
-			err = c.Wait()
-		}
-	} else {
-		err = c.Run()
+			}
+		}()
+		err = c.Wait()
 	}
 	if blocks != nil {
 		blocks.flush()
@@ -792,7 +797,7 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	}
 	all = append(slices.DeleteFunc(all, func(p *load.Package) bool { return asked[p.ImportPath] }), roots...)
 	pkgs := load.Closure(all, roots)
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return "", nil, err
 	}
@@ -917,7 +922,7 @@ func genModule(out string, codeOnly bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return err
 	}

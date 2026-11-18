@@ -87,7 +87,7 @@ func generate(path string) (load.Generated, error) {
 	if len(own) > 0 {
 		pkgs = load.Closure(pkgs, own)
 	}
-	tmp, err := os.MkdirTemp("", "vuka-")
+	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return load.Generated{}, err
 	}
