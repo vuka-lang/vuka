@@ -2,7 +2,7 @@
 
 # Vuka
 
-**Docs: [vuka-lang.github.io](https://vuka-lang.github.io/)**
+**Docs: [vuka-lang.github.io](https://vuka-lang.github.io/)** · [Status](https://vuka-lang.github.io/project/status) · [Security](SECURITY.md)
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
 enums, function and method overloading, typed attributes, decorators, and JSX

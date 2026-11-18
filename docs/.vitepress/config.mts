@@ -225,6 +225,7 @@ export default defineConfig({
         items: [
           { text: 'Release Notes', link: '/releases' },
           { text: 'Upgrade Guide', link: '/releases#moving-an-app-from-1-x' },
+          { text: 'Status', link: '/project/status' },
           { text: 'Versions', link: '/project/versions' },
           { text: 'Compatibility Promise', link: '/project/compatibility' },
           { text: 'Releasing', link: '/project/releasing' },
