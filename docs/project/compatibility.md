@@ -25,6 +25,9 @@ moves between them is in [Versions](/project/versions).
 > no further releases: no fixes, security fixes included. A 1.x app keeps
 > building on the versions it requires, and moves to 2.0 by hand, as
 > [the v2.0.0 release notes](/releases#moving-an-app-from-1-x) describe.
+>
+> v1 had no known production users, so it was ended to settle the design
+> before adoption.
 
 ## What Is Covered {#what-is-covered}
 
@@ -118,6 +121,15 @@ change it makes ships with:
 - a release-note example of the code before and after.
 
 v2.0.0's are in [its release notes](/releases#moving-an-app-from-1-x).
+
+## Support Periods {#support-periods}
+
+The latest v2 minor release gets fixes. When v3 ships, v2 receives security
+fixes for TODO(owner): number of months after the v3.0.0 release, and nothing
+else: new features and bug fixes go to v3 only.
+
+v1 has no releases and no fixes, security fixes included; see the note under
+[Which Modules It Covers](#modules).
 
 ## What Is Not Covered {#what-is-not-covered}
 

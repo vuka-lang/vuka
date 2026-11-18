@@ -3265,6 +3265,9 @@ The runtime is v2.0.0: generated code needs `github.com/vuka-lang/vuka/v2`
 at v2.0.0. A 1.x app keeps building on its 1.x requirements; the
 [compatibility promise](/project/compatibility) now applies to the v2 set.
 
+v1 had no known production users, so it was ended to settle the design before
+adoption.
+
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka/v2@v2.0.0
 ```
