@@ -2441,6 +2441,11 @@ Pages that aren't live move in place over HTTP, as live pages do over their conn
   other packages' markup, and highlights no longer include entries
   without a place.
 
+## v2.7.0 — skipped
+
+The number was never released: no v2.7.0 tag exists. What was written for it
+shipped in [v2.8.0](#v2-8-0-—-2026-10-27).
+
 ## v2.6.0 — 2026-10-26
 
 - **Commands pushed from a hook reach their handlers.** A Push step in a
