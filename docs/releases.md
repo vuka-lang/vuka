@@ -21,6 +21,123 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.23.0 — 2026-11-19
+
+### Upgrading
+
+- **A `ui.Suspense` fallback now waits 150ms before it shows.** Every
+  Suspense (and `ui.Await`) on a live page gets a `<vk-await>` wrapper, and
+  its fallback is rendered at once but invisible for its first 150ms, so a
+  fast load never flashes a skeleton. Nothing to change in an app; a browser
+  test that expects a fallback visible within 150ms needs `delay="0s"` (or
+  `Delay: ui.Instant` in Go), and `ui.SetAwaitDefaults` sets the timings for
+  a whole app. A CSS rule an app added to delay its fallbacks can go.
+- **A live page's HTTP handler returns after the WebSocket upgrade.** The
+  session runs on its own, so the upgrade request, its response and the
+  server's state for them are freed after the join. Middleware wrapping the
+  live route sees the request finish at the upgrade, not when the socket
+  closes, and a cancelled server `BaseContext` no longer ends sockets by
+  itself (stopping the app or the server still does). In a live event,
+  `web.Request(ctx)` keeps the page's URL and the upgrade's headers, with an
+  empty body, and `web.ResponseWriter(ctx)` discards what it is given.
+
+### Suspense timings
+
+- **`wait`, `delay` and `minShow` on `<ui.Suspense>`** of a live component:
+  `wait="200ms"` holds the first render that long for the group's loaders,
+  so one that finishes in time ships its content with no fallback at all;
+  `delay` (150ms by default) keeps the fallback invisible, its space kept,
+  so a faster load never shows it; `minShow="400ms"` keeps a fallback that
+  did show on screen at least that long, so it never blinks. A boundary over
+  several groups is one boundary. Values are durations; a bad one, or
+  timings on a boundary that isn't a live component's, is
+  [E0364](/errors/E0364).
+
+### More connections on one process
+
+Measured with the load-test harness in web (`examples/loadtest`), 10,000
+pages on one machine:
+
+- **Broadcasts.** The hub that holds the connections is split into shards,
+  so a broadcast locks one shard; the broadcasts waiting for a page are
+  merged into one render and one patch; and broadcast renders take a slot of
+  a bounded pool, so a storm of broadcasts on one topic no longer starves
+  other pages' events.
+- **Slow browsers.** Each connection has a bounded outbound queue and its
+  own writer, so a broadcast never waits on a slow socket. A browser that
+  can't keep up is told to load the page again (close status 4001), and now
+  receives that close instead of a dropped connection.
+- **Memory.** A page's render tree is stored once per process, by content:
+  identical HTML across users is held once, and what a browser holds costs a
+  pointer. On an admin-style page mix this takes a page from about 137 KB to
+  107 KB; with the handler returning after the upgrade, a page's goroutine
+  stack halves. `VUKA_LIVE_SHARE=off` turns the shared store off.
+
+### Shared fragments (experimental)
+
+- **`ui.SharedLive`** in place of `ui.Live` makes a component that renders
+  once for every page showing it, and **`ui.Broadcast[T](ctx, msg)`** sends
+  it a change: one render, one diff and one frame for all viewers, however
+  many there are. At 10,000 pages a broadcast reached the last one in 196ms
+  at p99, against 697ms rendered per page. A shared component reads nothing
+  of the viewer — no session, identity or props — and takes no events;
+  per-viewer interaction goes in a component around it. Experimental: it
+  may change or go in a minor release.
+
+### Configuration
+
+- **Values that change while the app runs.** `web.ApplyEnv(source, values)`
+  applies a source's values below the real environment and above env files;
+  `web.OnEnvChange(key, fn)` runs after a key changes; `web.Hot[T](key, def)`
+  is a value whose `Get` is always current; `web.EnvFromFile(key)` reports
+  whether a value came from an env file. The config server,
+  [github.com/vuka-lang/config](https://github.com/vuka-lang/config), uses
+  them to update running apps.
+- **Restart-only keys.** The compiler records the environment keys an app
+  reads only while it starts (`web.RestartOnlyEnv`, checked with
+  `web.NeedsRestart`), so a change to one is reported as needing a restart;
+  `web.Restart` drains the app and exits with status 75 for a supervisor to
+  start it again. `vuka vet` notes keys it can't read as constants
+  ([W0405](/errors/W0405)).
+
+### Diagnostics
+
+- **[W0353](/errors/W0353)**: a `@ui.Loads` method that sets a field not
+  deferred to its group, which the page would never receive.
+
+### Fixes
+
+- A select bound to an `int` shows the option valued 0 (ui#102).
+- A deferred group keeps its last content while its loader runs again,
+  instead of going back to its fallback (ui#103).
+- A component's `@ui.URL` parameters, and a DataTable's, leave the address
+  when it stops rendering; links in an event's reply see the URL the event
+  wrote and none it dropped (ui#104).
+- A patch link that only moves parameters a page's components keep in the
+  address keeps the page, with no `Update` needed; a `@ui.URL` field set in
+  an event is a state change, not a navigation.
+- A branch switch replaces its region and remounts its component scripts,
+  and attributes a script set belong to its component instance, so they
+  don't reach the next one on a tab switch.
+- A focused field is never overwritten by its own echo (a trailing space is
+  kept while typing; the server's value applies on blur).
+- A morph leaves `hidden` to an element's own show binding, so an open
+  dialog no longer flickers on each patch.
+- A file field's upload ticket renders the same through the hour, so patches
+  don't rewrite it.
+- A live join names its build, so a tab from another build loads the page
+  again during a rolling deploy.
+- A navigation away from a page goes first, past searches queued before it.
+
+### Project
+
+- v2 is the last major version: deprecated forms keep compiling, and v2 gets
+  fixes for as long as Vuka is maintained. See
+  [Compatibility](/project/compatibility).
+- A [Status](/project/status) page, and `SECURITY.md`: vulnerabilities are
+  reported through GitHub's private vulnerability reporting, answered within
+  7 days.
+
 ## v2.22.0 — 2026-11-18
 
 - **`vuka vet` shows the failing package first.** When a package doesn't
