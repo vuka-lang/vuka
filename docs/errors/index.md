@@ -251,6 +251,7 @@ same page in the terminal.
 | [W0402](./W0402) | A direct read where a processor variable would do |
 | [W0403](./W0403) | A control hidden by a permission its event doesn't check |
 | [W0404](./W0404) | A static file linked by hand |
+| [W0405](./W0405) | An environment read whose key the compiler can't read |
 
 ## Data and the ORM
 

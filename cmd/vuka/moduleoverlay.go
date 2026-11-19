@@ -23,6 +23,11 @@ func moduleOverlay(root, modPath, tmp, overlay string, pkgs []*load.Package, gen
 	}
 	traceStep("module overlay: link %v", time.Since(t0))
 	t0 = time.Now()
+	if overlay, gens, err = restartKeys(root, modPath, tmp, overlay, pkgs, gens); err != nil {
+		return overlay, gens, "", err
+	}
+	traceStep("module overlay: restart keys %v", time.Since(t0))
+	t0 = time.Now()
 	overlay, gens = typedFields(root, tmp, overlay, gens, tests, stderr)
 	traceStep("module overlay: typed fields %v", time.Since(t0))
 	t0 = time.Now()
