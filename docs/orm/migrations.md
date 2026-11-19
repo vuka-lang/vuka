@@ -148,6 +148,14 @@ that build with its request, JSON, in the `ORM_CLI_REQUEST` environment
 variable (`orm.CLIEnv`), which `orm.ServeCLI` reads; programs never call it
 themselves.
 
+The build is kept in the user's cache directory, named by what it was made
+from: the module's files (and those of any local module its `go.mod` or
+`go.work` points at), the go command's settings, and the `orm` and `vuka`
+commands. While none of them changes, the next command runs it straight away
+— a `migrate` after a `migrate`, or a `showmigrations`, skips generating and
+compiling. Any change builds it again. `ORM_CACHE` names another directory
+for it; `ORM_CACHE=off` builds afresh each time.
+
 ## Migrating Vuka Models {#vuka-models}
 
 A module with `.vuka` files is built through `vuka gen` (the `vuka` command on
