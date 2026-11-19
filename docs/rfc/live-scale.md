@@ -142,7 +142,12 @@ rest wait their turn, so a storm on one topic costs latency to its own
 subscribers and does not exhaust memory or starve the interactive events of
 other pages.
 
-(e) **Shared render for identical fragments.** For a component whose output
+(e) **Shared render for identical fragments.** *Experimental: kept pending a
+comparison with automatic shared HTML (identical rendered subtrees stored once
+across sessions, render memoization for pure components); `ui.SharedLive` and
+`ui.Broadcast` may be removed. The plumbing below does not depend on that API:
+the process-wide statics ids and the versioned frame fanned out as one encoded
+slice to many outbound queues serve either.* For a component whose output
 is the same for every viewer, the server renders once and fans one frame out.
 The component says so on its type, and everything else keeps the per-page
 render of (b). The design below is checked against `ui/live` (`Session`,

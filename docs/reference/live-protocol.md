@@ -361,8 +361,8 @@ dynamics.
 
 ### Shared Fragments {#shared-fragments}
 
-A component that embeds `ui.SharedLive` renders once for every page that shows
-it. On the wire it is an ordinary set of instances, with two differences a
+*Experimental.* A component that embeds `ui.SharedLive` renders once for every
+page that shows it. On the wire it is an ordinary set of instances, with two differences a
 client never has to know about:
 
 - Its instance ids are prefixed by the fragment, `s1.c3` for `c3` of the first
