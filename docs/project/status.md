@@ -26,11 +26,11 @@ cadence the project aims for, and what each kind of release may change, is in
 
 ## Maintainers {#maintainers}
 
-TODO(owner): who maintains Vuka.
+Vuka is maintained by [paulmanoni](https://github.com/paulmanoni).
 
 ## Production Use {#production-use}
 
-TODO(owner): known production users, or a statement that there are none yet.
+Vuka runs in production on several systems.
 
 ## Reporting Security Issues {#security}
 

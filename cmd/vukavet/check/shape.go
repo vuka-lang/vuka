@@ -189,7 +189,7 @@ func headerForm(pass *analysis.Pass, html []*htmlSource) {
 			first = len(h.src) - start
 		}
 		msg := "W0107: " + h.typ + "'s Go is a header above its markup: write it in a <script lang=\"go\">, the file's first element" +
-			"\n\thelp: vuka fix shape-script rewrites every file so; the header form is removed in 3.0"
+			"\n\thelp: vuka fix shape-script rewrites every file so; the header form is deprecated"
 		pass.Report(analysis.Diagnostic{
 			Pos: h.file.Pos(start), End: h.file.Pos(start + first), Category: "W0107", URL: docsURL + "W0107", Message: msg,
 			SuggestedFixes: []analysis.SuggestedFix{{

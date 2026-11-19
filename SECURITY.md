@@ -8,9 +8,9 @@
 | earlier v2 minor releases | no: move to the latest; patch releases keep the promise in [Compatibility](https://vuka-lang.github.io/project/compatibility) |
 | v1.x | no: v1 receives no releases, security fixes included |
 
-How long a major version gets security fixes after the next one ships is on
-the [Compatibility](https://vuka-lang.github.io/project/compatibility#support-periods)
-page.
+v2 is the last major version, so it gets security fixes for as long as Vuka
+is maintained; see
+[Compatibility](https://vuka-lang.github.io/project/compatibility#support-periods).
 
 ## Reporting a Vulnerability
 

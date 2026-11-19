@@ -101,32 +101,29 @@ and its note says so with what to do:
 A name, attribute, flag or form that has a better replacement is
 deprecated, never removed within v2:
 
-1. It keeps working for at least one minor release after the release that
-   deprecates it — and, since removing it would break the promise, until the
-   next major version.
+1. It keeps working. There is no next major version to remove it in, so a
+   deprecated form compiles for as long as v2 is maintained.
 2. It is marked: `// Deprecated: use X` in Go, `@deprecated("use X")` in
    `.vuka`. `vuka vet` and `vukavet` warn where it is used, and the warning
    names the replacement.
-3. The release notes describe the source changes required by a new major version.
+3. `vuka fix` or the editor's quick fix rewrites it to the replacement.
 4. The release note says what is deprecated, with a before/after example.
 
 ## Major Versions {#major-versions}
 
-A breaking change waits for a major version. A major version is a new
-module path — v2.0.0 moved the set to `github.com/vuka-lang/web/v2` and
-the others — so apps on the previous one keep building, and every breaking
-change it makes ships with:
+v2 is the last major version: there will be no v3. A change that would
+break v2 code doesn't ship. The API grows by addition, and what is replaced
+is deprecated and kept, as [Deprecation](#deprecation) describes.
 
-- documented source changes, including the import paths;
-- a release-note example of the code before and after.
-
-v2.0.0's are in [its release notes](/releases#moving-an-app-from-1-x).
+v1 to v2 was the one major-version move, with a new module path for each
+module (`github.com/vuka-lang/web/v2` and the others); its source changes are
+in [v2.0.0's release notes](/releases#moving-an-app-from-1-x).
 
 ## Support Periods {#support-periods}
 
-The latest v2 minor release gets fixes. When v3 ships, v2 receives security
-fixes for TODO(owner): number of months after the v3.0.0 release, and nothing
-else: new features and bug fixes go to v3 only.
+The latest v2 minor release gets fixes, security fixes included. Since v2
+is the last major version, there is no end date set by a successor: fixes go
+to v2 for as long as Vuka is maintained.
 
 v1 has no releases and no fixes, security fixes included; see the note under
 [Which Modules It Covers](#modules).

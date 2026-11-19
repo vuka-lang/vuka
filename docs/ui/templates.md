@@ -249,7 +249,7 @@ type Card struct{ Title string }
 <h2>{Title}</h2>
 ```
 
-That form still compiles in 2.x and is removed in 3.0. `vukavet` and the
+That form is deprecated and still compiles. `vukavet` and the
 editor report it as [W0107](/errors/W0107), with a quick fix. Rewrite every
 file under a directory, and format it, with:
 

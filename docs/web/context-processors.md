@@ -235,8 +235,7 @@ if perms.Has("orders.approve") {
 
 `vuka vet` reports the direct calls in vuka files
 ([W0402](/errors/W0402)) — saying to list the processor when `main`
-doesn't — and the editor offers the rewrite; from 3.0 it is a compile
-error there.
+doesn't — and the editor offers the rewrite. The calls keep compiling.
 
 ### Names a Template Declares {#names-a-template-declares}
 

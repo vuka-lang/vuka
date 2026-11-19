@@ -134,7 +134,7 @@ when the permissions change. One spelling for each kind of file:
 
 In a vuka file `vuka vet` reports `auth.Can`, `auth.Current` and
 `web.Request` where the variable gives the same ([W0402](/errors/W0402)),
-with a rewrite the editor offers; from 3.0 that is a compile error.
+with a rewrite the editor offers. The calls keep compiling.
 
 A processor reading the signed-in user never reaches the browser unless
 it is listed as `web.Browser(web.Personal(p))`, and the permission list
