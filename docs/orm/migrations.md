@@ -98,6 +98,8 @@ They take these flags:
 | `--dry-run` | print the migration instead of writing it |
 | `--empty` | a migration with an empty `RunGo`, for a data migration |
 | `--noinput` | ask nothing: makemigrations writes a rename as a removal and an addition; migrate unapplies without confirming |
+| `--fake` | migrate: record the target as applied without running its SQL (every migration it depends on applied first); a target before where the database is records the migrations after it as unapplied, dropping nothing |
+| `--fake-initial` | migrate: apply the pending migrations, recording instead of running each whose tables (with its columns) the database has already |
 | `--backwards` | sqlmigrate: the SQL unapplying it |
 | `--dialect` | makemigrations, sqlmigrate: `postgres`, `mysql` (`mysql/9.3.0` for a server version), `sqlite`: the SQL of another dialect |
 | `--dir dir` | makemigrations: the migrations directory; `migrations`, or `migrations/<db>` for a database that isn't the default, otherwise |
@@ -145,6 +147,14 @@ migration file. The program links the drivers it opens. The command runs
 that build with its request, JSON, in the `ORM_CLI_REQUEST` environment
 variable (`orm.CLIEnv`), which `orm.ServeCLI` reads; programs never call it
 themselves.
+
+The build is kept in the user's cache directory, named by what it was made
+from: the module's files (and those of any local module its `go.mod` or
+`go.work` points at), the go command's settings, and the `orm` and `vuka`
+commands. While none of them changes, the next command runs it straight away
+— a `migrate` after a `migrate`, or a `showmigrations`, skips generating and
+compiling. Any change builds it again. `ORM_CACHE` names another directory
+for it; `ORM_CACHE=off` builds afresh each time.
 
 ## Migrating Vuka Models {#vuka-models}
 
@@ -345,6 +355,61 @@ the model are migrated as on any unmanaged table.
 > which isn't the app's. Those are refused, naming the column: write an
 > `m.RunSQL`, or make the column nullable. Postgres and MySQL alter the
 > column in place.
+
+## Bringing an Existing Database Under Migrations {#existing-database}
+
+A database made before its migrations, or changed by hand, may already hold a
+table a migration creates. Applying that migration then fails, and every
+migration after it waits behind it:
+
+```
+✗ Applying 0002_create_model_orders on the default database
+orm: migration 0002_create_model_orders: Error 1050 (42S01): Table 'orders' already exists
+```
+
+```sh
+$ orm showmigrations
+The default database
+ [X] 0001_initial
+ [ ] 0002_create_model_orders
+ [ ] 0003_order_notes
+```
+
+When the table is what the migration would have made, record the migration
+as applied without running it, then apply the rest:
+
+```sh
+orm migrate --fake 0002    # recorded in orm_migrations; no SQL runs
+orm migrate                # 0003_order_notes
+```
+
+`--fake` takes a name or its number, and `--db` for another database. It
+refuses a migration whose dependencies aren't applied, naming them: fake (or
+apply) those first. It records only the migration it is given, so it needs a
+target. A target before where the database is records the migrations after
+it as unapplied, again without running anything: their tables stay, and the
+next `migrate` runs them again. `zero` records them all unapplied.
+
+`--fake-initial` checks the tables instead of taking your word for them. It
+applies the pending migrations, and records each one whose `CreateModel`
+tables all exist, with the columns it gives them and those its `AddField`s
+add, without running it:
+
+```sh
+orm migrate --fake-initial
+```
+
+Columns the database has beyond those don't count. A migration none of whose
+tables exists is applied as usual. One only partly there — some of its tables
+missing, or a column — fails before it runs, naming what differs, so you can
+fix the table or the migration:
+
+```
+orm: --fake-initial: 0002_create_model_orders is only partly made on the default database, so it is neither faked nor applied: table orders has no column placed_at
+```
+
+Column types aren't compared, so read a faked migration's SQL
+(`orm sqlmigrate 0002`) against the table when you aren't sure.
 
 ## Migrating at Run Time {#at-run-time}
 
