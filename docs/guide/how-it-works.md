@@ -63,7 +63,11 @@ func find(id int) vuka.Result[User] { return vuka.Ok(User{ID: id}) }
 
 `vuka build` (and `vuka gen`) keep a `build/` directory: a complete Go module,
 with your module path, where every `.vuka` file is replaced by its generated Go
-and everything else is copied. Inside it, plain Go tools need no Vuka:
+and the rest of what a Go build reads is copied: `go.mod` and `go.sum`, every
+file of a package's directory, `testdata`, and whatever a `//go:embed` pattern
+names. A directory with no package below it that no pattern names, such as
+`uploads/` of user files, isn't copied; nor are hidden and `_` directories,
+`node_modules` and nested modules. Inside it, plain Go tools need no Vuka:
 
 ```sh
 vuka gen
