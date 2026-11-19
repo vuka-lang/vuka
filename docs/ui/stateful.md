@@ -526,6 +526,12 @@ live component's markup — the component whose groups it reads
 ([E0370](/errors/E0370)); in Go, `ui.Await{Of: c, Key: "stats", …}` names
 the component.
 
+An `<ui.Await>` takes the timings of a boundary too,
+[`wait`, `delay` and `minShow`](/web/parts#suspense-timings), as `Wait`,
+`Delay` and `MinShow` durations (`delay={ui.Instant}`,
+`minShow={400 * time.Millisecond}`): its pending slot is invisible for 150 ms
+unless `Delay` says otherwise.
+
 A page backed by its [island](/web/islands#deferred-fields) defers fields
 the same way; its component reads `live.stats.pending` and
 `live.stats.error` instead.

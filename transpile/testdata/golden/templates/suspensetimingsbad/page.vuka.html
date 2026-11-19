@@ -1,0 +1,23 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+type Dashboard struct {
+	ui.Live
+	tiles []string @ui.Defer("stats")
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error { return nil }
+</script>
+
+<main>
+  <ui.Suspense for={tiles} wait="soon" delay={150} minShow="-1s">
+    <p>{len(tiles)}</p>
+  </ui.Suspense>
+</main>

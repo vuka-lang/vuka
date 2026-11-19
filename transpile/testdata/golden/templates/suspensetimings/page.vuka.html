@@ -1,0 +1,39 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+// Dashboard's boundaries hold for their groups.
+type Dashboard struct {
+	ui.Live
+	tiles []string @ui.Defer("stats")
+	tabs  []string @ui.Defer("board")
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error {
+	d.tiles = []string{"Vacancies"}
+	return nil
+}
+
+@ui.Loads("board")
+func (d *Dashboard) loadBoard(ctx context.Context) error {
+	d.tabs = []string{"Letters"}
+	return nil
+}
+</script>
+
+<main>
+  <ui.Suspense for={tiles, tabs} wait="200ms" delay="150ms" minShow="400ms">
+    <slot:fallback><i>loading</i></slot:fallback>
+    <p>{len(tiles)} {len(tabs)}</p>
+  </ui.Suspense>
+  <ui.Suspense for={tiles} delay="0s">
+    <slot:fallback><i>now</i></slot:fallback>
+    <p>{len(tiles)}</p>
+  </ui.Suspense>
+</main>

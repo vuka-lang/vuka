@@ -40,24 +40,20 @@ func (d *Dashboard) loadNotes(ctx context.Context) error { return errors.New("no
 func (d *Dashboard) Render() ui.Node {
 //line page.vuka.html:35
 	return ui.Ctx(func(ctx context.Context) ui.Node {
-		suspense := ui.Await{Of: d, Key: "stats", Pending: ui.HTML(`<i>loading</i>`), Error: func(_ error) ui.Node {
+		suspense := ui.Await{Of: d, Key: "stats", And: []string{"board"}, Pending: ui.HTML(`<i>loading</i>`), Error: func(_ error) ui.Node {
 			return ui.HTML(`<b role="alert">Couldn't load the dashboard.</b>`)
 		}, Children: func() ui.Node {
-			return ui.Await{Of: d, Key: "board", Pending: ui.HTML(`<i>loading</i>`), Error: func(_ error) ui.Node {
-				return ui.HTML(`<b role="alert">Couldn't load the dashboard.</b>`)
-			}, Children: func() ui.Node {
-				ps := ui.Guard(0xd1aa8dab8a23f77, func() []ui.Node {
-					var ps []ui.Node
+			ps := ui.Guard(0xd1aa8dab8a23f77, func() []ui.Node {
+				var ps []ui.Node
 //line page.vuka.html:39
-					for _, t := range d.tiles.Get() {
-						ps = append(ps, ui.HTML(`<p>{t}</p>`, t))
-					}
-					return ps
-				}, d.tiles.Version())
-				return ui.HTML(`
+				for _, t := range d.tiles.Get() {
+					ps = append(ps, ui.HTML(`<p>{t}</p>`, t))
+				}
+				return ps
+			}, d.tiles.Version())
+			return ui.HTML(`
 {ps}
 <p>{len(d.tabs.Get())} tabs</p>`, ps, len(d.tabs.Get()))
-			}}
 		}}
 		suspense2 := ui.Await{Of: d, Key: "notes", Pending: ui.HTML(`<i>loading notes</i>`), Error: func(_ error) ui.Node {
 			return ui.HTML(`<b role="alert">No notes.</b>`)

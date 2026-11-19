@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // On a live component a <ui.Suspense> waits for deferred groups: those of
@@ -18,11 +19,12 @@ import (
 //	  …
 //	</ui.Suspense>
 //
-// is an Await for each group, one inside the other:
+// is one Await for the groups, the first its Key and the rest its And:
 //
-//	ui.Await{Of: p, Key: "stats", Pending: …, Error: …, Children: func() ui.Node {
-//		return ui.Await{Of: p, Key: "board", Pending: …, Error: …, Children: func() ui.Node { … }}
-//	}}
+//	ui.Await{Of: p, Key: "stats", And: []string{"board"}, Pending: …, Error: …, Children: func() ui.Node { … }}
+//
+// Its wait, delay and minShow attributes (duration strings) are the Await's
+// Wait, Delay and MinShow.
 
 // liveBoundary reports whether f's markup is a live component's, where a
 // <ui.Suspense> waits for deferred groups.
@@ -155,33 +157,63 @@ func (e *engine) boundaryReads(f *fileState, el *jsxElem, fields map[string]stri
 	return out
 }
 
-// suspenseAwait writes a live component's boundary: an Await for each of
-// groups, the next one its Children, the body the last one's.
+// suspenseAwait writes a live component's boundary: one Await for the
+// groups, the first its Key and the rest its And, with the boundary's
+// timings.
 func (w *jsxWriter) suspenseAwait(el *jsxElem, groups []string) {
 	fallback, failed, body := suspenseSlots(el)
 	of := "nil"
 	if h := w.f.html; h != nil && h.recv != "" {
 		of = h.recv
 	}
-	var open func(i int)
-	open = func(i int) {
-		w.gen(w.q + "Await{Of: " + of + ", Key: " + strconv.Quote(groups[i]))
-		if fallback != nil && hasContent(fallback.kids) {
-			w.gen(", Pending: ")
-			w.piece(fallback.kids)
-		}
-		if failed != nil && hasContent(failed.kids) {
-			w.gen(", Error: ")
-			w.slotFunc(nil, []string{"error"}, func() { w.piece(failed.kids) })
-		}
-		if i+1 < len(groups) {
-			w.gen(", Children: ")
-			w.slotFunc(nil, nil, func() { open(i + 1) })
-		} else if hasContent(body) {
-			w.gen(", Children: ")
-			w.slotFunc(nil, nil, func() { w.piece(body) })
+	w.gen(w.q + "Await{Of: " + of + ", Key: " + strconv.Quote(groups[0]))
+	if len(groups) > 1 {
+		w.gen(", And: []string{")
+		for i, g := range groups[1:] {
+			if i > 0 {
+				w.gen(", ")
+			}
+			w.gen(strconv.Quote(g))
 		}
 		w.gen("}")
 	}
-	open(0)
+	for _, name := range suspenseTimings {
+		d, ok := timingOf(el, name)
+		switch {
+		case !ok:
+		case d == 0 && name == "delay":
+			w.gen(", Delay: " + w.q + "Instant")
+		case d != 0:
+			w.gen(", " + strings.ToUpper(name[:1]) + name[1:] + ": " + strconv.FormatInt(int64(d), 10))
+		}
+	}
+	if fallback != nil && hasContent(fallback.kids) {
+		w.gen(", Pending: ")
+		w.piece(fallback.kids)
+	}
+	if failed != nil && hasContent(failed.kids) {
+		w.gen(", Error: ")
+		w.slotFunc(nil, []string{"error"}, func() { w.piece(failed.kids) })
+	}
+	if hasContent(body) {
+		w.gen(", Children: ")
+		w.slotFunc(nil, nil, func() { w.piece(body) })
+	}
+	w.gen("}")
+}
+
+// suspenseTimings are the attributes of a live boundary that keep a fast
+// load from flashing its fallback, in the order the Await's fields are
+// written.
+var suspenseTimings = []string{"wait", "delay", "minShow"}
+
+// timingOf is the duration a boundary's timing attribute spells; false when
+// it has none or it is not a valid duration string.
+func timingOf(el *jsxElem, name string) (time.Duration, bool) {
+	a := attrNamed(el, name)
+	if a == nil || a.kind != 's' {
+		return 0, false
+	}
+	d, err := time.ParseDuration(a.val)
+	return d, err == nil && d >= 0
 }

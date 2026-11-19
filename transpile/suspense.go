@@ -3,6 +3,7 @@ package transpile
 import (
 	"go/ast"
 	"go/token"
+	"slices"
 	"strings"
 )
 
@@ -56,11 +57,14 @@ func suspenseSlots(el *jsxElem) (fallback, failed *jsxElem, body []jsxNode) {
 // it doesn't have (E0106).
 func (e *engine) suspenseErrors(f *fileState, el *jsxElem) {
 	for _, a := range el.attrs {
-		if a.name == "for" && a.kind == 'e' {
-			continue
+		switch {
+		case a.name == "for" && a.kind == 'e':
+		case slices.Contains(suspenseTimings, htmlName(a.name)):
+			e.suspenseTiming(f, el, a)
+		default:
+			e.errs.add("E0351", f.at(a.off), "<%s> takes only for={bindings} and the timings wait, delay and minShow: its <slot:fallback> and <slot:error> are its fallbacks", el.tag).
+				help("drop %s", a.name)
 		}
-		e.errs.add("E0351", f.at(a.off), "<%s> takes only for={bindings}: its <slot:fallback> and <slot:error> are its fallbacks", el.tag).
-			help("drop %s", a.name)
 	}
 	seen := map[string]bool{}
 	for _, k := range el.kids {
@@ -109,6 +113,22 @@ func (w *jsxWriter) suspense(el *jsxElem) {
 	w.gen("return ")
 	w.put(expr)
 	w.gen("\n})")
+}
+
+// suspenseTiming reports a timing attribute (wait, delay, minShow) that is
+// not a duration string such as "200ms", or is on a boundary that is not a
+// live component's: only a live boundary has a load to hold for.
+func (e *engine) suspenseTiming(f *fileState, el *jsxElem, a *jsxAttr) {
+	name := htmlName(a.name)
+	if !e.liveBoundary(f) {
+		e.errs.add("E0364", f.at(a.off), "<%s %s> only applies to a live component's boundary, which waits for deferred groups", el.tag, name).
+			help("drop %s, or move the boundary into a live component", name)
+		return
+	}
+	if _, ok := timingOf(el, name); !ok {
+		e.errs.add("E0364", f.at(a.off), "<%s %s> takes a duration written as a string, such as %s=\"200ms\"", el.tag, name, name).
+			help("a Go duration that is not negative: \"150ms\", \"1s\"; \"0s\" turns a delay off")
+	}
 }
 
 // checkSuspense reports f's boundaries' misplaced slots and attributes.
