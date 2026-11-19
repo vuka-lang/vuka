@@ -451,6 +451,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sig)
+	defer holdBuild(root)()
 	if err = c.Start(); err == nil {
 		signalsOwned.Store(true)
 		go func() {

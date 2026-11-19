@@ -22,7 +22,7 @@ vuka ui upgrade [--check] [--dry-run] [library/component…]
 vuka ui theme [--dry-run] [--registry r] [--offline] [name]
 vuka ui list [--registry r] [--offline] [library | component | library/component]
 vuka build|run|test|vet|install [go flags] [packages]
-vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
+vuka run -watch [-debug] [-fresh] [-keep-cache] [go flags] [package] [args]
 vuka mod tidy [-check] [-e] [-v] [-go=version] [-compat=version]
 vuka mod why|vendor|graph|… [args]
 vuka build -islands [-watch]
@@ -319,6 +319,18 @@ kept (at most 2 GB together), so switching branches back and forth reuses
 too, and modules not run for two weeks are dropped. `-fresh` builds before
 the app starts as before; `VUKA_REUSE=off` turns reuse off. `vuka build`
 always builds.
+
+**The dev loop keeps Go's build cache from growing.** Every edit compiles
+a new archive of the edited package and of each package importing it, and
+Go trims cache entries only after days unused, so on a large app a session
+would add hundreds of megabytes per edit. After each good rebuild
+`vuka run -watch` removes the archives of the module's own packages that the
+build before it replaced, and only those: it removes nothing it didn't record
+itself, nothing outside the cache and nothing of a dependency. It does so
+only while no other `vuka` build of the module runs (they share a lock in
+`.vuka/`), and otherwise on the next good rebuild. A failed rebuild removes
+nothing, and going back to an earlier edit recompiles. On Windows nothing is
+removed. `-keep-cache` or `VUKA_KEEP_CACHE=1` turns it off.
 
 ### Incremental Transpiling
 

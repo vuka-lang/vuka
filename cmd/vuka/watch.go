@@ -33,7 +33,7 @@ import (
 // one running; a build that comes out byte-identical restarts nothing.
 // Tailwind's watcher runs once, across the restarts.
 
-const runUsage = `usage: vuka run [-watch [-debug] [-fresh]] [build flags] [package] [arguments...]
+const runUsage = `usage: vuka run [-watch [-debug] [-fresh] [-keep-cache]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
 package with go run. An app on github.com/vuka-lang/web/v2 gets its Tailwind
@@ -61,6 +61,10 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
   -fresh, --fresh
 	with -watch, build before the app starts, even when an earlier run's
 	build would do (VUKA_REUSE=off does the same)
+  -keep-cache, --keep-cache
+	with -watch, leave Go's build cache alone: by default each good build
+	removes the module's own archives the build before it replaced
+	(VUKA_KEEP_CACHE=1 does the same)
   -embed, --embed
 	with -watch, build in the files web.Frontend serves (it reads them from
 	disk under vuka run; VUKA_EMBED_STUB=off does the same)
@@ -158,6 +162,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	}
 	flags, debug := cutDebug(flags)
 	flags, fresh := cutFresh(flags)
+	flags, keepCache := cutKeepCache(flags)
 	flags, stub := stubbing(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
@@ -203,6 +208,9 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		if s.goKeys = s.reuse; s.goKeys == nil {
 			s.goKeys = newKeyHasher()
 		}
+	}
+	if !keepCache {
+		s.pruner, s.modPath = &cachePruner{root: root}, modPath
 	}
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
@@ -343,6 +351,8 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 
 // supervisor builds the program and runs the current build.
 type supervisor struct {
+	pruner          *cachePruner // nil: the cache is left alone
+	modPath         string
 	root, dir, tmp  string
 	flags, pkg      []string
 	prog, env       []string
@@ -372,7 +382,9 @@ type buildResult struct {
 	out     []byte // what the build said
 	err     error
 	embeds  []string
-	pa      *pageAssets // the styles and scripts the sources declare
+	pa      *pageAssets   // the styles and scripts the sources declare
+	pruned  chan struct{} // closed when the pruning is done
+	listed  chan struct{} // closed once go list has read the overlay, for the cache pruning; nil for none
 
 	started     time.Time // when it began reading the sources
 	ph          *phases
@@ -389,7 +401,12 @@ type buildResult struct {
 	checked     bool     // and runs behind it, to compare
 }
 
-func (r *buildResult) discard() { removeAll(r.dir) }
+func (r *buildResult) discard() {
+	if r.listed != nil {
+		<-r.listed
+	}
+	removeAll(r.dir)
+}
 
 // build transpiles the module and builds the program into tmp/<n>/, and asks
 // go list, alongside, for what its packages embed. When go build would read
@@ -568,6 +585,9 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	if r.overlay != "" {
 		args = append(args, "-overlay="+r.overlay)
 	}
+	if s.pruner != nil {
+		defer holdBuild(s.root)()
+	}
 	c := exec.CommandContext(ctx, "go", append(args, s.pkg...)...)
 	c.Dir, c.Env = s.dir, s.env
 	// Cancelled, the go command is interrupted: it stops the compilers and
@@ -587,6 +607,10 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	}
 	r.bin = bin
 	r.sum, r.err = binaryID(r.bin)
+	if r.err == nil && s.pruner != nil {
+		r.listed, r.pruned = make(chan struct{}), make(chan struct{})
+		go s.pruneBuild(r)
+	}
 }
 
 // startKept starts a build an earlier run kept, from a link to it in tmp/0/.
