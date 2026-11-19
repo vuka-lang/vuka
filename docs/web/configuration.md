@@ -12,6 +12,10 @@ their values through `os.Getenv` or `web.Env`.
 You keep one machine's settings in `.env` files during development, and set
 real environment variables in production.
 
+With several apps or environments, a [config server](/web/config-server)
+serves each app its values from one git repository or directory, and
+updates running apps when they change.
+
 ## Reading Configuration at Startup
 
 A constructor reads its settings, and `web.Require` names the variables the

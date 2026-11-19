@@ -54,6 +54,7 @@ export default defineConfig({
           { text: 'Example Project', link: '/guide/example-project' },
           { text: 'Directory Structure', link: '/web/getting-started' },
           { text: 'Configuration', link: '/web/configuration' },
+          { text: 'Config Server', link: '/web/config-server' },
           { text: 'Deployment', link: '/web/deployment' },
           { text: 'Examples', link: '/examples' },
           { text: 'LLMs & AI Assistants', link: '/guide/llms' },
