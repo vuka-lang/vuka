@@ -266,6 +266,8 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	dev := devFlags(cmd, args, modPath)
+	compileFlags = compilerFlags(dev)
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
 		return err
@@ -294,7 +296,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			}
 		}
 	}
-	goArgs := []string{cmd}
+	goArgs := append([]string{cmd}, dev...)
 	tmp, err := mkTemp("vuka-")
 	if err != nil {
 		return err

@@ -897,17 +897,69 @@ func hasDWARF(bin string) (bool, error) {
 	return false, errors.New("neither Mach-O, ELF nor PE")
 }
 
-func TestQuickCompile(t *testing.T) {
+func TestDevCompile(t *testing.T) {
 	t.Parallel()
+	own := devModuleGcflags("app")
+	if own != "-gcflags=app/...=-l -dwarf=false" {
+		t.Fatalf("the module's flags: %q", own)
+	}
 	for _, c := range []struct{ in, want []string }{
-		{nil, []string{"-gcflags=app/...=-l -dwarf=false"}},
-		{[]string{"-race"}, []string{"-race", "-gcflags=app/...=-l -dwarf=false"}},
+		{nil, []string{devGcflags, own}},
+		{[]string{"-race"}, []string{"-race", devGcflags, own}},
 		{[]string{"-gcflags=-N"}, []string{"-gcflags=-N"}},
 		{[]string{"--gcflags", "-m"}, []string{"--gcflags", "-m"}},
 	} {
-		if got := quickCompile(c.in, "app"); !slices.Equal(got, c.want) {
-			t.Errorf("quickCompile(%q) = %q, want %q", c.in, got, c.want)
+		if got := devCompile(c.in, "app"); !slices.Equal(got, c.want) {
+			t.Errorf("devCompile(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestDevFlags(t *testing.T) {
+	t.Parallel()
+	gc := []string{devGcflags, devModuleGcflags("app")}
+	for _, c := range []struct {
+		cmd  string
+		args []string
+		want []string
+	}{
+		{"run", []string{"."}, append(slices.Clone(gc), devLdflags)},
+		{"test", []string{"./..."}, append(slices.Clone(gc), devLdflags)},
+		{"vet", []string{"./..."}, gc},
+		{"build", []string{"./..."}, nil},
+		{"install", nil, nil},
+		{"test", []string{"-gcflags=-N", "./..."}, []string{devLdflags}},
+		{"test", []string{"-ldflags", "-s", "./..."}, gc},
+		{"run", []string{".", "--", "-gcflags=x"}, append(slices.Clone(gc), devLdflags)}, // the program's own
+		{"test", []string{"./...", "-args", "-ldflags=x"}, append(slices.Clone(gc), devLdflags)},
+	} {
+		if got := devFlags(c.cmd, c.args, "app"); !slices.Equal(got, c.want) {
+			t.Errorf("devFlags(%q, %q) = %q, want %q", c.cmd, c.args, got, c.want)
+		}
+	}
+}
+
+// TestDevBuildsShareFlags: run -watch, run, test and vet compile with the same
+// flags, which are part of Go's cache key, so that what one compiles the
+// others find in the cache, as does the orm tool (cmd/orm in the orm module
+// builds with the same values).
+func TestDevBuildsShareFlags(t *testing.T) {
+	t.Parallel()
+	watch := compilerFlags(devCompile(noDWARF([]string{"-buildvcs=false"}), "app"))
+	want := []string{"-gcflags=all=-dwarf=false", "-gcflags=app/...=-l -dwarf=false"}
+	if !slices.Equal(watch, want) {
+		t.Fatalf("watch compiles with %q, want %q: change the orm tool's too (cmd/orm devFlags)", watch, want)
+	}
+	for _, cmd := range []string{"run", "test", "vet"} {
+		if got := compilerFlags(devFlags(cmd, nil, "app")); !slices.Equal(got, watch) {
+			t.Errorf("vuka %s compiles with %q, the watch with %q", cmd, got, watch)
+		}
+	}
+	if devLdflags != "-ldflags=-w" {
+		t.Errorf("the link flags changed to %s: change the orm tool's too", devLdflags)
+	}
+	if got := devFlags("build", nil, "app"); got != nil {
+		t.Errorf("vuka build adds %q: it keeps its debug information", got)
 	}
 }
 

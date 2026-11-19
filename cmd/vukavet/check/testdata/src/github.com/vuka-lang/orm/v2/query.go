@@ -11,7 +11,7 @@ type q struct{}
 func (q) cond() {}
 func (q) expr() {}
 
-type Manager[T any] struct{ QuerySet[T] }
+type Manager[T any] = QuerySet[T]
 
 type QuerySet[T any] struct{}
 

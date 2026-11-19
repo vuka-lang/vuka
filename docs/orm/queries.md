@@ -1794,7 +1794,7 @@ fields you allow:
 ::: code-group
 ```vuka [Vuka]
 func postPage(ctx context.Context, r *http.Request) (orm.PageResult[Post], error) {
-	return orm.Paginate(ctx, Post.Objects.QuerySet, orm.PageFrom(r.URL.Query()),
+	return orm.Paginate(ctx, Post.Objects.Filter(), orm.PageFrom(r.URL.Query()),
 		orm.Sortable(Post.Views.Name(), Post.Published.Name()),
 		orm.Searchable(Post.Title.Name()),
 		orm.DefaultSort(Post.Views.Desc()))
@@ -1802,7 +1802,7 @@ func postPage(ctx context.Context, r *http.Request) (orm.PageResult[Post], error
 ```
 ```go [Generated Go]
 func postPage(ctx context.Context, r *http.Request) (orm.PageResult[Post], error) {
-	return orm.Paginate(ctx, orm.Objects[Post]().QuerySet, orm.PageFrom(r.URL.Query()),
+	return orm.Paginate(ctx, orm.Objects[Post]().Filter(), orm.PageFrom(r.URL.Query()),
 		orm.Sortable(PostColumns.Views.Name(), PostColumns.Published.Name()),
 		orm.Searchable(PostColumns.Title.Name()),
 		orm.DefaultSort(PostColumns.Views.Desc()))

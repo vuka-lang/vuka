@@ -502,7 +502,7 @@ read wherever the code names it — is `Objects`.
 ```go
 func matching(search string) orm.QuerySet[Applicant] {
 	f := ApplicantFields
-	qs := orm.Objects[Applicant]().QuerySet
+	qs := orm.Objects[Applicant]().Filter()
 	for _, w := range strings.Fields(search) {
 		qs = qs.Filter(orm.Or(
 			f.FirstName.IStartsWith(w),

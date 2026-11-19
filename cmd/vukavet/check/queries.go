@@ -108,8 +108,8 @@ func runQueries(pass *analysis.Pass) (any, error) {
 	return nil, nil
 }
 
-// chainCall is the method a call calls on a query: a Manager's, a
-// QuerySet's or a Values'.
+// chainCall is the method a call calls on a query: a QuerySet's (a
+// Manager's too) or a Values'.
 func (q *queryPass) chainCall(call *ast.CallExpr) string {
 	fun := ast.Unparen(call.Fun)
 	if ix, ok := fun.(*ast.IndexExpr); ok {
@@ -128,7 +128,7 @@ func (q *queryPass) chainCall(call *ast.CallExpr) string {
 	if recv == nil || fn.Pkg() == nil || fn.Pkg().Path() != ormPath {
 		return ""
 	}
-	for _, n := range []string{"Manager", "QuerySet", "Values"} {
+	for _, n := range []string{"QuerySet", "Values"} {
 		if named(recv.Type(), ormPath, n) {
 			return sel.Sel.Name
 		}
@@ -182,7 +182,7 @@ func (q *queryPass) chain(outer *ast.CallExpr, seen map[*ast.CallExpr]bool) {
 	model := queriedModel(info.TypeOf(root))
 	// A chain from a manager is the whole query; one from a variable may
 	// have joined before.
-	whole := model != nil && named(info.TypeOf(root), ormPath, "Manager")
+	whole := model != nil && isManager(info.TypeOf(root))
 	var joins []joined
 	for _, l := range links {
 		if l.name == "Join" && len(l.call.Args) > 0 {
@@ -222,6 +222,17 @@ func (q *queryPass) chain(outer *ast.CallExpr, seen map[*ast.CallExpr]bool) {
 			}
 		}
 	}
+}
+
+// isManager is whether t is a model's manager: a Manager[T], the alias of
+// QuerySet[T] For and Objects return a pointer to, or a pointer to a QuerySet,
+// which a narrowed query never is.
+func isManager(t types.Type) bool {
+	p, ok := t.(*types.Pointer)
+	if !ok {
+		return false
+	}
+	return named(p.Elem(), ormPath, "QuerySet")
 }
 
 // queriedModel is T of a Manager[T], QuerySet[T] or Values[T, R].
@@ -403,7 +414,7 @@ func (q *queryPass) fields(e ast.Expr, model *types.TypeName, allowed, joins []j
 			q.count(call, joins)
 		}
 		t := info.TypeOf(x)
-		if queriedModel(t) != nil && (named(t, ormPath, "Manager") || named(t, ormPath, "QuerySet") || named(t, ormPath, "Values")) {
+		if queriedModel(t) != nil && (named(t, ormPath, "QuerySet") || named(t, ormPath, "Values")) {
 			return false // a subquery: a query of its own
 		}
 		if t == nil || !typedColumn(t) && fieldsModel(t) == nil {
