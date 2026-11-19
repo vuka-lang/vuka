@@ -112,6 +112,7 @@ func (t *Table[K, V]) mount(ctx context.Context) error { return nil }
 func TestShapeLive(t *testing.T) {
 	for _, c := range []struct{ name, src, why string }{
 		{"embeds", "type P struct{ ui.Live }\n<p/>", "it embeds ui.Live"},
+		{"embeds shared", "type P struct{ ui.SharedLive }\n<p/>", "it embeds ui.Live"},
 		{"mount", "type P struct{ n int }\n\n@ui.Mount\nfunc (p *P) mount() {}\n<p/>", "it declares the hook @ui.Mount"},
 		{"loads", "type P struct{ n int }\n\n@ui.Loads(\"lists\")\nfunc (p *P) load() {}\n<p/>", "it declares the hook @ui.Loads"},
 		{"onchange", "type P struct{ n int }\n\n@ui.OnChange\nfunc (p *P) changed() {}\n<p/>", "it declares the hook @ui.OnChange"},

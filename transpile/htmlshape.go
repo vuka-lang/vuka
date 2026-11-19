@@ -237,7 +237,7 @@ func parseShape(name string, src []byte, lines []string, head TemplateHead) (*Sh
 		typ := string(src[fset.Position(fl.Type.Pos()).Offset:fset.Position(fl.Type.End()).Offset])
 		if len(fl.Names) == 0 {
 			name := shapeEmbedded(fl.Type)
-			if name == "Live" {
+			if name == "Live" || name == "SharedLive" {
 				s.EmbedsLive = true
 			}
 			s.Fields = append(s.Fields, ShapeField{Name: name, Type: typ, Role: Embedded, Line: pos(fl.Pos()).Line})
