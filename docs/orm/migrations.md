@@ -175,6 +175,7 @@ A migration is a list of operations:
 |---|---|
 | `m.CreateModel{Table, Fields, Indexes}`, `m.DeleteModel`, `m.RenameModel` | tables |
 | `m.AddField`, `m.RemoveField`, `m.AlterField`, `m.RenameField` | columns |
+| `m.ForgetField{Table, Name}` | stop owning a column of an [unmanaged table](#owned-columns): no SQL, the column stays |
 | `m.AddIndex`, `m.RemoveIndex`, `m.AddConstraint`, `m.RemoveConstraint` | indexes, constraints |
 | `m.CreateExtension{Name}` | a Postgres extension (`vector`, `pg_trgm`) |
 | `m.CreateFunction{…}` | an SQL [function](/orm/expressions#sql-functions-in-a-migration) |
@@ -290,6 +291,70 @@ var Vectors = orm.CreateExtension("vector")
 
 func checkVectors(ctx context.Context) error { return Vectors.Verify(ctx) }
 ```
+
+## Columns of a Table You Don't Own {#owned-columns}
+
+An `Unmanaged` model's table belongs to another system: migrations never
+create, alter or drop it. When the app needs a column of its own there,
+`Managed` in the model's `Meta` names the fields whose columns its
+migrations own. Here a `sessions` table another system writes gains an
+`unlocks_at` column the app sets:
+
+```vuka
+type Session struct {
+	orm.Base  @orm.Meta{Table: "sessions", Unmanaged: true, Managed: []string{"UnlocksAt"}}
+	ID        int64 @orm.PK
+	Token     string
+	UserID    int64
+	UnlocksAt Option[time.Time]
+}
+```
+
+`makemigrations` writes only what changes in those columns, each the
+field's column as usual (`@orm.Column` included):
+
+```
+m.AddField{Table: "sessions", Name: "unlocks_at", Field: m.Time().Null()}
+```
+
+```sh
+$ orm sqlmigrate 0004
+ALTER TABLE "sessions" ADD COLUMN "unlocks_at" TIMESTAMP;
+```
+
+A change of the field's type, nullability or default is an `AlterField`.
+`id`, `token` and `user_id` never appear in a migration, and the table is
+never created or dropped.
+
+| You change | `makemigrations` writes | The column |
+|---|---|---|
+| a field added to `Managed` | `m.AddField` | added |
+| its type, nullability, default | `m.AlterField` | altered |
+| the name dropped from `Managed`, the field kept | `m.ForgetField` | stays as it is; no SQL runs |
+| the field deleted while in `Managed` | `m.RemoveField` | dropped, with its data |
+| the model deleted | `m.ForgetField` for each | stays as it is |
+
+Dropping a name from `Managed` keeps the column: the field still reads it,
+and the table isn't the app's to change behind the other system's back.
+Deleting the field says the column the app added is no longer wanted, so
+its data goes; `makemigrations` notes it beside the operation, and to keep
+the column instead, keep the field and drop it from `Managed`. A deleted
+model may only have moved, so its columns are forgotten: write
+`m.RemoveField` to drop one.
+
+A name in `Managed` that isn't one of the struct's fields fails, naming the
+field it is closest to. On a model that isn't `Unmanaged`, `Managed` fails
+too: its migrations own every column already. An owned column takes
+`@orm.Unique` and `@orm.Index` as any column does, and indexes declared on
+the model are migrated as on any unmanaged table.
+
+> [!NOTE]
+> SQLite adds a column in place only when it is a plain one — nullable or
+> with a default, no key, no unique constraint; anything else, and any
+> change of an existing column, it makes by rebuilding the whole table,
+> which isn't the app's. Those are refused, naming the column: write an
+> `m.RunSQL`, or make the column nullable. Postgres and MySQL alter the
+> column in place.
 
 ## Bringing an Existing Database Under Migrations {#existing-database}
 

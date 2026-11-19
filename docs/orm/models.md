@@ -465,6 +465,7 @@ column (`b.ItemKeys.V`) and save.
 | `Read`, `Write` | where its reads and its writes go, over `DB` |
 | `Mirror` | a database its writes are repeated on ([mirrored writes](/orm/legacy-schemas#mirrored-writes)) |
 | `Unmanaged` | the database's own table: never created or migrated |
+| `Managed` | an `Unmanaged` model's fields whose columns its migrations own ([columns of a table you don't own](/orm/migrations#owned-columns)) |
 
 A `Meta() orm.Meta` method still declares the model's `Meta`, over the
 attribute; it is deprecated for `s.Model(orm.Meta{…})`. A one-column index
