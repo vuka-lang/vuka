@@ -16,7 +16,10 @@ is maintained; see
 
 Please report a vulnerability privately, not in a public issue or discussion.
 
-TODO(owner): a security contact (email, or enable GitHub private vulnerability reporting and link it)
+Report it through GitHub's private vulnerability reporting:
+[open a report](https://github.com/vuka-lang/vuka/security/advisories/new). Only
+the maintainers see it. Use it for a vulnerability in any of the modules —
+vuka, ui, web or orm.
 
 Include:
 
