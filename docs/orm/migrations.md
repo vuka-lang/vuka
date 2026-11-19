@@ -290,7 +290,7 @@ create, alter or drop it. When the app needs a column of its own there,
 migrations own. Here a `sessions` table another system writes gains an
 `unlocks_at` column the app sets:
 
-```go
+```vuka
 type Session struct {
 	orm.Base  @orm.Meta{Table: "sessions", Unmanaged: true, Managed: []string{"UnlocksAt"}}
 	ID        int64 @orm.PK
@@ -303,7 +303,7 @@ type Session struct {
 `makemigrations` writes only what changes in those columns, each the
 field's column as usual (`@orm.Column` included):
 
-```go
+```
 m.AddField{Table: "sessions", Name: "unlocks_at", Field: m.Time().Null()}
 ```
 
