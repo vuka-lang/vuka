@@ -327,24 +327,90 @@ per fragment per batch.
 
 ## 4. Phase 2: memory per session
 
-(a) **Intern statics process-wide.** A tree's statics are already keyed by
-fingerprint on the wire (the browser keeps each once per connection). On the
-server, each session holds its own copies. Hold them once per process,
-reference counted, and let sessions keep pointers. Pages of the same route
-share nearly all of their statics.
+### 4.1 Where a page's memory goes
 
-(b) **A deeper hibernation tier past `Trim`.** After a long idle, serialize
+Measured with the harness (web `examples/loadtest`, branch `dedup-probe`):
+a heap profile at steady state with 10,000 joined pages of the admin mix
+(`admin-popular`: list pages with a per-user header and role-filtered
+sidebar, most users on popular lists; detail pages; a profile form), and a
+census of every session's render tree and shadow.
+
+| Per page | KB |
+|---|---|
+| goroutine stacks (2 per page) | 26 |
+| render tree | 22.9 |
+| instance state (instance structs, handler maps, component structs) | 22.7 |
+| the join's HTTP request, contexts and headers, kept for the session's life | ~14 |
+| shadow | 13.6 |
+| bufio buffers (HTTP and WebSocket) | 8.2 |
+| WebSocket connection, session | ~4 |
+| **total (ramp slope)** | **~134** |
+
+Across scenarios a page costs 95 to 137 KB; the render tree and shadow are
+15 to 25% of it. How much of the tree and shadow is identical across
+sessions, stored once:
+
+| Scenario | identical | per page now → shared | 30,000 pages |
+|---|---|---|---|
+| everyone on the same page (`mem`) | 100% | 108.8 → 92.5 KB | 3.34 → 2.84 GB |
+| popular lists (`admin-popular`) | 95% | 133.7 → 102.5 KB | 4.11 → 3.15 GB |
+| mostly unique detail pages (`admin-unique`) | 73% | 95.4 → 84.1 KB | 2.93 → 2.58 GB |
+
+Hashing a node costs about 135 ns warm, so hashing a whole 290-node page is
+about 40 µs; hashing only what changed, which the renderer already tracks,
+costs less.
+
+### 4.2 The work, in order of measured payoff
+
+(a) **Release the join's request.** A live session keeps the HTTP request it
+joined with, its contexts and headers: about 14 KB a page. Keep only what the
+session reads afterwards (identity, the page URL, the headers a page asked
+for) and let the rest go after the join.
+
+(b) **Shared HTML storage.** Every rendered subtree and its shadow is stored
+by content hash in a process-wide, reference-counted store; sessions hold
+pointers. Rendering and diffing stay per page, so nothing one viewer sees
+reaches another unless it was already identical: it needs no marking and has
+no rule to break. It saves 12 to 25% of a page (table above). Trees become
+immutable once rendered; a render that changes a subtree builds a new node.
+Statics interning, proposed here before, is the special case of a subtree
+with no dynamic values. The shadow's boxed strings (24 bytes where an 8-byte
+hash would do) shrink along the way.
+
+(c) **Fewer, smaller stacks.** Two goroutines a page hold 26 KB. The reader
+spends its life blocked on the socket; a shared reader (a poller) or a
+reader that parks between frames, and letting an idle page's stacks shrink,
+target about half of it. This is §5's deferred poller, now justified by the
+numbers.
+
+(d) **Pool buffers; document `GOMEMLIMIT`.** The HTTP and WebSocket bufio
+buffers (8 KB a page) and the render and encode buffers (`conn.write` builds
+each frame in a fresh `bytes.Buffer`) come from pools, held only while a
+frame is read or written. The deployment guide gains advice on setting
+`GOMEMLIMIT` below the container's limit, so the collector works harder
+before the kernel does.
+
+(e) **A deeper hibernation tier past `Trim`.** After a long idle, serialize
 the page's instance state and drop its session tree, keeping the token and
 the state blob. The next event rehydrates the session, the way a parked
 session (`livepark.go`) does for a reconnect, applied to an idle page that
-stays connected. A deep-idle page falls from tens of KB to about 1 to 2 KB.
-`LiveTrimAfter` stays as the shallow tier; the new option, `LiveHibernateAfter`,
-sets the deep one.
+stays connected. A deep-idle page falls to about 1 to 2 KB. `LiveTrimAfter`
+stays as the shallow tier; the new option, `LiveHibernateAfter`, sets the
+deep one.
 
-(c) **Pool buffers; document `GOMEMLIMIT`.** Render and encode buffers
-(`conn.write` builds each frame in a fresh `bytes.Buffer`) come from a pool.
-The deployment guide gains advice on setting `GOMEMLIMIT` below the
-container's limit, so the collector works harder before the kernel does.
+Together (a) to (d) target roughly half of a page's memory, against the 12 to
+25% shared storage gives alone.
+
+### 4.3 Render reuse is a CPU question, not a memory one
+
+Reusing a render across sessions (keyed by component type and field values)
+saves no memory beyond (b), which already stores its output once. Its case is
+render CPU, the cost that bounds broadcasts (§2.1), and it is weighed against
+shared components (§3(e)). Two findings bound it: rendered output carries
+each instance's id (handler references, child references), so a key of type
+and fields alone matched about 1,300 groups whose output differed; reuse
+needs the ids filled in per page rather than baked into the output. And its
+hit rate falls from 86% on popular lists to 54% on unique pages.
 
 ## 5. Phase 3: transport and OS
 
