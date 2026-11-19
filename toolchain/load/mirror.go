@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,11 +27,13 @@ type MirrorResult struct {
 }
 
 // Mirror makes out a complete Go module that plain Go tools build: the module at
-// root with every .vuka file replaced by its generated Go and everything else
-// copied (go.mod with relative replace paths adjusted, .go files, assets,
-// testdata). Only files that differ are written, and files no longer in the
-// source are removed. With dryRun nothing is touched; the result lists what
-// would change.
+// root with every .vuka file replaced by its generated Go and the rest of what
+// a build reads copied (go.mod with relative replace paths adjusted, .go
+// files, the other files of package directories, testdata, and what a
+// //go:embed pattern names). A directory with no package below it that no
+// pattern reaches, such as uploaded files, isn't copied. Only files that
+// differ are written, and files no longer in the source are removed. With
+// dryRun nothing is touched; the result lists what would change.
 func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, error) {
 	var res MirrorResult
 	root, _ = filepath.Abs(root)
@@ -48,6 +51,7 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 	}
 	want := map[string][]byte{Marker: []byte(markerText)} // relative path → content
 	modes := map[string]fs.FileMode{}
+	keep := newMirrorDirs()
 
 	generated := map[string]bool{}
 	for _, g := range gens {
@@ -58,6 +62,18 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 		want[rel] = relativeLines(g.Src, filepath.Dir(g.Source), filepath.Dir(filepath.Join(out, rel)))
 		generated[rel] = true
 	}
+	for _, g := range gens {
+		if strings.HasSuffix(g.Target, ".go") {
+			if dir, err := filepath.Rel(root, filepath.Dir(g.Target)); err == nil {
+				keep.embeds(dir, g.Src)
+			}
+		}
+	}
+	type pending struct {
+		rel, path string
+		mode      fs.FileMode
+	}
+	var later []pending
 	siblings := map[string]map[string]bool{}
 	err := WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -78,6 +94,9 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 			}
 			return nil
 		}
+		if strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html") || strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".templ") {
+			keep.source(filepath.Dir(rel))
+		}
 		if !d.Type().IsRegular() || strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html") || generated[rel] ||
 			name == "go.work" || name == "go.work.sum" || strings.HasPrefix(name, ".") {
 			return nil
@@ -90,16 +109,20 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 		if siblingVuka(siblings, path) {
 			return nil // an in-place generated file; the fresh one replaces it
 		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !strings.HasSuffix(name, ".go") {
+			later = append(later, pending{rel, path, info.Mode().Perm()})
+			return nil
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		if rel == "go.mod" {
-			data = relocateReplaces(data, root, out)
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
+		if dir, err := filepath.Rel(root, GoDir(root, filepath.Dir(path))); err == nil {
+			keep.embeds(dir, data)
 		}
 		want[rel] = data
 		modes[rel] = info.Mode().Perm()
@@ -107,6 +130,20 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 	})
 	if err != nil {
 		return res, err
+	}
+	for _, f := range later {
+		if f.rel != "go.mod" && f.rel != "go.sum" && !keep.has(filepath.Dir(f.rel)) {
+			continue
+		}
+		data, err := os.ReadFile(f.path)
+		if err != nil {
+			return res, err
+		}
+		if f.rel == "go.mod" {
+			data = relocateReplaces(data, root, out)
+		}
+		want[f.rel] = data
+		modes[f.rel] = f.mode
 	}
 
 	// go.mod first: once out has one, it is a separate module that
@@ -169,6 +206,83 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 		}
 	}
 	return res, nil
+}
+
+// mirrorDirs decides which directories Mirror copies the files of: those
+// holding a package's sources and their parents, testdata, and the files and
+// directories //go:embed patterns name, with their parents.
+type mirrorDirs struct {
+	kept  map[string]bool // directories with sources below, and embedded paths' parents
+	roots []string        // what patterns name, a wildcard's directory for a glob
+}
+
+func newMirrorDirs() *mirrorDirs { return &mirrorDirs{kept: map[string]bool{".": true}} }
+
+func (m *mirrorDirs) source(dir string) {
+	for ; !m.kept[dir]; dir = filepath.Dir(dir) {
+		m.kept[dir] = true
+	}
+}
+
+// embeds records the //go:embed patterns of a Go file in dir.
+func (m *mirrorDirs) embeds(dir string, src []byte) {
+	if !bytes.Contains(src, []byte("//go:embed")) {
+		return
+	}
+	for _, line := range strings.Split(string(src), "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "//go:embed")
+		if !ok || rest != "" && rest[0] != ' ' && rest[0] != '\t' {
+			continue
+		}
+		for _, p := range embedFields(rest) {
+			var lit []string
+			for _, el := range strings.Split(strings.TrimPrefix(p, "all:"), "/") {
+				if strings.ContainsAny(el, `*?[\`) {
+					break
+				}
+				lit = append(lit, el)
+			}
+			e := filepath.Join(dir, filepath.FromSlash(strings.Join(lit, "/")))
+			m.roots = append(m.roots, e)
+			m.source(filepath.Dir(e))
+		}
+	}
+}
+
+// has reports whether the files of dir are copied.
+func (m *mirrorDirs) has(dir string) bool {
+	if m.kept[dir] || slices.Contains(strings.Split(filepath.ToSlash(dir), "/"), "testdata") {
+		return true
+	}
+	for _, e := range m.roots {
+		if e == "." || dir == e || strings.HasPrefix(dir, e+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// embedFields splits the patterns of a //go:embed line, a quoted one
+// unquoted.
+func embedFields(s string) []string {
+	var fields []string
+	for s = strings.TrimSpace(s); s != ""; s = strings.TrimSpace(s) {
+		end := strings.IndexAny(s, " \t")
+		if s[0] == '"' || s[0] == '`' {
+			if q, err := strconv.QuotedPrefix(s); err == nil {
+				u, _ := strconv.Unquote(q)
+				fields = append(fields, u)
+				s = s[len(q):]
+				continue
+			}
+		}
+		if end < 0 {
+			end = len(s)
+		}
+		fields = append(fields, s[:end])
+		s = s[end:]
+	}
+	return fields
 }
 
 // siblingVuka reports whether path is the generated file of a .vuka file

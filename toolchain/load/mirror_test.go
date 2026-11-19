@@ -151,3 +151,58 @@ func TestDescribe(t *testing.T) {
 		t.Error("mirrored over a directory without the marker")
 	}
 }
+
+// TestMirrorSkipsData: a directory no package is in and no //go:embed
+// pattern names isn't mirrored; embedded files, a package's other files and
+// testdata are.
+func TestMirrorSkipsData(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "app")
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.23\n")
+	write(t, filepath.Join(root, "README.md"), "app")
+	write(t, filepath.Join(root, "main.vuka"), "package main\n\nimport \"embed\"\n\n//go:embed static\nvar static embed.FS\n\nfunc main() { _ = static }\n")
+	write(t, filepath.Join(root, "embed.go"), "package main\n\nimport _ \"embed\"\n\n//go:embed \"my files/a.txt\"\nvar a string\n")
+	write(t, filepath.Join(root, "static", "css", "app.css"), "body{}")
+	write(t, filepath.Join(root, "my files", "a.txt"), "a")
+	write(t, filepath.Join(root, "my files", "b.txt"), "b")
+	write(t, filepath.Join(root, "uploads", "2026", "scan.pdf"), "junk")
+	write(t, filepath.Join(root, "media", "photo.jpg"), "junk")
+	write(t, filepath.Join(root, "modules", "pdf", "pdf.go"), "package pdf\n\nimport \"embed\"\n\n//go:embed fonts/*.ttf\nvar fonts embed.FS\n")
+	write(t, filepath.Join(root, "modules", "pdf", "fonts", "arial.ttf"), "font")
+	write(t, filepath.Join(root, "modules", "pdf", "emblem.png"), "png")
+	write(t, filepath.Join(root, "modules", "pdf", "samples", "out.pdf"), "junk")
+	write(t, filepath.Join(root, "modules", "pdf", "testdata", "want.txt"), "want")
+	write(t, filepath.Join(root, "tools", "go.mod"), "module example.com/tools\n")
+	write(t, filepath.Join(root, "tools", "x.go"), "package tools\n")
+
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gens, _, err := Transpile(pkgs, t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "mirror")
+	if _, err := Mirror(root, out, gens, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"go.mod", "README.md", "main_vuka.go", "embed.go", "static/css/app.css", "my files/a.txt", "my files/b.txt",
+		"modules/pdf/pdf.go", "modules/pdf/fonts/arial.ttf", "modules/pdf/emblem.png", "modules/pdf/testdata/want.txt"} {
+		if _, err := os.Stat(filepath.Join(out, want)); err != nil {
+			t.Errorf("%s wasn't mirrored", want)
+		}
+	}
+	for _, skipped := range []string{"uploads", "media", "modules/pdf/samples", "tools"} {
+		if _, err := os.Stat(filepath.Join(out, skipped)); err == nil {
+			t.Errorf("%s was mirrored", skipped)
+		}
+	}
+}
+
+func TestEmbedFields(t *testing.T) {
+	got := embedFields(` static "my files/a.txt"	all:web/dist ` + "`b c`")
+	want := []string{"static", "my files/a.txt", "all:web/dist", "b c"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
