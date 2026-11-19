@@ -195,6 +195,7 @@ same page in the terminal.
 | [E0361](./E0361) | A viewport handler that doesn't take the edge row's key |
 | [E0362](./E0362) | A form in a stream row that doesn't submit to a method taking it |
 | [E0363](./E0363) | A form in a stream row that checks as the visitor types |
+| [E0364](./E0364) | A Suspense timing that isn't a duration |
 | [E0370](./E0370) | A deferred group's section is misplaced |
 | [E0371](./E0371) | A variant or its value is unknown |
 | [W0301](./W0301) | A live page routed as one that isn't live |

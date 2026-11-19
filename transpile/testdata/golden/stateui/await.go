@@ -3,6 +3,7 @@ package stateui
 import (
 	"context"
 	"io"
+	"time"
 )
 
 func (Live) vukaSchema(interface{ LiveSchema(*LiveSchema) }) {}
@@ -53,21 +54,41 @@ type Await struct {
 		Loading(string) bool
 		LoadErr(string) error
 	}
-	Key      string
-	Pending  Node
-	Error    func(err error) Node
-	Children func() Node
+	Key                  string
+	And                  []string
+	Pending              Node
+	Error                func(err error) Node
+	Children             func() Node
+	Wait, Delay, MinShow time.Duration
+}
+
+// Instant is Await's Delay for none.
+const Instant time.Duration = -1
+
+func (a Await) keys() []string { return append([]string{a.Key}, a.And...) }
+
+func (a Await) state() (pending bool, err error) {
+	for _, k := range a.keys() {
+		if a.Of.Loading(k) {
+			return true, nil
+		}
+		if err := a.Of.LoadErr(k); err != nil {
+			return false, err
+		}
+	}
+	return false, nil
 }
 
 func (a Await) view() Node {
+	pending, err := a.state()
 	switch {
-	case a.Of.Loading(a.Key):
+	case pending:
 		return a.Pending
-	case a.Of.LoadErr(a.Key) != nil:
+	case err != nil:
 		if a.Error == nil {
 			return nil
 		}
-		return a.Error(a.Of.LoadErr(a.Key))
+		return a.Error(err)
 	case a.Children == nil:
 		return nil
 	}

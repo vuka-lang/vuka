@@ -1,0 +1,1 @@
+page.vuka.html:6:27: <ui.Suspense delay> only applies to a live component's boundary, which waits for deferred groups; drop delay, or move the boundary into a live component

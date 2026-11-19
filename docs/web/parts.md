@@ -441,6 +441,69 @@ In Go a boundary is `ui.Suspense(fallback, errorNode, func(ctx
 context.Context) ui.Node { … })`, its body the function: what it calls runs
 when the boundary does.
 
+### Timings: `wait`, `delay`, `minShow` {#suspense-timings}
+
+A fallback that flashes for 80 ms and vanishes is noise, and so is one that
+blinks just before its content. Three attributes of a live component's
+boundary, durations written as strings (`"200ms"`, `"1s"`), keep a fast
+load quiet. They compose:
+
+```vuka-html
+<ui.Suspense for={tiles, tabs} wait="200ms" delay="150ms" minShow="400ms">
+  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+  …
+</ui.Suspense>
+```
+
+| Attribute | Default | What it does |
+| --- | --- | --- |
+| `wait` | none | The server holds the page's first render for the boundary's loaders, up to this long. |
+| `delay` | `150ms` | The fallback is on the page at once, its space reserved, but invisible this long. |
+| `minShow` | none | Once the fallback is visible it stays at least this long before the content replaces it. |
+
+- **`wait`** is for a page whose loaders are usually quick (a local query).
+  On the first render of a live page, the HTTP response and the join that
+  follows it, the server starts the loaders of the groups the boundary waits
+  for as soon as the page is mounted, and replies when they have all
+  returned or `wait` has passed. A loader that returns in time ships its
+  content in that reply: the fallback is never sent, so nothing can flash.
+  The cost is time to first byte, up to `wait`. The budget belongs to the
+  page, not to a boundary: several boundaries share one wait, the longest
+  `wait` among them, never the sum. A loader that misses it keeps running:
+  the fallback is sent, and the content follows as a patch, once, as it does
+  without `wait`. Default 0: nothing is held.
+- **`delay`** is for every boundary, and is on by default. The fallback is
+  rendered in its place, so the page doesn't shift when it shows, but is
+  invisible for `delay`, counted from when it appears on the page. A load
+  that finishes sooner never shows it; a slower one shows it once `delay` has
+  passed. There is no animation, so a visitor who asks for reduced motion
+  sees the fallback after `delay` as well. The default is 150 ms, about
+  where a wait begins to be noticed. `delay="0s"` shows the fallback at
+  once, as before. The page needs no stylesheet for it.
+- **`minShow`** is for a load that may finish just after the fallback
+  appeared. Once the fallback is visible it stays for `minShow` before the
+  content replaces it, so a skeleton never blinks. Only that boundary waits:
+  the rest of the same update applies at once, and if the boundary's content
+  changes again while it waits, the newest is the one shown. A load that
+  finishes before the fallback was visible isn't held; it replaces the
+  invisible fallback at once.
+
+Choose `delay` alone when the loaders are of any speed and you want no
+flash; add `minShow` when they are slow enough to show a fallback and you
+want it to read as a loading state; add `wait` when most loads are quick and
+a little extra time to first byte is better than a skeleton at all.
+
+The timings change nothing when a loader runs again and keeps the content
+([Deferred fields](/ui/stateful#deferred-fields)): the old content stays and
+no fallback shows. Without script a live page's loaders don't run, so the
+fallback of a boundary with a `delay` stays invisible; the content a page
+needs without script doesn't belong in a deferred group.
+
+In Go the same are the fields `Wait`, `Delay` and `MinShow` of `ui.Await`
+(`ui.Instant` as `Delay` shows the fallback at once), and
+`ui.SetAwaitDefaults` sets them for every `Await` of the app. A boundary on a
+page that isn't live takes none of them ([E0364](/errors/E0364)).
+
 ### Choosing {#choosing}
 
 - **`@ui.Defer`** is the method's author saying it's slow: wherever a page
@@ -620,3 +683,4 @@ own markup calls directly. Everything else is an error at the attribute:
 | [E0349](/errors/E0349) | in Go, a `ui.Part` naming another type's method |
 | [E0350](/errors/E0350) | a deferred call in no element, which would be its part |
 | [E0351](/errors/E0351) | a `<ui.Suspense>` with an unsupported attribute, or a slot other than `<slot:fallback>` and `<slot:error>` |
+| [E0364](/errors/E0364) | a `<ui.Suspense>` timing that isn't a duration string, or is on a boundary that isn't a live component's |
