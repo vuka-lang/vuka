@@ -367,6 +367,26 @@ joined with, its contexts and headers: about 14 KB a page. Keep only what the
 session reads afterwards (identity, the page URL, the headers a page asked
 for) and let the rest go after the join.
 
+What changed, for anyone writing middleware:
+
+- A WebSocket's upgrade handler returns once the socket is accepted; the
+  session runs on a goroutine of its own. Middleware wrapping the live route
+  sees the request complete at the upgrade, not when the socket closes (an
+  in-flight request count no longer counts live sockets; `App.LiveConns`
+  does). The event-stream transport still holds its handler open.
+- The session's context no longer derives from the request's, so a
+  `BaseContext` cancelling does not end a socket by itself. Sockets end when
+  the browser closes, on `App.Stop` or the server's `Shutdown`, or on `CloseLive`. Values
+  that middleware outside the app put on the upgrade request's context are
+  still visible to the session; an object there that holds the request or
+  response keeps it alive.
+- The session keeps a trimmed copy of the upgrade request: headers, address,
+  peer, mount; no body, forms or trailers. `web.Request(ctx)` in an event is
+  the join's run of the route: method GET, the page's URL, the upgrade's
+  headers plus `X-Vuka-Live`, `Body` `http.NoBody`.
+- `web.ResponseWriter(ctx)` in an event is a writer that discards what is
+  written to it, as the join's recorder did.
+
 (b) **Shared HTML storage.** Every rendered subtree and its shadow is stored
 by content hash in a process-wide, reference-counted store; sessions hold
 pointers. Rendering and diffing stay per page, so nothing one viewer sees
