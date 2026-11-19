@@ -322,7 +322,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	if cmd == "vet" {
-		if ds := scope.warnings(transpileWarnings(root, gens)); len(ds) > 0 {
+		ds := transpileWarnings(root, gens)
+		if _, rep, err := load.RestartKeys(root, modPath, pkgs, gens); err == nil {
+			ds = append(ds, restartDiags(rep)...)
+		}
+		if ds := scope.warnings(ds); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 		}
 	} else if ds := buildWarnings(transpileWarnings(root, gens)); len(ds) > 0 {
@@ -827,6 +831,11 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		if links, _, err = load.AutoLink(root, modPath, pkgs, files); err != nil {
 			return "", nil, err
 		}
+		restart, _, err := load.RestartKeys(root, modPath, pkgs, files)
+		if err != nil {
+			return "", nil, err
+		}
+		links = append(links, restart...)
 	}
 	css, err := buildTailwind(root, overlay, pa, os.Stderr)
 	if err != nil {
