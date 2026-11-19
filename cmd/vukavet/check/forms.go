@@ -172,7 +172,7 @@ func formFields(st *types.Struct, prefix string, seen map[*types.Struct]bool, ou
 // orm.Model[T]; "" when it is none.
 func embeddedModel(t types.Type) string {
 	t = deref(t)
-	if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == ormPath && n.Obj().Name() == "Model" {
+	if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == ormPath && (n.Obj().Name() == "Model" || n.Obj().Name() == "Rec") {
 		return "orm.Model"
 	}
 	st, ok := t.Underlying().(*types.Struct)
@@ -184,7 +184,7 @@ func embeddedModel(t types.Type) string {
 		if !f.Embedded() {
 			continue
 		}
-		if n, ok := types.Unalias(deref(f.Type())).(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == ormPath && n.Obj().Name() == "Model" {
+		if n, ok := types.Unalias(deref(f.Type())).(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == ormPath && (n.Obj().Name() == "Model" || n.Obj().Name() == "Rec") {
 			if tn, ok := types.Unalias(t).(*types.Named); ok {
 				return tn.Obj().Name()
 			}

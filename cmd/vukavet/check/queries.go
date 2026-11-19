@@ -510,7 +510,7 @@ func readFields(st *types.Struct) []*types.Var {
 			continue
 		}
 		if f.Embedded() {
-			if named(f.Type(), ormPath, "Model") || named(f.Type(), ormPath, "Base") {
+			if named(f.Type(), ormPath, "Model") || named(f.Type(), ormPath, "Base") || named(f.Type(), ormPath, "Rec") {
 				continue
 			}
 			if s, ok := f.Type().Underlying().(*types.Struct); ok {

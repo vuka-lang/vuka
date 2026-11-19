@@ -85,7 +85,7 @@ func embedsModel(t types.Type, seen map[types.Type]bool) bool {
 		if !f.Embedded() {
 			continue
 		}
-		if named(f.Type(), ormPath, "Model") || named(f.Type(), ormPath, "Base") {
+		if named(f.Type(), ormPath, "Model") || named(f.Type(), ormPath, "Base") || named(f.Type(), ormPath, "Rec") {
 			return true
 		}
 		if _, ptr := f.Type().(*types.Pointer); !ptr && embedsModel(f.Type(), seen) {

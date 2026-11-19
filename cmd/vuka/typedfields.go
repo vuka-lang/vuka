@@ -269,8 +269,8 @@ func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Gener
 }
 
 // modelEmbed matches a struct embedding the orm's model base, as
-// transpiled Go writes it: orm.Model[User], or orm.Base.
-var modelEmbed = regexp.MustCompile(`(?m)^\s+\w+\.(?:Model\[\w+\]|Base)\s*(?:$|//|\x60)`)
+// transpiled Go writes it: orm.Rec[User], orm.Model[User], or orm.Base.
+var modelEmbed = regexp.MustCompile(`(?m)^\s+\w+\.(?:Model\[\w+\]|Rec\[\w+\]|Base)\s*(?:$|//|\x60)`)
 
 // declaresModels reports whether gens, a package's Go, declare orm models.
 func declaresModels(gens []load.Generated) bool {
