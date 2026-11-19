@@ -179,6 +179,7 @@ guards.go name
 htmlfile.go h.recvType
 jsxcomp.go id.Name
 jsxcomp.go n
+loadswrites.go si.typeName
 match.go id.Name
 match.go x.Sel.Name
 parts.go f.html.recvType
