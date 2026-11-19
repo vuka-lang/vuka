@@ -397,6 +397,105 @@ Statics interning, proposed here before, is the special case of a subtree
 with no dynamic values. The shadow's boxed strings (24 bytes where an 8-byte
 hash would do) shrink along the way.
 
+*As built* (ui `live/treestore.go`; branch `shared-html`).
+
+*The unit and the table.* A node is a frame (`ui.Tree`) or a block's list
+(`ui.TreeList`); each carries `ui.Share{Hash, Refs}`. The table is 64 shards,
+each a read-write lock over two maps by hash. The hash is a 64-bit `maphash`
+over what the renderer already has: the frame's key (the fingerprint of its
+statics), each string and instance reference, and each child's own hash. A hit
+is verified before it is used: key, strings and references by value, children
+by pointer, since a stored node is the only one with its content and two equal
+children are one pointer. Two contents with one hash are both kept (a side map
+per shard), so a collision costs an entry and never shows a page another
+page's markup. A lookup that hits takes the read lock; the write lock is for
+inserting a node and for the last release of one.
+
+*Hash only what changed.* A render builds its tree as it always has (and
+`stableTreeIDs`, `splitMarkers` rename and split in it, while it is still the
+renderer's), then hands it to the table, which hashes bottom-up and looks up
+top-down: a page identical to a stored one is one lookup and a content check,
+and nothing else of it is kept. Nodes a render did not build are already
+stored with their hash: a part kept by `ui.Guard`, and the subtrees a stream
+or Temporary flush leaves alone, are skipped. A guarded part the table already
+had under another pointer is repointed to the stored one, so the next render
+does not hash it again. The diff no longer hashes at all: two stored nodes
+that are the same pointer have the same content, which skips a subtree in one
+comparison (the shadow's `src` shortcut, for every unchanged subtree rather
+than only the kept ones).
+
+*The shadow is the tree.* What the client holds is the stored tree it was last
+sent: `instance.shadow` is a `*ui.Tree`, one more hold on a node the session's
+tree usually is. The diff compares the strings of the two trees directly, so
+the shadow's hashes, its boxed `sstr` (24 bytes where 8 would do) and its
+frames are gone rather than shrunk, and the 13.6 KB a page kept for it costs
+a pointer. `Trim` has nothing left to free in the usual case (the shadow it
+would release is the tree); it releases the shadow only when that holds memory
+of its own, and `LiveTrimAfter` stays as an option with little left to do.
+
+*Immutable.* Once a node is stored nothing changes it; `mustOwn` panics where
+a render would. The places that changed trees in place, and what they do now:
+`emptyStreams` and `emptyTemps` (the flush after a reply emptied the tree and
+the shadow in place) return a copy of the frames down to what they empty, and
+the session takes the copy as its tree and shadow; the shadow patch
+(`shadowFrom`, which wrote into the old shadow's frames) is gone with the
+shadow; `Trim` and `untrim` only move pointers; `stableTreeIDs` and
+`splitMarkers` change the tree a render is building, before it is stored, and
+skip the stored parts a guard kept; keyed lists, streams, and the statics
+slices were never written to after a render (the statics are shared by key
+already, and are not part of what the table counts).
+
+*Lifetime: counted.* `Refs` counts holders: an instance's tree, an instance's
+shadow, and each place in a stored node that contains it. Adopting a tree
+(`instance.setTree`) takes the new holds before it lets go of the old, so the
+parts a render kept are never between; `setShadow` and `dropTrees` are the
+other two ways in and out, and `dropTrees` is called from `unmount`, which
+`Close`, a navigation, the sweep of instances a render no longer reaches, a
+Call closing and `NavigateFrom` taking an instance already go through. Parked
+sessions hold their instances until they are closed, as before. The last
+release removes the node from the table and releases its children; adding a
+hold is one atomic add, and so is letting go but for the last, so shared
+popular nodes are not a lock. A count below zero stops a verifying run
+(tests, `VUKA_LIVE_VERIFY=1`) and otherwise is healed by storing the node
+afresh. Against `weak` pointers: a weak table needs nothing at the drop sites
+and cannot leak when one is missed, but costs a weak handle and a special
+record per node (about 50 bytes against the 16 of `Share`), frees at the
+collector's pace and so leaves dead entries to sweep, and cannot say that
+every hold was returned. There are three drop sites and the tests check the
+accounting node by node (`CheckStore`), so the count is exact and the table
+drains on close; a session abandoned without `Close` would keep its nodes, and
+every transport closes its sessions.
+
+*A render compares before it hashes.* A page's new tree is matched part by part
+with the stored tree it replaces (`treeVs`): a part that rendered as before is
+that stored node again, found by comparing, with no hash and no lock; only a
+part that changed goes through the table. Hashing every render first cost
+about 250 ns an instance (a 1,000-row plain table, +10% a render); this
+brings it to the noise of the benchmark.
+
+*Instance ids.* Rendered output carries each instance's id (`data-vk-id`,
+handler references `c12:3`, child references). Taking the ids out of the hash
+(`CensusReport.Stored.IDsFilledBytes`) shows how much more would be one node
+if they were filled in per page: 21% of what the table holds in `mem`, 9% in
+`admin-popular`, 4% in `admin-unique`. In bytes that is under 200 B a page,
+since the table already holds about 1.2 KB a page in the popular mix; the ids
+matter for render reuse (4.3), not for this memory. Follow-up, not done here:
+the wire format keeps the ids in the markup.
+
+*Measured* (10,000 pages, the `dedup` configurations, server heap and stacks
+per page by the ramp's slope, before then after, back to back):
+
+| Scenario | before | after | saved | projection (4.1) |
+|---|---|---|---|---|
+| `mem` | 111.6 KB | 95.9 KB | 15.7 KB | 16.3 KB |
+| `admin-popular` | 137.6 KB | 106.6 KB | 31.1 KB | 31.2 KB |
+| `admin-unique` | 97.3 KB | 85.0 KB | 12.2 KB | 11.3 KB |
+
+Event latency (p50) is within the run-to-run noise of this machine, which
+moved a run's median between 0.46 and 1.09 ms with the same binary;
+broadcasts reach the last page in 541 ms (555 before). After every client
+closed the table was empty.
+
 (c) **Fewer, smaller stacks.** Two goroutines a page hold 26 KB. The reader
 spends its life blocked on the socket; a shared reader (a poller) or a
 reader that parks between frames, and letting an idle page's stacks shrink,
