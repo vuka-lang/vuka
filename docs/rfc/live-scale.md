@@ -40,7 +40,7 @@ The budget for 30,000 pages:
 | Cost | Estimate | Verdict |
 |---|---|---|
 | Goroutine stacks, 2 per page | ~0.5 GB | fine for the Go runtime |
-| Session memory | tens of KB per page; 30,000 × ~60 KB ≈ 2 GB before GC headroom | the main ceiling; the harness pins the real number |
+| Session memory | measured ~122 KB per page of 21 instances (§2.1); 30,000 ≈ 3.7 GB | a ceiling; it grows with a page's instance count |
 | Broadcast to one hot topic | 30,000 renders and 30,000 writes at once | a ceiling: a spike of CPU and heap, and tail latency for everyone |
 | The hub lock | one mutex across join, leave, subscribe and every broadcast | a ceiling: it serializes at this size |
 
@@ -65,6 +65,48 @@ Every later phase is judged by it. A change that does not move a number the
 harness measures does not land, and a number that matters but the harness
 cannot see gets a probe added first.
 
+### 2.1 Baseline
+
+The harness lives in the web repository, `examples/loadtest`: a scenario with
+no database (`/counter`, `/feed`, 20 rows of live instances each, so 21
+instances a page) besides the existing Postgres one. Before any phase, on an
+Apple M1 Pro, 10 cores, 16 GB, Go 1.27, server `GOMAXPROCS` 4, client and
+server on the same machine:
+
+| Measure | 1,000 pages | 10,000 pages | §7 target at 30,000 |
+|---|---|---|---|
+| Server RSS per page (settled, slope of the ramp) | ~139 KB | ~122 KB (heap and stack ~112 KB) | within §1 |
+| Goroutines per page | 2 | 2 | — |
+| Broadcast to the last subscriber, p99 | 67 ms | 682 ms (p50 610, max 760) | under ~250 ms |
+| Broadcast to the first subscriber, p50 | 0.6 ms | 0.8 ms | — |
+| Interactive round trip, quiet, p99 | 5 ms | 9.8 ms | single-digit ms |
+| Interactive round trip during a storm, p99 | 270 ms | 4.9 s (p50 746 ms) | single-digit ms |
+| GC pause, max | ~0.2 ms | 0.5 ms; 5 ms during the storm | not growing with pages |
+| Interactive and normal pages dropped | 0 | 0 | 0 |
+
+What the baseline shows:
+
+- **Holding pages is not the problem.** Memory per page is flat from 1,000
+  to 10,000, GC pauses don't grow with the count, and the client's own lag
+  stays near 2 ms p99, so the client is not the bottleneck. At 30,000 the
+  same page would hold about 3.7 GB.
+- **A broadcast is serial**: about 70 µs a subscriber, so the last of 30,000
+  would wait about 2 s.
+- **The storm (2 broadcasts a second offered to 8,800 subscribers) proves the
+  lock and the inbox.** `Broadcast` itself blocked, so only 1.4 a second went
+  out. Every subscriber got one frame per broadcast: nothing merges. Summed
+  mutex wait in the process went from 0.4 s to about 4,100 s over the 40 s
+  storm, scheduler latency p99 to 940 ms, and RSS from 1.2 GB to 2.7 GB as
+  inboxes grew. Interactive pages on other topics waited behind it.
+- **Slow clients** (200, reading with a delay) were all closed, but by the
+  transport — connection reset or EOF — with no close frame, so the reload
+  status §3(c) relies on never reached them.
+
+Probes the harness still needs: a per-connection queue depth or pending-bytes
+gauge (the inbox is invisible from outside today), and a check that merged
+broadcasts leave each page's state exact (it only identifies the last
+message in a frame).
+
 ## 3. Phase 1: fan-out and locking
 
 (a) **Shard the hub.** `conns`, `topics` and `perIP` split by hash into a
@@ -88,7 +130,10 @@ dropped and one catch-up diff against the browser's last acknowledged state
 takes their place; the instance `shadow` makes that cheap, since it is
 exactly what the browser holds. A client that still cannot drain before the
 deadline is closed with the existing reload status (`closeReload`, 4001), so
-its tab loads the page again. A slow client never back-pressures the rest:
+its tab loads the page again. The baseline (§2.1) shows that today such a
+client is dropped by the transport with no close frame at all: the close
+has to be written before the socket is given up, under its own short
+deadline. A slow client never back-pressures the rest:
 its queue is its own, and a broadcast never waits on a write.
 
 (d) **Bound concurrent broadcast renders.** A process-wide semaphore of
@@ -160,9 +205,10 @@ This phase keeps those and adds two things:
 
 On the harness, on the reference machine recorded with the results:
 
-1. 30,000 held connections, each with its page rendered and joined, settle
-   at a steady RSS within the budget of §1, with GC pauses that do not grow
-   with the connection count.
+1. 30,000 held connections, each with the harness's 21-instance page
+   rendered and joined, settle at a steady RSS within the budget of §1, with
+   GC pauses that do not grow with the connection count. Memory per page is
+   reported with the page's instance count, since it scales with it.
 2. A broadcast to all 30,000 reaches the last subscriber with p99 under
    about 250 ms.
 3. While one topic storms, interactive event round-trip p99 on other pages
