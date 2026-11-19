@@ -30,7 +30,7 @@ Include:
 
 ## What Happens Next
 
-You get an answer saying whether the report is accepted as a vulnerability,
-TODO(owner): response time. A fix ships as a patch release, outside the weekly
+You get an answer within 7 days saying whether the report is accepted as a
+vulnerability. A fix ships as a patch release, outside the weekly
 cadence, and its [release note](https://vuka-lang.github.io/releases) says what
 was fixed and who found it, unless you ask to stay unnamed.
