@@ -142,155 +142,179 @@ rest wait their turn, so a storm on one topic costs latency to its own
 subscribers and does not exhaust memory or starve the interactive events of
 other pages.
 
-(e) **Shared render for identical fragments.** For a topic whose output is
-the same for every subscriber, the server renders once and fans one frame
-out. It is opt-in and explicit on both sides, because it asserts that the
-fragment reads nothing of the viewer and answers no event. Everything else
-keeps the per-page render of (b). The design below is checked against
-`ui/live` (`Session`, `instance`, `shadow`, `conn`'s statics ids, the v2
-tree encoding) and `web/livews.go`, `liveout.go`.
+(e) **Shared render for identical fragments.** For a component whose output
+is the same for every viewer, the server renders once and fans one frame out.
+The component says so on its type, and everything else keeps the per-page
+render of (b). The design below is checked against `ui/live` (`Session`,
+`instance`, `shadow`, `conn`'s statics ids, the v2 tree encoding) and
+`web/livews.go`, `liveout.go`.
 
-*API.* `web.SharedTopic(names...)` is an `App` option naming the fragments the
-app allows. A component renders as one by declaring `func (*Feed)
-SharedTopic() string` (the fragment's name); a tag of it anywhere in a page
-becomes a placeholder for the fragment. A name the app did not list is a render
-error, as is a method on a component of a topic the option did not name. The
-name is the fragment's identity, not a broadcast topic: the fragment's
-instances `Subscribe` to whatever topics they like and the hub delivers those
-to the fragment, not to the pages.
+*API.* A component embeds `ui.SharedLive` in place of `ui.Live`; that is the
+whole declaration, in a Go struct and in the `<script lang="go">` of a
+`.vuka.html` file alike (the compiler treats the embed as it treats
+`ui.Live`). Its changes are sent with a typed broadcast to its type:
 
-*Ownership.* A `live.SharedSet` per app holds one `live.Shared` per name for
-the life of the app. A `Shared` owns a `live.Session` of its own (ids prefixed
-`s<n>.`, so they never meet a page's `c<n>`), mounted from the first tag's
-props with a context that holds the app but no request. A later tag must carry
-equal props (`sameProps`: value fields only; pointers, slices and children
-never match), else the render fails: props are the one way a page could put
-something of itself into the fragment, and equal props cannot. The page's
-instance tree gets a `TreeRef` to the fragment's root instance, exactly as
-it does for a child component, and records the `*Shared` on the instance that
-rendered the tag (kept across skipped renders). The page's diff treats the
-reference as it treats any reference: equal or not, never inside it. A page
-that first renders over HTTP (protocol v1 HTML, no socket yet) gets the
-fragment's current HTML in place of the reference.
+```go
+type PriceBoard struct {
+	ui.SharedLive
+	prices []Price
+}
 
-*One render, one diff, one encode.* Broadcasts to the fragment's topics go to
-the `Shared`, not to its subscribers: `web` posts them to an inbox that a pump
-goroutine drains in batches (the coalescing of (b)), takes one permit of the
-render gate (d), and calls `Shared.Publish`: `InfoBatch` on the fragment's
-session, which renders each changed instance once and diffs it against the
-topic's single `shadow`, then encodes the entries once into the finished
-message `{"type":"patch","trees":[…]}`. The entries are addressed by the
-fragment's own instance ids, which every page that shows it holds the same
-(`s1.c3`), so the bytes are the same for all of them. Fan-out is one append
-of that same slice into each subscriber's outbound queue (c). A queue that is
-full closes that browser with `closeReload` from a goroutine of its own; the
-publisher never waits on a write.
+func (b *PriceBoard) Update(ctx context.Context, p Price) { b.prices = upsert(b.prices, p) }
 
-*Statics.* A page's statics ids are numbered per connection (`conn.ids`), the
-blocker for sharing bytes. A fragment's frames use a process-wide table: a
+// anywhere in the app, from a request or a live event:
+ui.Broadcast[*PriceBoard](ctx, Price{"TZS", 2510})
+```
+
+```html
+<PriceBoard />
+```
+
+The name is `SharedLive`, not `Shared`, because `ui.Shared` is already the
+state attribute that syncs a `ui.State` across tabs (`@ui.Shared`). There are
+no topic strings: a shared component is addressed by its type, and
+`ui.Broadcast[T]` is constrained to `T` embedding `ui.SharedLive`, so any
+other type is a compile error. `Subscribe` on a shared component fails the
+mount. `Update` follows the rules of `ui.Live`'s (by message type, optional
+`context.Context`, optional error). The broadcast mounts the instance first
+when no page has, once per process, and then applies the message, so its state
+is never behind because no page had appeared. `ui.RegisterShared(&T{})`, from
+an `init`, makes a replica know the type by name before any page or local
+broadcast does (the compiler is to emit it for every struct embedding
+`ui.SharedLive`; until then it is one line in the package).
+
+*Ownership.* A `live.SharedSet` per app holds one `live.Shared` per component
+type for the life of the app. A `Shared` owns a `live.Session` of its own (ids
+prefixed `s<n>.`, so they never meet a page's `c<n>`), mounted with a context
+that holds the app's injector and nothing of a viewer. A page's tag of the
+component, which takes no props, is a placeholder: the page's instance tree
+gets a `TreeRef` to the fragment's root instance exactly as it does for a child
+component, and the instance that rendered the tag records the `*Shared` (kept
+across skipped renders). The page's diff treats the reference as it treats any
+reference: equal or not, never inside it. A page that first renders over HTTP
+(v1 HTML, no socket yet) gets the fragment's current markup in place of the
+reference.
+
+*One render, one diff, one encode.* `Broadcast` delivers to the app's hub
+under the topic `"\x00shared:" + ui.SharedName(T)` (the package path and
+name), which no page subscribes to; the hub hands it to the fragment's inbox,
+which a pump goroutine drains in batches (the coalescing of (b)), takes one
+permit of the render gate (d) and calls `Shared.Publish`: `InfoBatch` on the
+fragment's session, which delivers to the root component only, renders each
+changed instance once, diffs it against the fragment's single `shadow`, and
+encodes the entries once into the finished message
+`{"type":"patch","trees":[…]}`. The entries are addressed by the fragment's own
+instance ids, which every page showing it holds the same (`s1.c3`), so the
+bytes are the same for all of them. Fan-out is the append of that one slice
+into each subscriber's outbound queue (c). A full queue closes that browser
+with `closeReload` from a goroutine of its own; the publisher never waits on a
+write. Across replicas the broadcast goes through the app's `Relay` as the
+string broadcasts do, under that same topic, so the stable name is what
+travels; each replica renders its own fragment once.
+
+*Statics.* A page's statics ids are numbered per connection (`conn.ids`),
+the blocker for sharing bytes. A fragment's frames use a process-wide table: a
 statics key is interned to `1<<30 + n`, an id no connection numbers, and the
-encoder writes the id and never the statics inline. Each connection tracks
-the shared ids it holds (a bitset); a frame lists the ids it uses. A
-connection that holds all of them gets the frame. One that lacks any gets the
-topic's snapshot instead, which is encoded with its statics inline on first
-use per frame key, cached per version, and marks every id of the tree as
-held. Steady state needs no statics (rows repeat a few keys), so a fan-out is
-a bitset check per subscriber. Long-markup references (`{"r":…}`) are per
-connection too, so a shared encoding never uses them: it quotes. Token
-patches and keyed list plans depend on the shadow only, so they are shared.
-The table is append-only and bounded by the fragments' template variety.
+encoder writes the id and never the statics inline. Each connection tracks the
+shared ids it holds (a bitset); a frame lists the ids it uses. A connection
+that holds all of them gets the frame. One that lacks any gets the fragment's
+snapshot instead: every instance's tree with its statics inline on first use
+in the message, cached per version, marking every id of the tree as held. Most
+frames reference none (a changed dynamic of a known frame uses no statics), so
+a fan-out is a bitset check per subscriber. Long-markup references (`{"r":…}`)
+are per connection too, so a shared encoding never uses them and quotes. Token
+patches and keyed list plans depend on the shadow only, so they are shared. The
+table is append-only and bounded by the fragments' template variety.
 
-*Versions.* The fragment has a version, incremented by each publish that changed
-something. A frame carries `Base` and `Ver`. A connection holds, per
-fragment, the version it has: a frame whose `Ver` it has already is skipped;
-one whose `Base` is its version (and whose statics it holds) is sent; any
-other case, a connection that joined between two frames or missed one, gets the
-snapshot of the current version and is then at it. So correctness never rests
-on ordering of publishes and joins, only on the rule "a frame applies to
-exactly its base". To join, the session asks its host to attach (the
-`SharedLinks` the connection implements): under the fragment's lock the
-connection is entered in its subscribers and handed the snapshot's entries
-(`full` trees, statics inline), which the session appends to the very
-message that carries the page's reference (a client that prunes the trees its
-`c0` does not reach would otherwise drop them), the join render or the
-patch of an event or navigation. Frames that arrive before that message is
-queued are not sent; once it is, the connection compares versions and sends a
-snapshot if it missed any. When a page stops showing the fragment the session
-detaches before its patch is queued, so no frame can reach a browser after the
-trees it still holds are gone. Coalescing (b) is untouched for the page's own
-parts; the fragment coalesces on its own inbox. The FIFO queue (c) keeps a
-connection's frames in the order versions advanced, since each is queued
-under the connection's lock when its version is updated.
+*Versions.* The fragment has a version, incremented by each publish that
+changed something. A frame carries `Base` and `Ver`. A connection holds, per
+fragment, the version it has: a frame whose `Ver` it already has is skipped;
+one whose `Base` is its version (and whose statics it holds) is sent; any other
+case, a connection that joined between two frames or missed one, gets the
+snapshot of the current version and is then at it. Correctness rests on one
+rule, "a frame applies to exactly its base", never on the order of publishes
+and joins. To attach, the session asks its connection (`SharedLinks`): under
+the fragment's lock the connection is entered among the subscribers and handed
+the snapshot's entries, which the session appends to the very message that
+carries the page's reference (a client prunes the trees its `c0` does not
+reach, so they cannot come before it), the join render or the patch of an
+event or navigation. Frames that arrive before that message is queued are not
+sent; once it is, the connection compares versions and sends a snapshot if it
+missed any. When a page stops showing the fragment the session detaches before
+its patch is queued, so no frame can reach a browser after the trees it holds
+are gone. Coalescing (b) is untouched for the page's own parts; the fragment
+coalesces on its own inbox. The FIFO queue (c) keeps a connection's frames in
+the order versions advanced, since each is queued under the connection's lock
+as its version is updated.
 
-*The guarantee.* A fragment renders with a context holding the app's
-injector and nothing of a viewer: no request, no session, no identity, no URL, no
-page variables, no deferred loads. A read of one (`web.Request`,
-`web.ResponseWriter`, `RequestContext`, `CSRFContext`, `auth.Current`, …)
-panics in development with the fragment's name and what it read, and answers
-"none" outside it, which cannot leak what is not there. Nothing reaches the
-frame from the page but the props the tag set, and those must match across
-every tag. A fragment may not use streams, Temporary regions, forms, uploads,
-`PushJS`, `Reload`, handlers, or nest another fragment: each is a render
-error. A vet diagnostic for a shared component reading per-viewer values
-statically is follow-up work.
+*The guarantee.* The promise is on the type, so what breaks it fails there. A
+fragment renders with a context that holds nothing of a viewer: no request,
+session, identity, URL, page variables or deferred loads. A read of one
+(`web.Request`, `web.ResponseWriter`, `RequestContext`, `CSRFContext`,
+`auth.Current`, …, each calling `ui.ViewerRead`) fails the render in
+development with the component's name and what it read, and answers "none"
+outside it, which cannot leak what is not there. Its tag takes no props: a prop
+is the way a page would put something of itself into what everyone sees, so
+`<PriceBoard user={u} />` fails the render, in development and in production.
+Per-viewer variation goes in a wrapper (below). A shared component may not use
+streams, Temporary regions, forms, uploads, `PushJS`, `Reload`, `Subscribe`,
+handlers, or nest another shared component: each is a render error. Doing the
+props and viewer-read checks at compile time and a vet diagnostic for a shared
+component reading per-viewer values are follow-up work in the compiler.
 
 *Events.* A shared instance is one per process, so state an event changed
 would change for every viewer and leak one viewer's action to all. A shared
-fragment is display-only for the broadcast's data. Rendering an element with
-an event handler, a `ui.JS.Push`, a form, or any other registration of a handler
-inside a fragment is a render error in development ("a shared fragment answers
-no events") and no handler is registered in production. Over the wire, an event
-whose target names a shared instance (the `s<n>.` prefix) is refused before
-the page's session looks for a handler, with an error reply, whatever the
-build; the shared instance is never reached by a browser message.
-Per-viewer interaction belongs in one of two places:
+component is display-only for what its broadcasts carry. An element with an
+event handler, a `ui.JS.Push`, or a form inside one is a render error. Over the
+wire, an event whose target names a shared instance (the `s<n>.` prefix) is
+refused before the page's session looks for a handler, with an error reply,
+whatever the build; no browser message reaches the shared instance. A change
+meant for everyone is a broadcast (an admin action calls `ui.Broadcast`),
+delivered to `Update`, never an event on the shared instance. Per-viewer
+interaction belongs in one of two places:
 
 ```html
-<!-- browser-side state: sort, expand, filter on the client -->
+<!-- browser-side state: expand, tab, copy: the page's own, in the browser -->
 <script lang="go">
-type Board struct{ ui.Live }
-func (*Board) SharedTopic() string { return "board" }
+type PriceBoard struct{ ui.SharedLive; prices []Price }
 </script>
 <section>
-  <ui.State name="open" initial="false"/>
   <button onClick={ui.JS.Toggle("#detail")}>Details</button>
   <div id="detail" hidden>…</div>
 </section>
 ```
 
 ```html
-<!-- a per-page component wraps the shared one and passes props -->
+<!-- a per-page component wraps the shared one -->
 <script lang="go">
 type Page struct {
 	ui.Live
-	Sort string // per page: this page's own event changes it
+	sort string // per page: this page's own event changes it
 }
-func (p *Page) SortByName() { p.Sort = "name" }
+func (p *Page) SortByName() { p.sort = "name" }
 </script>
 <button onClick={SortByName}>Name</button>
-<Board sort={Sort}/>
+<p>sorted by {sort}</p>
+<PriceBoard />
 ```
 
-The second pattern changes the tag's props, so the props rule of the first
-paragraph applies: a fragment whose props differ between pages is not shared.
-A fragment that must differ per viewer is a per-page component; use sharing for
-the part that is the same. A change meant for everyone is a broadcast (an admin
-action calls the app's `Broadcast`), delivered to the fragment's `Update`,
-never an event on the shared instance.
+The wrapper cannot pass its state down to the shared component, because the
+tag takes no props; what a viewer chooses (a sort, a filter) is applied by the
+wrapper around the shared markup, in the browser, or the part that depends on
+it is a per-page component.
 
 *Client.* No change to `live.js`. A fragment is a set of instances the client
 holds as it holds any, by id, referenced from the page's tree, applied by the
-same `trees.apply`; `1<<30+n` statics ids are ordinary map keys. The only wire
-addition is that those ids and the `s<n>.` instance ids exist, documented in
-`docs/reference/live-protocol.md`; a client that predates this never sees
-them, since a page without a shared tag sends none. Protocol v1 clients get the
-fragment as of the render and no updates.
+same `trees.apply`; `1<<30 + n` statics ids are ordinary map keys. The wire
+additions are the `s<n>.` instance ids and those statics ids, documented in
+`docs/reference/live-protocol.md`; a client never sees them from a page that
+shows no shared component. Protocol v1 clients get the fragment as of the
+render and no updates.
 
 *Mixed pages.* A page with a shared fragment and per-page parts: the page's own
 instances are diffed per page as before and their messages are per page; the
 fragment's frames arrive as their own messages. The page's render never
-descends into the fragment (it holds a reference), and the fragment never
-reads the page.
+descends into the fragment, and the fragment never reads the page.
 
 *Cost.* Per subscriber per broadcast: a lock, a bitset check and a queue
 append, in place of render, diff and encode. The render and encode happen once

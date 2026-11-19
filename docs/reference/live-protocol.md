@@ -359,6 +359,30 @@ goes; those outside count in render order, so inserting a row with handlers
 into a list without keys changes the ids after it, which then travel as changed
 dynamics.
 
+### Shared Fragments {#shared-fragments}
+
+A component that embeds `ui.SharedLive` renders once for every page that shows
+it. On the wire it is an ordinary set of instances, with two differences a
+client never has to know about:
+
+- Its instance ids are prefixed by the fragment, `s1.c3` for `c3` of the first
+  shared component, and the page's tree holds an instance reference to its
+  root as it does to any child. The fragment's entries come in the message
+  that carries that reference (the join's `render`, or the `patch` of the
+  event or navigation that began showing it), as `full` entries, and from then
+  on as their own `patch` messages, without a `ref`, whenever a broadcast
+  changes it. Every page showing it receives the same bytes.
+- Its frames' statics ids start at 1073741824 (2^30), where a page's own ids
+  count from 0, and a change names them without sending the statics; the
+  server sends the fragment whole, statics included, as `full` entries,
+  whenever a page does not hold what a change needs. A client applies such a
+  message as it applies any: an entry that is `full` replaces the instance's
+  tree, and statics sent with a frame are kept by id.
+
+A page that stops showing the fragment no longer gets its messages. An event
+whose target names a shared instance is refused with an `error` reply;
+a shared component answers no events.
+
 ## JS Commands {#js-commands}
 
 [JS commands](/ui/js) are DOM changes the browser makes on an event without
