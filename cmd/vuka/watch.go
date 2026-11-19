@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/buildlock"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
@@ -586,7 +587,7 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 		args = append(args, "-overlay="+r.overlay)
 	}
 	if s.pruner != nil {
-		defer holdBuild(s.root)()
+		defer buildlock.Hold(s.root)()
 	}
 	c := exec.CommandContext(ctx, "go", append(args, s.pkg...)...)
 	c.Dir, c.Env = s.dir, s.env

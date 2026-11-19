@@ -1,6 +1,6 @@
 //go:build unix
 
-package main
+package buildlock
 
 import (
 	"os"
@@ -19,8 +19,8 @@ func flockFile(path string, how int) (func(), bool) {
 	return func() { f.Close() }, true
 }
 
-func lockFileShared(path string) (func(), bool) { return flockFile(path, syscall.LOCK_SH) }
+func lockShared(path string) (func(), bool) { return flockFile(path, syscall.LOCK_SH) }
 
-func lockFileTryExclusive(path string) (func(), bool) {
+func lockTryExclusive(path string) (func(), bool) {
 	return flockFile(path, syscall.LOCK_EX|syscall.LOCK_NB)
 }

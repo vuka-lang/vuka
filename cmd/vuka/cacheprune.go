@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/buildlock"
 )
 
 // Every edit a watch build compiles leaves an archive of the edited package
@@ -72,7 +74,7 @@ func (s *supervisor) goCache() string {
 func (s *supervisor) pruneBuild(r *buildResult) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute) // the build's own is cancelled once the loop has its result
 	defer cancel()
-	release := holdBuild(s.root)
+	release := buildlock.Hold(s.root)
 	exports := s.listExports(ctx, r)
 	release()
 	close(r.listed)
@@ -132,7 +134,7 @@ func (s *supervisor) prune(exports map[string]string) {
 	if len(stale) == 0 || dir == "-" {
 		return
 	}
-	release, ok := tryPrune(p.root)
+	release, ok := buildlock.TryPrune(p.root)
 	if !ok {
 		traceStep("cache prune deferred: a build holds the lock")
 		return

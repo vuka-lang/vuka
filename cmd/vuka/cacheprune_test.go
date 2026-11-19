@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/buildlock"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 type pruneModule struct {
@@ -167,7 +170,7 @@ func TestCachePrune(t *testing.T) {
 		m.build()
 		m.edit(600)
 		m.build()
-		held := holdBuild(m.root)
+		held := buildlock.Hold(m.root)
 		before := archives(t, cache)
 		m.edit(601)
 		m.build()
@@ -185,6 +188,31 @@ func TestCachePrune(t *testing.T) {
 		}
 		if got := archives(t, cache); got != before {
 			t.Errorf("the deferred removals didn't catch up: %d archives, was %d", got, before)
+		}
+	})
+
+	t.Run("importer", func(t *testing.T) {
+		m := newPruneModule(t, cache, true)
+		t.Setenv("GOCACHE", cache)
+		t.Setenv("GOFLAGS", "")
+		t.Setenv("GOWORK", "off")
+		im := load.NewImporter(m.root, "")
+		m.build()
+		m.edit(700)
+		m.build()
+		before := archives(t, cache)
+		if _, err := im.Import("example.com/p/lib"); err != nil {
+			t.Fatal(err)
+		}
+		m.edit(701)
+		m.build()
+		m.edit(702)
+		m.build()
+		if len(m.s.pruner.pending) != 0 {
+			t.Errorf("an idle importer left removals pending: %v", m.s.pruner.pending)
+		}
+		if got := archives(t, cache); got > before+1 {
+			t.Errorf("an idle importer stopped the pruning: %d archives, was %d", got, before)
 		}
 	})
 }

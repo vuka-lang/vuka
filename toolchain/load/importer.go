@@ -9,12 +9,14 @@ package load
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/build"
 	"go/importer"
 	"go/token"
 	"go/types"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +24,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/buildlock"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -169,7 +172,40 @@ func (im *Importer) undecodable(path string, r any) error {
 // it points at its own errors.
 func (im *Importer) Broken(path string) { im.broken[path] = true }
 
+// heldFile is an export data file that keeps the module's build lock held
+// shared until it is closed: the cache pruning removes nothing meanwhile.
+type heldFile struct {
+	*os.File
+	release func()
+}
+
+func (f *heldFile) Close() error {
+	err := f.File.Close()
+	f.release()
+	return err
+}
+
 func (im *Importer) lookup(path string) (io.ReadCloser, error) {
+	release := buildlock.Hold(im.root)
+	f, err := im.open(path)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	return &heldFile{f, release}, nil
+}
+
+func (im *Importer) open(path string) (*os.File, error) {
+	f, err := im.openOnce(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		// A newer build's cache pruning removed the archive listed earlier.
+		delete(im.exports, path)
+		f, err = im.openOnce(path)
+	}
+	return f, err
+}
+
+func (im *Importer) openOnce(path string) (*os.File, error) {
 	if im.broken[path] {
 		return nil, fmt.Errorf("%s has errors", path)
 	}
@@ -264,7 +300,9 @@ func (im *Importer) list(paths ...string) error {
 	cmd.Dir = im.Dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	release := buildlock.Hold(im.root)
 	out, err := cmd.Output()
+	release()
 	if err != nil && len(bytes.TrimSpace(out)) == 0 {
 		return fmt.Errorf("go list %s: %v\n%s", strings.Join(paths, " "), err, strings.TrimSpace(stderr.String()))
 	}
