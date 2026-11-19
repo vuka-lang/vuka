@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -721,8 +722,12 @@ func gen(args []string, stdout io.Writer) error {
 	inplace := fs.Bool("inplace", false, "write each generated file beside its .vuka file instead of the build module")
 	out := fs.String("o", "build", "the build module's directory, relative to the module root")
 	codeOnly := fs.Bool("code-only", false, "leave out stylesheets, scripts, islands and static files: for a tool that runs the program without serving pages")
+	overlayOut := fs.String("overlay-out", "", "write the generated Go as shadow files beside `file` plus a go build -overlay map in it (paths of the source tree), instead of mirroring the module")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *overlayOut != "" && !*inplace && !*check {
+		return genOverlay(*overlayOut, *codeOnly, stdout)
 	}
 	if !*inplace && !*check {
 		return genModule(*out, *codeOnly, stdout)
@@ -922,46 +927,57 @@ func relativeLines(src []byte, dir, target string) []byte {
 	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+to))
 }
 
-func genModule(out string, codeOnly bool, stdout io.Writer) error {
+// genGens is the module's generated Go: the transpiled files, the route
+// tables and the main packages' link files; with !codeOnly, the stylesheets
+// too.
+func genGens(codeOnly bool) (root string, gens []load.Generated, err error) {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	tmp, err := mkTemp("vuka-")
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer os.RemoveAll(tmp)
 	pa, err := findAssets(root, modPath)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	routes := scanRoutes(root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
-		return err
+		return "", nil, err
 	}
 	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
-		return err
+		return "", nil, err
 	}
 	links, _, err := load.AutoLink(root, modPath, pkgs, gens)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	gens = append(gens, links...)
 	if !codeOnly {
 		css, err := buildTailwind(root, overlay, pa, os.Stderr)
 		if err != nil {
-			return err
+			return "", nil, err
 		}
 		gens = append(gens, css...)
+	}
+	return root, gens, nil
+}
+
+func genModule(out string, codeOnly bool, stdout io.Writer) error {
+	root, gens, err := genGens(codeOnly)
+	if err != nil {
+		return err
 	}
 	if !filepath.IsAbs(out) {
 		out = filepath.Join(root, out)
@@ -972,5 +988,45 @@ func genModule(out string, codeOnly bool, stdout io.Writer) error {
 	}
 	rel, _ := filepath.Rel(root, out)
 	fmt.Fprintf(stdout, "%s: %d written, %d removed\n", rel, len(res.Written), len(res.Removed))
+	return nil
+}
+
+// genOverlay writes what genModule would mirror as a go build -overlay: the
+// generated files as shadow files in a directory beside file (<file>.d) and,
+// in file, the map from each file's place in the source tree to its shadow.
+// Nothing is copied, so a build with it runs at the module's own path, as
+// vuka run, test and vet do, and shares their compiled packages.
+func genOverlay(file string, codeOnly bool, stdout io.Writer) error {
+	_, gens, err := genGens(codeOnly)
+	if err != nil {
+		return err
+	}
+	file, err = filepath.Abs(file)
+	if err != nil {
+		return err
+	}
+	dir := file + ".d"
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	ov := struct{ Replace map[string]string }{map[string]string{}}
+	for i, g := range gens {
+		shadow := filepath.Join(dir, fmt.Sprintf("%d_%s", i, filepath.Base(g.Target)))
+		if err := os.WriteFile(shadow, g.Src, 0o644); err != nil {
+			return err
+		}
+		ov.Replace[g.Target] = shadow
+	}
+	data, err := json.Marshal(ov)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(file, data, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "%s: %d files\n", file, len(gens))
 	return nil
 }
