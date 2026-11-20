@@ -127,6 +127,7 @@ type jsxAttr struct {
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
 	model bool       // model={Form.Email} on a field (forms.go), its modifiers in mods
 	mods  string
+	idStr bool     // for={Form.Email} on a component's string field: the control's id
 	ref   bool     // a field reference, lowered to ui.For or ui.ModelID: for={Form.Email}
 	scope *jsxAttr // the <fieldset for={…}> a field reference is relative to: model={Street} (forms.go)
 	of    bool     // form={Form} on a control outside its form: the form's element id
@@ -1145,6 +1146,11 @@ func (w *jsxWriter) attrValueOf(a *jsxAttr) {
 			w.gen("func() { ")
 			w.keep(a.expr)
 			w.gen(" }")
+			return
+		}
+		if a.idStr && w.f.eng.formField(w.f, a) {
+			w.modelCall("For", "", a)
+			w.gen(".ID()")
 			return
 		}
 		if a.ref && !a.of && (w.addressable(a) || a.name == "model" || a.scope != nil) { // a component's model is always a reference: its field is a ui.FieldRef

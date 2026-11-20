@@ -441,6 +441,33 @@ func fieldNames(t types.Type) []string {
 	return out
 }
 
+// formField reports whether a field reference names a field of a form (or
+// sits in a <fieldset for>), so that it has a control whose id it can be.
+func (e *engine) formField(f *fileState, a *jsxAttr) bool {
+	if a.scope != nil {
+		return true
+	}
+	if e.info == nil {
+		return false
+	}
+	for x := e.chainAt(f, a); x != nil; {
+		sel, ok := x.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		if tv, ok := e.info.Types[sel.X]; ok && tv.Type != nil && isFormType(tv.Type) {
+			return true
+		}
+		x = sel.X
+	}
+	return false
+}
+
+func isStringType(t types.Type) bool {
+	b, ok := t.Underlying().(*types.Basic)
+	return ok && b.Kind() == types.String
+}
+
 func isAny(t types.Type) bool {
 	i, ok := t.Underlying().(*types.Interface)
 	return ok && i.Empty()
