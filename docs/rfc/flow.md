@@ -36,7 +36,7 @@ across several apps.
 | [Attributes](/features/attributes) and the attribute registry (`vuka.TypeAttrs`, `vuka.MethodAttrs`, `vuka.FuncOf`) | Declaring nodes and edges on methods; reading them back at boot |
 | orm | The process and task tables, their migrations, conditions, transactions (`orm.Atomic`, `orm.OnCommit`) |
 | web (`auth`, `cron`, live broadcasts) | Permissions, the timer scheduler, pushing task changes to open pages |
-| ui (forms, `DataTable`, live components) | Task forms, the lists, the action menu |
+| `.vuka.html` templates | A task's UI, written by the project with its own components; the flow module itself never imports the ui kit |
 
 An admin app built a prototype of this engine inside its own code before this
 RFC. What it taught is in the design: a process's state must be guarded against
@@ -114,8 +114,8 @@ All attributes go on methods, except `@flow.Meta`, which goes on the type.
 |---|---|---|
 | `@flow.Meta` (type) | Name, Title, Version | the flow's identity; Version is recorded on each process |
 | `@flow.Start` | To, Can | an entry node; startable from the UI when `Can` is set, always from code |
-| `@flow.View` | Can, Sets, Assign, Due, Render, Page, NoUndo; single-outcome sugar: To, Label, Title, Confirm, Done, Guard, Undo | a human task |
-| `@flow.On` (repeated, on a View) | Name, To, Can, Label, Title, Confirm, Done, Guard, Render, Undo | one outcome of the View |
+| `@flow.View` | Can, Sets, Assign, Due, Page, Template, NoUndo; single-outcome sugar: To, Label, Title, Confirm, Done, Guard, Undo | a human task |
+| `@flow.On` (repeated, on a View) | Name, To, Can, Label, Title, Confirm, Done, Guard, Page, Template, Undo | one outcome of the View |
 | `@flow.Action` | To, Sets | a code node; its body runs in the transition's transaction, and an error rolls the move back |
 | `@flow.Decide` | To []any (the possible targets) | a code branch; the body returns `flow.Next` through `p.Go(target)`, which must be one of `To` |
 | `@flow.Split` | To []any | parallel fan-out, one token per target |
@@ -130,9 +130,9 @@ Field types:
   default.
 - **Guard** is `func(ctx, *flow.Activation[R]) error`. Returning
   `flow.Refuse(...)` disables the button and shows the reason.
-- **Render** is `func(ctx, *flow.TaskView) ui.Node` and replaces the task's
-  body.
-- **Page** is a URL such as `"/orders/view"`: the task reuses an existing page.
+- **Page** is an existing app URL such as `"/orders/view"` (§11).
+- **Template** is a `.vuka.html` file in the flow's package, such as
+  `"review.vuka.html"` (§11).
 - **Assign** is `func(ctx, *flow.Activation[R]) (int64, error)` and routes the
   task to a user; an unassigned task stays claimable by anyone holding the
   node's permission.
@@ -147,8 +147,8 @@ Field types:
 | Decide | `func (p *T) M(ctx context.Context) (flow.Next, error)` |
 | Start, End, Split, Join, Timer, Sub | empty body |
 
-- **The View's trailing struct is the task's form.** It is rendered, bound and
-  validated with web's binder, from the struct's own field attributes. There is
+- **The View's trailing struct is the task's form.** It is bound and validated
+  with web's binder, from the struct's own field attributes. There is
   no `Form:` field.
 - **A View's body runs on completion**, after `Can` and `Guard` and before the
   token moves. `p.Outcome()` says which `@flow.On` fired. Returning an error,
@@ -310,28 +310,34 @@ type Hooks struct {
 }
 ```
 
-## 11. Presentation: at the mount
+## 11. Task UI and lists: the project's own
 
-How a flow is listed belongs to where it is shown, not to the flow:
+The flow module ships no task UI and never imports the ui kit. A View, or one
+`@flow.On`, says where its task UI lives in one of two ways:
 
-```vuka
-flowui.Of(orders.F).
-	Newest().Filter(orders.OpenOrders).
-	Col(Order.Number).Title("Order No").Search().Sort().
-	ColOf(orders.TotalCells).Title("Total").SortBy(Order.Total)
-```
+- **`Page: "/orders/view"`** reuses a page the app already has. The link to the
+  task carries it (`?task=<id>`). On that page, `flow.TaskFrom(ctx)` returns
+  the open task, or nil when the page was not opened from a workflow link, so
+  the page can show the outcome buttons and hide what the task does not allow.
+- **`Template: "review.vuka.html"`** is a `.vuka.html` file in the flow's
+  package, rendered with a typed context `*flow.Task[R]`: the record, the form
+  (the View's struct parameter), the allowed outcomes with their labels,
+  confirmations and guard refusals, the actor, the process id, and helpers to
+  complete an outcome. The template uses any of the project's own components.
+  The file is checked at compile time where vuka allows a file-typed attribute
+  field, and at `Register` otherwise (§12).
 
-- `Col` names a field of the record; it searches and sorts in SQL.
-- `ColOf` takes computed cells, and `SortBy` lends one a sort field.
-- `Filter` narrows an inbox or list. It is not security; security is `Scope`
-  (§7).
-- Forms come from the View's trailing struct (§5); outcomes render one button
-  each with their guards' reasons, and a confirmation where `Confirm` is set.
-- The ui kit (`flow/ui`) provides `<flow.Tasks>` (a list as a `DataTable`, with
-  claim and open), `<flow.Actions record={…}>` (what the user may do on a
-  record, inline or as a menu), `<flow.TaskView>`, `<flow.History>` and
-  `<flow.Progress>`. They are live components: a task's change is broadcast to
-  the pages showing it.
+With neither set, the task completes from code (`F.Complete`) or through a
+minimal plain form, with no ui kit.
+
+Inboxes, dashboard tabs and record lists are built by the project on the
+handle's list and task APIs (§10): `F.Inbox`, `F.Queue` and `F.Archive` return
+paged, searchable, sortable rows, so a project's own `DataTable` or page shows
+them with its own columns and filters. A ready-made dashboard (`flowui`) may
+ship as a separate, optional module; core never depends on it.
+
+Row security is `Scope` (§7), enforced inside these APIs; a project's filters
+only narrow what it shows.
 
 ## 12. Register-time validation
 
@@ -344,19 +350,18 @@ intended name, on any of:
 - duplicate `On` names on one node;
 - a View with no outcome;
 - an End with outgoing edges;
-- a Guard, Assign, Render, Decide or form whose signature does not fit R;
+- a Guard, Assign, Decide or form whose signature does not fit R;
 - a `p.Go` target that is not in the Decide's `To`;
 - a Join not reachable from its Split;
-- a `Sub.Flow` that is not registered.
+- a `Sub.Flow` that is not registered;
+- a `Template` file that does not exist or does not parse against `*flow.Task[R]`.
 
 `flowtest` runs the same checks in a test, so a broken graph fails `go test`
 before it fails a boot.
 
 ## 13. Packaging and phases
 
-- `github.com/vuka-lang/flow/v2`: the engine; depends on orm and web.
-- `github.com/vuka-lang/flow/v2/ui` and `…/flowui`: the components and the
-  mount; depend on ui.
+- `github.com/vuka-lang/flow/v2`: the engine; depends on orm and web, never on ui.
 - `github.com/vuka-lang/flow/v2/migrations`: the tables.
 - `github.com/vuka-lang/flow/v2/flowtest`: test helpers.
 
@@ -369,9 +374,10 @@ Phases:
 2. **Declaration**: attribute reading, the clone model, convention methods,
    the handle, the checks of §12. Acceptance: each rule of §12 has a failing
    and a passing case.
-3. **Views**: forms from the trailing struct, outcomes, `flowui`, `flow/ui`,
-   live updates. Acceptance: browser tests for starting, claiming, completing,
-   undoing.
+3. **Task UI**: `Page` links and `flow.TaskFrom`, `Template` rendering with
+   `*flow.Task[R]`, live updates of open task pages. Acceptance: browser tests
+   for starting, claiming, completing, undoing through both. An optional
+   dashboard module follows separately.
 4. **A real app**: an approval flow, then three more, moved onto it with
    behaviour unchanged; what they need beyond this RFC is added or recorded.
 5. **Docs**: a guide page per part, the attribute reference.
@@ -388,15 +394,16 @@ Phases:
 ## 15. Migrating from the previous draft
 
 The engine, stores, tokens, version checks, migrations, undo and `flowtest`
-stay. `flowtest` and `flowui` re-target the new declaration. Node identity is
+stay. `flowtest` re-targets the new declaration. Node identity is
 the method name, so stored node names keep working where a method keeps the
 name its node had. What goes:
 
 - the public `StartN`/`ViewN`/… node field types, and `Next(&f.X)`;
 - the `Button`/`Confirm`/`On(...)` outcome chains, now `@flow.On`;
-- `Col`/`ColOf` on the flow, now on the `flowui` mount;
-- the `Filter`/`ListFilter`/`Status`/`Newest` setters on the flow, now
-  `Filter` and `Newest` on the mount and `Status`/`Scope` on the type;
+- `Col`/`ColOf`, `Filter`/`ListFilter`/`Status`/`Newest` and every other
+  presentation setter on the flow: lists are the project's, on the handle's
+  APIs (§11), and `Status`/`Scope` move to the type (§7);
+- `Render` and any task UI inside the library;
 - `Graph()`.
 
 ## 16. Compatibility
