@@ -308,7 +308,11 @@ export interface SetupRef<T> {
  <K extends keyof Member<T, "__setupRefs", {}> & string>(name: K): Member<T, "__setupRefs", {}>[K];
  all<K extends keyof Member<T, "__loopRefs", {}> & string>(name: K): RefSet<Member<T, "__loopRefs", {}>[K]>;
 }
+/** The runtime's document events: vk:patched after each render or patch, vk:error for a handler's error or a failed message. */
+export interface VukaEventMap { "vk:patched": CustomEvent<{ ids: string[]; join?: boolean }>; "vk:error": CustomEvent<{ message: string; ref?: unknown }>; }
+export function listen<K extends keyof VukaEventMap>(target: EventTarget, type: K, fn: (event: VukaEventMap[K]) => void, options?: boolean | AddEventListenerOptions): () => void;
 export function listen<K extends keyof HTMLElementEventMap>(target: EventTarget, type: K, fn: (event: HTMLElementEventMap[K]) => void, options?: boolean | AddEventListenerOptions): () => void;
+export function listen(target: EventTarget, type: string, fn: (event: Event) => void, options?: boolean | AddEventListenerOptions): () => void;
 export function onDestroy(fn: () => void): void;
 /** Setup helpers are specialized to the shape in its template's script. */
 export const ref: SetupRef<{}>;
