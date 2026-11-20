@@ -21,6 +21,81 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.24.0 — 2026-11-20
+
+### Upgrading
+
+- **Upgrade vuka and the orm together.** Models now embed `orm.Rec[T]`
+  (what `orm.Base` lowers to) and get their row methods — `Save`,
+  `Delete`, `Refresh` and the rest — from the orm's generated code instead
+  of a generic embed. An app on the v2.24.0 orm needs the v2.24.0 `vuka`:
+  an older one reports `has no SaveFields … make X a model`. Restart a
+  running `vuka lsp` or `vuka run -watch` after `vuka upgrade -self`.
+- **`Manager[T]` is `QuerySet[T]`.** `type Manager[T any] = QuerySet[T]`:
+  the manager's methods (`Create`, `BulkCreate`, `Save`, `Remove`,
+  `GetOrCreate`, `UpdateOrCreate`, `Raw`, `OnChange`, `ColumnValues`) are on
+  `QuerySet`, and on a filtered queryset they ignore its conditions. The
+  embedded field `Manager.QuerySet` is gone: write `Users.Filter()` or
+  `*Users` instead. `Prefetch` given a `Values` is an error instead of a
+  compile failure.
+- **`orm_scanners_gen.go` is required.** It now holds each model's
+  registration and row methods; only its `RegisterScanner` lines are an
+  optional speed-up.
+- **Dev builds leave out debug information.** `vuka run`, `run -watch`,
+  `test` and `vet` compile with `-gcflags=all=-dwarf=false` (and `-l` for the
+  module's own packages) and link with `-ldflags=-w`; the orm's migration
+  tool uses the same flags, so it reuses what `vuka run` compiled. Your own
+  `-gcflags`/`-ldflags` win. `vuka build` is unchanged.
+
+### Smaller builds
+
+- **One method set per model.** Go writes every method of an instantiated
+  generic type into each package that uses it, per model. With the manager
+  and the queryset one type, and the orm's plumbing behind one accessor, a
+  142-model app's dev build went from 1,281 MB to 992 MB, and its largest
+  package from 69 MB to 46 MB (26,252 generic functions to 16,744).
+
+### The build cache
+
+- **`vuka run -watch` removes what a rebuild replaced.** After each good
+  build it deletes the previous cache archives of the module's own
+  packages, so a session keeps about one copy of the app instead of one per
+  edit. Dependencies are never touched; a failed build removes nothing; vuka's
+  builds and its language server hold `.vuka/build.lock` while they read the
+  cache, and pruning waits for them. `-keep-cache` or `VUKA_KEEP_CACHE=1`
+  turns it off; on Windows it doesn't prune.
+- **The transpile cache keys on the build.** Reinstalling the same `vuka`
+  keeps its cache; local and modified builds keep a key of their own. Keys
+  no run has used for 7 days are removed, at most once a day.
+
+### Migrations
+
+- **`orm migrate --fake` and `--fake-initial`** record migrations as applied
+  without running them, for bringing an existing database under migrations.
+- **`Meta.Managed`** names the columns an `Unmanaged` model's migrations own,
+  by field: `@orm.Meta{Unmanaged: true, Managed: []string{"UnlocksAt"}}`.
+- **A faster migration tool.** It is kept between runs by the hash of its
+  inputs (`ORM_CACHE`), built with `vuka gen`'s overlay, and made of the
+  models and migrations alone: `vuka gen -code-only -overlay-out f
+  ./entities/... ./migrations/...` transpiles only the packages named and
+  what they import (2.0s instead of 13.4s on a 538-file app, empty cache). A
+  narrow tool that would plan removing something the history built is
+  discarded for the whole module's, so a model it missed never becomes a
+  drop; `ORM_TOOL=full` always builds the whole module.
+
+### Fixes
+
+- `for={Form.Field}` on a component whose `For` is a `string` passes the
+  control's id, as `<label for>` does, instead of an empty value (#494).
+- `listen` in the component types takes the runtime's `vk:patched` and
+  `vk:error` events, typed, and any other event name.
+- The mirror a build copies the module into leaves out data directories.
+
+### Docs
+
+- [The config server](/web/config-server): layout, running it, connecting an
+  app, changes while it runs, and secrets.
+
 ## v2.23.0 — 2026-11-19
 
 ### Upgrading
