@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/buildlock"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
@@ -451,6 +452,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sig)
+	defer buildlock.Hold(root)()
 	if err = c.Start(); err == nil {
 		signalsOwned.Store(true)
 		go func() {
