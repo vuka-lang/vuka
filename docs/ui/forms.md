@@ -366,6 +366,8 @@ its hint and `ui.ErrorText(Model)` the message of the error it shows
 (nothing while it shows none), each as a node of text, beside
 `ui.ModelID(Model)`, the control's id.
 
+A component of your own with a `For string` prop takes `for={Form.Email}` as the control's id, as `<label for={Form.Email}>` does.
+
 The control follows the field's Go type:
 
 | Control | Field |

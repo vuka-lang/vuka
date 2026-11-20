@@ -367,6 +367,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		if fl.name == "For" && a.kind == 'e' && fl.pkg != nil && c.target.pkg != nil && fl.pkg.Path() == c.target.pkg.Path() && isAny(fl.typ) {
 			a.ref = true // a form component's for={Form.Email}: a reference (forms.go)
 		}
+		if fl.name == "For" && a.kind == 'e' && isStringType(fl.typ) && c.target != nil && c.target.has("ModelID") {
+			a.idStr = true
+		}
 	}
 	if attrsAt >= 0 {
 		var base *compArg
