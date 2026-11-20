@@ -27,8 +27,8 @@ import (
 // miss; nothing in it is trusted without its key matching.
 
 // CompilerVersion names the transpiler a cache was written by: the vuka
-// command sets it (its version and its executable). A cache of another
-// version is never read.
+// command sets it (its build, or its executable when the build says nothing
+// of its source). A cache of another version is never read.
 var CompilerVersion = "dev"
 
 // cacheVersion is the format of the entries.
@@ -200,21 +200,52 @@ func writeEntry(file string, data []byte) {
 	os.Remove(tmp.Name())
 }
 
-// pruneCache removes the cache's directories no run has used for two
-// weeks: other versions of the compiler, other go.sums.
+const (
+	// pruneAfter is how long a key's directory may go unused before a prune
+	// removes it.
+	pruneAfter = 7 * 24 * time.Hour
+	// pruneEvery is how often a run looks: pruneStamp, a file of the cache
+	// directory, holds when it last did.
+	pruneEvery = 24 * time.Hour
+	pruneStamp = ".pruned"
+)
+
+// pruneCache marks the session's directory as used, and removes the
+// directories of other keys — other versions of the compiler, other
+// go.sums, other modules — that no run has used for a week. It looks at
+// most once a day.
 func (s *Session) pruneCache() {
 	if s.cacheBase == "" || s.pruned {
 		return
 	}
 	s.pruned = true
 	dir := s.diskDir()
-	os.MkdirAll(dir, 0o755)
 	now := time.Now()
+	os.MkdirAll(dir, 0o755)
 	os.Chtimes(dir, now, now)
-	entries, _ := os.ReadDir(s.cacheBase)
+	pruneKeys(s.cacheBase, dir, now)
+}
+
+// pruneKeys removes the directories of base unused since pruneAfter before
+// now, except keep, when the last prune was more than pruneEvery before now.
+// A directory is used when a session starts on its key (pruneCache).
+func pruneKeys(base, keep string, now time.Time) {
+	stamp := filepath.Join(base, pruneStamp)
+	if fi, err := os.Stat(stamp); err == nil && now.Sub(fi.ModTime()) < pruneEvery {
+		return
+	}
+	if os.WriteFile(stamp, nil, 0o644) != nil {
+		return
+	}
+	os.Chtimes(stamp, now, now)
+	entries, _ := os.ReadDir(base)
 	for _, e := range entries {
-		if fi, err := e.Info(); err == nil && e.IsDir() && now.Sub(fi.ModTime()) > 14*24*time.Hour {
-			os.RemoveAll(filepath.Join(s.cacheBase, e.Name()))
+		path := filepath.Join(base, e.Name())
+		if !e.IsDir() || path == keep {
+			continue
+		}
+		if fi, err := e.Info(); err == nil && now.Sub(fi.ModTime()) > pruneAfter {
+			os.RemoveAll(path)
 		}
 	}
 }

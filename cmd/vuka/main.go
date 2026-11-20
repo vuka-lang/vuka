@@ -79,6 +79,9 @@ Usage:
 	vuka gen -inplace [-check] [dir | dir/...]
 	        write the generated Go beside each .vuka file instead; -check
 	        also fails when one is missing
+	vuka gen -code-only -overlay-out file [dir | dir/...]
+	        the generated Go as a go build -overlay; with packages named, only
+	        those and what they import in the module
 	vuka eject [-rm] [file.vuka… | dir | dir/...]
 	        gen -inplace for the files or packages named; -rm deletes each
 	        .vuka file and keeps its Go (x.go) as the source, building with
@@ -494,18 +497,6 @@ func cachedTranspile(root string) func([]*load.Package, string, load.Options) ([
 	return sess.Transpile
 }
 
-// compilerVersion names this vuka for the transpile cache: its version and
-// its executable, so a rebuilt vuka never reads what another wrote.
-func compilerVersion() string {
-	v := version
-	if exe, err := os.Executable(); err == nil {
-		if fi, err := os.Stat(exe); err == nil {
-			v += fmt.Sprintf(" %s %d %d", exe, fi.Size(), fi.ModTime().UnixNano())
-		}
-	}
-	return v
-}
-
 // overlayDirs makes the directories of the overlay's files that aren't on
 // disk — a bracketed, grouped or private folder's Go name, param_id — for
 // the go command's test and vet, which run their tools in a package's
@@ -719,7 +710,9 @@ func sameFile(a, b string) bool {
 // build's output, never checked); with -inplace, if one is missing too.
 // -code-only leaves out what only serving pages needs (stylesheets,
 // scripts, islands, static files), for tools that build the program to run
-// something else, such as the ORM's migrations.
+// something else, such as the ORM's migrations. With -code-only and
+// -overlay-out, packages named (dir or dir/...) narrow it to those and what
+// they import in the module (genScope).
 func gen(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("gen", flag.ContinueOnError)
 	check := fs.Bool("check", false, "report generated files in the source tree that are stale (and, with -inplace, missing), write nothing")
@@ -730,13 +723,16 @@ func gen(args []string, stdout io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	patterns := fs.Args()
 	if *overlayOut != "" && !*inplace && !*check {
-		return genOverlay(*overlayOut, *codeOnly, stdout)
+		return genOverlay(*overlayOut, *codeOnly, patterns, stdout)
 	}
 	if !*inplace && !*check {
+		if root, _, err := load.ModuleRoot("."); err == nil && slices.ContainsFunc(patterns, func(p string) bool { return !moduleWide(root, p) }) {
+			return errors.New("vuka gen: packages narrow only -overlay-out with -code-only, -inplace and -check")
+		}
 		return genModule(*out, *codeOnly, stdout)
 	}
-	patterns := fs.Args()
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
 	}
@@ -931,55 +927,149 @@ func relativeLines(src []byte, dir, target string) []byte {
 	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+to))
 }
 
+// genScope says a gen was narrowed to the packages it was asked for and what
+// they import: how many of the module's packages with Vuka source it
+// transpiled. The zero value is the whole module.
+type genScope struct{ pkgs, of int }
+
+func (s genScope) narrowed() bool { return s.of > 0 }
+
 // genGens is the module's generated Go: the transpiled files, the route
 // tables and the main packages' link files; with !codeOnly, the stylesheets
-// too.
-func genGens(codeOnly bool) (root string, gens []load.Generated, err error) {
+// too. With codeOnly and patterns (dir or dir/...), only the packages they
+// name and what those import in the module are transpiled, and neither the
+// route tables nor the link files are made: the pages and urls packages stay
+// the stubs the transpile uses, which a tool that runs no pages never calls.
+// A selection reaching a package main (its link file) or a page package (the
+// tables rename and stub it) is the whole module.
+func genGens(codeOnly bool, patterns []string) (root string, gens []load.Generated, scope genScope, err error) {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	tmp, err := mkTemp("vuka-")
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	defer os.RemoveAll(tmp)
 	pa, err := findAssets(root, modPath)
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	routes := scanRoutes(root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
-		return "", nil, err
+		return "", nil, scope, err
+	}
+	if codeOnly && len(patterns) > 0 {
+		if sel, ok := narrowTo(root, modPath, pkgs, routes, patterns); ok {
+			scope = genScope{len(sel), len(pkgs)}
+			gens, _, err = cachedTranspile(root)(sel, tmp, loadOptions(pa))
+			return root, gens, scope, err
+		}
 	}
 	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	links, _, err := load.AutoLink(root, modPath, pkgs, gens)
 	if err != nil {
-		return "", nil, err
+		return "", nil, scope, err
 	}
 	gens = append(gens, links...)
 	if !codeOnly {
 		css, err := buildTailwind(root, overlay, pa, os.Stderr)
 		if err != nil {
-			return "", nil, err
+			return "", nil, scope, err
 		}
 		gens = append(gens, css...)
 	}
-	return root, gens, nil
+	return root, gens, scope, nil
+}
+
+// narrowTo is the packages of all (stubbed for the route tables) the patterns
+// name and what they import in the module, through its Go packages as well,
+// in all's order; ok is false when the selection needs what only the whole
+// module makes.
+func narrowTo(root, modPath string, all []*load.Package, routes routeTrees, patterns []string) (sel []*load.Package, ok bool) {
+	var imports []string
+	for _, pat := range patterns {
+		for _, p := range all {
+			if inPattern(p.Dir, pat) {
+				imports = append(imports, p.ImportPath)
+			}
+		}
+		imports = append(imports, goImports(root, modPath, pat)...)
+	}
+	start := &load.Package{ImportPath: modPath + "/vuka-gen-selection", Imports: imports}
+	sel = slices.DeleteFunc(load.Closure(append(slices.Clip(all), start), []*load.Package{start}), func(p *load.Package) bool { return p == start })
+	for _, p := range sel {
+		if p.Name == "main" || slices.ContainsFunc(routes, func(t *routeTree) bool { return pageBound(t, p) }) {
+			return nil, false
+		}
+	}
+	return sel, true
+}
+
+// pageBound reports whether p is a page package of t: a directory below
+// pages/ other than urls, none of whose folders is private.
+func pageBound(t *routeTree, p *load.Package) bool {
+	rel, err := filepath.Rel(realPathOf(t.pages), realPathOf(p.Dir))
+	if err != nil || rel == "." || rel == urlsDirName || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return !slices.ContainsFunc(strings.Split(filepath.ToSlash(rel), "/"), func(seg string) bool { return strings.HasPrefix(seg, "_") })
+}
+
+// goImports is the import paths of the directories a package pattern covers
+// that are plain Go names: a Go package of the module the pattern names can
+// import Vuka packages, which the selection then holds. A folder the go
+// command names differently (a [id] or private one) is left to the Vuka
+// packages found.
+func goImports(root, modPath, pattern string) []string {
+	base, recursive := strings.CutSuffix(pattern, "/...")
+	if base == "" {
+		base = "."
+	}
+	abs, err := filepath.Abs(base)
+	if err != nil {
+		return nil
+	}
+	abs, root = realPathOf(abs), realPathOf(root)
+	var out []string
+	filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		if path != abs {
+			name := d.Name()
+			if !recursive || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || strings.ContainsAny(name, "[(") || name == "testdata" || name == "node_modules" || name == "vendor" {
+				return filepath.SkipDir
+			}
+			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+				return filepath.SkipDir
+			}
+		}
+		if rel, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(rel, "..") {
+			if rel == "." {
+				out = append(out, modPath)
+			} else {
+				out = append(out, modPath+"/"+filepath.ToSlash(rel))
+			}
+		}
+		return nil
+	})
+	return out
 }
 
 func genModule(out string, codeOnly bool, stdout io.Writer) error {
-	root, gens, err := genGens(codeOnly)
+	root, gens, _, err := genGens(codeOnly, nil)
 	if err != nil {
 		return err
 	}
@@ -999,9 +1089,10 @@ func genModule(out string, codeOnly bool, stdout io.Writer) error {
 // generated files as shadow files in a directory beside file (<file>.d) and,
 // in file, the map from each file's place in the source tree to its shadow.
 // Nothing is copied, so a build with it runs at the module's own path, as
-// vuka run, test and vet do, and shares their compiled packages.
-func genOverlay(file string, codeOnly bool, stdout io.Writer) error {
-	_, gens, err := genGens(codeOnly)
+// vuka run, test and vet do, and shares their compiled packages. When
+// patterns narrowed it, the line it prints says how many packages.
+func genOverlay(file string, codeOnly bool, patterns []string, stdout io.Writer) error {
+	_, gens, scope, err := genGens(codeOnly, patterns)
 	if err != nil {
 		return err
 	}
@@ -1030,6 +1121,10 @@ func genOverlay(file string, codeOnly bool, stdout io.Writer) error {
 	}
 	if err := os.WriteFile(file, data, 0o644); err != nil {
 		return err
+	}
+	if scope.narrowed() {
+		fmt.Fprintf(stdout, "%s: %d files (%d of %d packages)\n", file, len(gens), scope.pkgs, scope.of)
+		return nil
 	}
 	fmt.Fprintf(stdout, "%s: %d files\n", file, len(gens))
 	return nil
