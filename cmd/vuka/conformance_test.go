@@ -255,7 +255,14 @@ func ConformanceSQL() []string {
 `
 
 // speedUps are the generated files only making an app faster.
-var speedUps = regexp.MustCompile(`^(orm_scanners.*_gen|vuka_calls_gen)\.go$`)
+var speedUps = regexp.MustCompile(`^vuka_calls_gen\.go$`)
+
+// ormGen is a file ormgen wrote: the models' registrations and row methods
+// stay, and only its scanner registrations are speed-ups.
+var ormGen = regexp.MustCompile(`^orm_scanners.*_gen(_test)?\.go$`)
+
+// scannerReg is a line registering a generated row scanner.
+var scannerReg = regexp.MustCompile(`(?m)^[ \t]*orm\.RegisterScanner\[.*\n`)
 
 // confBuild builds an app's forms.
 func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules, vukavet string) []*confRun {
@@ -290,8 +297,18 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules, vu
 	without := func(name, root string) *confRun {
 		t.Helper()
 		filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-			if err == nil && !d.IsDir() && speedUps.MatchString(d.Name()) {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			if speedUps.MatchString(d.Name()) {
 				return os.Remove(p)
+			}
+			if ormGen.MatchString(d.Name()) {
+				b, err := os.ReadFile(p)
+				if err != nil {
+					return err
+				}
+				return os.WriteFile(p, scannerReg.ReplaceAll(b, nil), 0o644)
 			}
 			return nil
 		})

@@ -176,7 +176,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if !debug {
-		flags = quickCompile(flags, modPath)
+		flags = devCompile(flags, modPath)
 	}
 	compileFlags = compilerFlags(flags)
 	shapes = newSourceShapes()
@@ -869,18 +869,63 @@ func cutDebug(flags []string) ([]string, bool) {
 	return out, debug
 }
 
-// quickCompile has the compiler neither inline nor write debug information
-// for the module's own packages, unless flags name compiler flags of their
-// own: a shared package's edit recompiles every package importing it, whose
-// optimised code a watch build doesn't need. Dependencies keep their cached
-// builds.
-func quickCompile(flags []string, modPath string) []string {
-	for _, f := range flags {
-		if name, _, _ := strings.Cut(strings.TrimLeft(f, "-"), "="); name == "gcflags" {
-			return flags
+// devGcflags and devLdflags are the flags of every dev-loop build (vuka run,
+// -watch, test and vet, and the orm tool a Vuka module's migrations build
+// with): no debug information, which is most of what the linker writes and a
+// good part of the compiler's output. They are one value everywhere because
+// the compiler flags are part of Go's cache key: builds that differ in them
+// compile every package again, each in a cache entry of its own. vuka build
+// keeps its debug information.
+//
+// The module's own packages are also compiled without inlining: a shared
+// package's edit then recompiles only what imports it by a changed
+// signature, and what is compiled is a tenth smaller. The last -gcflags
+// matching a package is the one go uses, so the module's comes second and
+// repeats -dwarf=false.
+const (
+	devGcflags = "-gcflags=all=-dwarf=false"
+	devLdflags = "-ldflags=-w"
+)
+
+func devModuleGcflags(modPath string) string { return "-gcflags=" + modPath + "/...=-l -dwarf=false" }
+
+// devFlags are the flags a dev-loop command (run, test or vet) adds to go's,
+// each unless args name flags of their own: vet compiles but links nothing.
+func devFlags(cmd string, args []string, modPath string) []string {
+	if cmd != "run" && cmd != "test" && cmd != "vet" {
+		return nil
+	}
+	var flags []string
+	if !namesFlag(args, "gcflags") {
+		flags = append(flags, devGcflags, devModuleGcflags(modPath))
+	}
+	if cmd != "vet" && !namesFlag(args, "ldflags") {
+		flags = append(flags, devLdflags)
+	}
+	return flags
+}
+
+// namesFlag reports whether args, up to the program's or test binary's own,
+// set the go command's flag name.
+func namesFlag(args []string, name string) bool {
+	for _, a := range args {
+		if a == "--" || a == "-args" {
+			return false
+		}
+		if n, _, _ := strings.Cut(strings.TrimLeft(a, "-"), "="); n == name && strings.HasPrefix(a, "-") {
+			return true
 		}
 	}
-	return append(slices.Clone(flags), "-gcflags="+modPath+"/...=-l -dwarf=false")
+	return false
+}
+
+// devCompile has the compiler write no debug information, unless flags name
+// compiler flags of their own.
+func devCompile(flags []string, modPath string) []string {
+	if namesFlag(flags, "gcflags") {
+		return flags
+	}
+	return append(slices.Clone(flags), devGcflags, devModuleGcflags(modPath))
 }
 
 // compileFlags are, under a watch, the flags of its builds that decide how

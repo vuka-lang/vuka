@@ -837,10 +837,11 @@ over a model attribute; an empty value never undoes a set one.
 ### Why orm.Objects[T]() {#objects}
 
 Go compiles a generic type again for each type argument, in every package
-that reaches it. A package holding models doesn't reach `orm.Manager[T]` or
-`orm.QuerySet[T]`: a row's `orm.Model[T]` and an `orm.FK[T]` work through
+that reaches it. A package holding models doesn't reach `orm.QuerySet[T]`
+(`orm.Manager[T]` is another name for it, so a model has one set of methods,
+not two): a row's `orm.Model[T]` and an `orm.FK[T]` work through
 the manager's non-generic core. Only a package that names a manager or a
-query compiles them, and only for the models it queries. That is why a
+query compiles it, and only for the models it queries. That is why a
 model has no `User{}.Objects()` method — its signature would make every
 importer of `User` compile `orm.Manager[User]` — and why the manager is
 `orm.Objects[User]()`, which costs only the package calling it.

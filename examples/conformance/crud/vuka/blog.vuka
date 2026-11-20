@@ -83,7 +83,7 @@ type PostsQuery struct {
 
 // ListPosts answers GET /posts: ?author= one author's, ?live= the published.
 func ListPosts(ctx context.Context, q PostsQuery, b *Blog) ([]Post, error) {
-	qs := Post.Objects.QuerySet
+	qs := *Post.Objects
 	if q.Live {
 		qs = Post.Live()
 	}

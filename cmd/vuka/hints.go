@@ -452,7 +452,7 @@ func isModel(t types.Type) bool {
 		if p, ok := ft.(*types.Pointer); ok {
 			ft = types.Unalias(p.Elem())
 		}
-		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && (n.Obj().Name() == "Base" || n.Obj().Name() == "Model") {
+		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && (n.Obj().Name() == "Base" || n.Obj().Name() == "Model" || n.Obj().Name() == "Rec") {
 			return true
 		}
 	}
