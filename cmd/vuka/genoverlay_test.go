@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -90,4 +91,76 @@ func stripLines(b []byte) string {
 		}
 	}
 	return strings.Join(keep, "\n")
+}
+
+// TestGenOverlayOutNarrowed: packages named after -overlay-out make the
+// overlay of those and what they import in the module, through Go packages
+// too; one reaching a package main is the whole module.
+func TestGenOverlayOutNarrowed(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := t.TempDir()
+	gomod, gosum := testModule(t, "example.com/app")
+	writeFile(t, filepath.Join(root, "go.mod"), gomod)
+	writeFile(t, filepath.Join(root, "go.sum"), gosum)
+	writeFile(t, filepath.Join(root, "b", "b.vuka"), "package b\n\nfunc B() int { return 1 }\n")
+	writeFile(t, filepath.Join(root, "a", "a.vuka"), "package a\n\nimport \"example.com/app/b\"\n\nfunc A() int { return b.B() }\n")
+	writeFile(t, filepath.Join(root, "c", "c.vuka"), "package c\n\nfunc C() int { return 3 }\n")
+	writeFile(t, filepath.Join(root, "g", "g.go"), "package g\n\nimport \"example.com/app/b\"\n\nfunc G() int { return b.B() }\n")
+	writeFile(t, filepath.Join(root, "app", "main.vuka"), "package main\n\nimport (\n\t\"example.com/app/a\"\n\t\"example.com/app/c\"\n)\n\nfunc main() { println(a.A() + c.C()) }\n")
+	t.Chdir(root)
+
+	dirs := func(args ...string) (string, []string) {
+		t.Helper()
+		ovFile := filepath.Join(t.TempDir(), "overlay.json")
+		var out bytes.Buffer
+		if err := gen(append([]string{"-code-only", "-overlay-out", ovFile}, args...), &out); err != nil {
+			t.Fatalf("gen %v: %v", args, err)
+		}
+		raw, err := os.ReadFile(ovFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ov struct{ Replace map[string]string }
+		if err := json.Unmarshal(raw, &ov); err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for target := range ov.Replace {
+			d := filepath.Base(filepath.Dir(target))
+			if !slices.Contains(got, d) {
+				got = append(got, d)
+			}
+		}
+		slices.Sort(got)
+		return out.String(), got
+	}
+	for _, c := range []struct {
+		args     []string
+		want     []string
+		narrowed bool
+	}{
+		{[]string{"./a"}, []string{"a", "b"}, true},
+		{[]string{"./b"}, []string{"b"}, true},
+		{[]string{"./g"}, []string{"b"}, true},
+		{[]string{"./a", "./c"}, []string{"a", "b", "c"}, true},
+		{[]string{"./..."}, []string{"a", "app", "b", "c"}, false},
+		{[]string{"./app"}, []string{"a", "app", "b", "c"}, false},
+		{nil, []string{"a", "app", "b", "c"}, false},
+	} {
+		out, got := dirs(c.args...)
+		if !slices.Equal(got, c.want) {
+			t.Errorf("gen %v: packages %v, want %v", c.args, got, c.want)
+		}
+		if narrowed := strings.Contains(out, " packages)"); narrowed != c.narrowed {
+			t.Errorf("gen %v: narrowed %v, want %v (%s)", c.args, narrowed, c.narrowed, out)
+		}
+	}
+	if err := gen([]string{"./a"}, io.Discard); err == nil {
+		t.Errorf("gen ./a without -overlay-out: no error")
+	}
+	if err := gen([]string{"./..."}, io.Discard); err != nil {
+		t.Errorf("gen ./...: %v", err)
+	}
 }
