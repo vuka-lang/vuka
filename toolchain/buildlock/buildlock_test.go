@@ -14,9 +14,17 @@ func skipWithoutLocks(t *testing.T) {
 	}
 }
 
+func vukaRoot(t *testing.T) string {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".vuka"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 func TestPruneWaitsForHolders(t *testing.T) {
 	skipWithoutLocks(t)
-	root := t.TempDir()
+	root := vukaRoot(t)
 	if release, ok := TryPrune(root); !ok {
 		t.Fatal("an idle module can't be pruned")
 	} else {
@@ -40,7 +48,7 @@ func TestPruneWaitsForHolders(t *testing.T) {
 
 func TestHoldNeverBlocks(t *testing.T) {
 	skipWithoutLocks(t)
-	root := t.TempDir()
+	root := vukaRoot(t)
 	first := Hold(root)
 	defer first()
 	if _, ok := TryPrune(root); ok {
@@ -80,4 +88,21 @@ func TestNoLockFileNoPrune(t *testing.T) {
 		t.Fatal("pruned no module")
 	}
 	Hold("")()
+}
+
+func TestReadersMakeNoVukaDir(t *testing.T) {
+	skipWithoutLocks(t)
+	root := t.TempDir()
+	Hold(root)()
+	if _, err := os.Stat(filepath.Join(root, ".vuka")); err == nil {
+		t.Fatal("a reader made .vuka")
+	}
+	if _, ok := TryPrune(root); ok {
+		t.Fatal("pruned in the round that made .vuka")
+	}
+	release, ok := TryPrune(root)
+	if !ok {
+		t.Fatal("not pruned once .vuka exists")
+	}
+	release()
 }

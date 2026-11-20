@@ -212,6 +212,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	}
 	if !keepCache {
 		s.pruner, s.modPath = &cachePruner{root: root}, modPath
+		buildlock.Prepare(root)
 	}
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")

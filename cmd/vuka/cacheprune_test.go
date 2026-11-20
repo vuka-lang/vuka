@@ -40,6 +40,7 @@ func newPruneModule(t *testing.T, cache string, prune bool) *pruneModule {
 	m.s = &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: env, stderr: new(bytes.Buffer), modPath: "example.com/p"}
 	if prune {
 		m.s.pruner = &cachePruner{root: root}
+		buildlock.Prepare(root)
 	}
 	return m
 }
