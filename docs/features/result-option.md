@@ -90,6 +90,17 @@ argument, an input field or a list's item (see
 [Nullability](/web/graphql#nullability)) — so an ORM model's optional
 columns serve as they are, with no pointers to convert to.
 
+### Option as Text {#option-text}
+
+An `Option` writes and reads its value as text, for a URL parameter or any
+code taking an `encoding.TextMarshaler`: `Some(v)` is `v`'s own
+`MarshalText`, else a string, a bool or a number as `strconv` writes it; a
+`T` with neither is an error. A None is the empty text, which `IsNone` tells
+from `Some("")`. `UnmarshalText` reads the text as a `T` and is `Some`: the
+empty text is `Some("")` for a string and an error for a number. A parameter
+that is absent is not text, and leaves a None as it is. JSON is unchanged.
+[`@ui.URL`](/web/url-state#types) keeps an `Option` field this way.
+
 ## In Markup {#in-markup}
 
 Markup takes a `Result` or an `Option` as the value it holds, wherever it

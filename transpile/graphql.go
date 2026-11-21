@@ -980,9 +980,10 @@ func (g *gqlGen) isLeaf(t types.Type) bool {
 	return ok && b.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString) != 0 && b.Kind() != types.UnsafePointer
 }
 
-// isTextual reports whether t marshals itself as text and *t unmarshals.
+// isTextual reports whether t marshals itself as text and *t unmarshals. A
+// vuka.Option does, for a URL, but is nullable in the schema, not a scalar.
 func isTextual(t types.Type) bool {
-	if named(t) == nil {
+	if named(t) == nil || isOption(t) {
 		return false
 	}
 	return methodOf(t, "MarshalText") && methodOf(types.NewPointer(t), "UnmarshalText")
