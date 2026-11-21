@@ -13,11 +13,13 @@ import (
 // whose Go sources (a .vuka file's generated Go, a .go file) are srcs: the
 // methods the runtime looks up by name, so that it needn't ask reflect's
 // Method or MethodByName, which turn the linker's dead-method elimination
-// off. A type the runtime renders, routes or runs live — one declaring
-// Render() ui.Node (a live component does), or registered (vuka.RegisterType, a
-// type decorator, ui.RegisterIsland) — has each of its exported methods; any other type its
-// methods named by a convention: Init, Clean…, …Choices, Update…,
-// …TableName. Generic types have none: there is no one type to name.
+// off. A type the runtime renders, routes or runs live — one declaring its
+// markup (View(), a component's or a page's; Render() ui.Node, a live
+// one's), or registered (vuka.RegisterType, a type decorator, attributes
+// on a method, ui.RegisterIsland) — has each of its exported methods; any
+// other type its methods named by a convention: Init, Clean…, …Choices,
+// Update…, …TableName. Generic types have none: there is no one type to
+// name.
 func MethodTables(srcs ...[]byte) []string {
 	type typ struct {
 		ui      bool
@@ -63,12 +65,15 @@ func MethodTables(srcs ...[]byte) []string {
 				}
 				t := of(id.Name)
 				t.methods[d.Name.Name] = !ptr
-				if d.Name.Name == "Render" && d.Type.Params.NumFields() == 0 && d.Type.Results.NumFields() == 1 {
-					t.ui = true // a component's, a page's: Render() ui.Node
+				switch {
+				case d.Name.Name == "View" && d.Type.Params.NumFields() == 0,
+					d.Name.Name == "Render" && d.Type.Params.NumFields() == 0 && d.Type.Results.NumFields() == 1:
+					t.ui = true // a component's or a page's markup, a live one's Render() ui.Node
 				}
 			}
 		}
-		// vuka.RegisterType[T], vuka.TypeFor[T] (a type decorator's), and
+		// vuka.RegisterType[T], vuka.TypeFor[T] (a type decorator's),
+		// vuka.RegisterFunc of a method of T (a method's attributes) and
 		// ui.RegisterIsland[T] (bare in package ui) register T.
 		imported := map[string]string{} // name → path
 		for _, imp := range f.Imports {
@@ -80,6 +85,15 @@ func MethodTables(srcs ...[]byte) []string {
 			imported[name] = p
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
+				if fn, ok := call.Fun.(*ast.SelectorExpr); ok && fn.Sel.Name == "RegisterFunc" {
+					if x, ok := fn.X.(*ast.Ident); ok && imported[x.Name] == RuntimePath {
+						if recv := methodExprRecv(call.Args[0]); recv != "" {
+							of(recv).ui = true
+						}
+					}
+				}
+			}
 			ix, ok := n.(*ast.IndexExpr)
 			if !ok {
 				return true
@@ -139,6 +153,23 @@ func MethodTables(srcs ...[]byte) []string {
 		}
 	}
 	return out
+}
+
+// methodExprRecv is the receiver type's name of a method expression,
+// (*T).M or T.M; "" for anything else.
+func methodExprRecv(x ast.Expr) string {
+	sel, ok := ast.Unparen(x).(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	recv := ast.Unparen(sel.X)
+	if s, ok := recv.(*ast.StarExpr); ok {
+		recv = ast.Unparen(s.X)
+	}
+	if id, ok := recv.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
 }
 
 // conventionMethod reports whether a method's name is one the runtime

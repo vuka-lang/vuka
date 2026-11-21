@@ -39,6 +39,18 @@ func (b *Box[T]) Render() any { return nil }
 
 type Island struct{}
 
+type Card struct{}
+
+func (c Card) View() any                    { return nil }
+func (c Card) Render(ctx any, w any) error  { return nil }
+
+type Stats struct{}
+
+func (s *Stats) Load() (int, error) { return 0, nil }
+func (s *Stats) Other()             {}
+
+func init() { vuka.RegisterFunc((*Stats).Load) }
+
 type Session struct{}
 
 func (s *Session) Render() (string, error) { return "", nil }
@@ -52,10 +64,12 @@ func (i *Island) Pick(n int) {}
 func (x *Elsewhere) Render() any { return nil }
 `))
 	want := []string{
+		"vuka.RegisterMethods[Card](Card.Render, Card.View)",
 		"vuka.RegisterMethods[Form]((*Form).CleanEmail, (*Form).Init, Form.RoleChoices)",
 		"vuka.RegisterMethods[Island]((*Island).Pick)",
 		"vuka.RegisterMethods[Model](Model.LegacyTableName, (*Model).UpdateOrder)",
 		"vuka.RegisterMethods[Page]((*Page).Add, (*Page).Render, Page.Title)",
+		"vuka.RegisterMethods[Stats]((*Stats).Load, (*Stats).Other)",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("MethodTables =\n%q\nwant\n%q", got, want)
