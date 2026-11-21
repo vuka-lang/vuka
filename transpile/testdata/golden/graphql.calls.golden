@@ -6,5 +6,5 @@ import "github.com/vuka-lang/vuka/v2"
 
 // The methods the runtime finds by name, for vuka.Methods.
 func init() {
-	vuka.RegisterMethods[Pet]((*Pet).Age, Pet.Nickname, (*Pet).Save, Pet.String)
+	vuka.RegisterMethods[Pet](Pet.Nickname, (*Pet).Save, Pet.String)
 }

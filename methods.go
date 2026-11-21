@@ -36,35 +36,72 @@ type Method struct {
 // RegisterMethods records methods of T, each a method expression as the
 // method is declared: T.M, or (*T).M for a method of *T. Generated code
 // calls it at init, in the package's vuka_calls_gen.go, for the methods
-// the runtime looks up by name.
+// the runtime looks up by name; a method RegisterFunc records is in T's
+// table too, and generated code leaves it out here.
 func RegisterMethods[T any](fns ...any) { registerMethods(reflect.TypeFor[T](), fns) }
 
 func registerMethods(t reflect.Type, fns []any) {
-	tab := &methodTable{}
+	methodsMu.Lock()
+	defer methodsMu.Unlock()
+	tab := tableOf(t)
+	tab.own = true
 	for _, fn := range fns {
 		v := reflect.ValueOf(fn)
-		if v.Kind() != reflect.Func || v.Type().NumIn() == 0 {
-			panic(fmt.Sprintf("vuka: RegisterMethods[%s] of %T, not a method expression", t, fn))
-		}
-		_, _, name, _ := parseFuncName(runtime.FuncForPC(v.Pointer()).Name())
-		switch v.Type().In(0) {
-		case t:
-			tab.val = append(tab.val, reflect.Method{Name: name, Type: v.Type(), Func: v})
-		case reflect.PointerTo(t):
-			tab.ptr = append(tab.ptr, reflect.Method{Name: name, Type: v.Type(), Func: v})
-		default:
-			panic(fmt.Sprintf("vuka: RegisterMethods[%s] of %T, not a method of %[1]s", t, fn))
+		if v.Kind() != reflect.Func || v.Type().NumIn() == 0 || !tab.add(t, v) {
+			panic(fmt.Sprintf("vuka: RegisterMethods[%s] of %T, not a method expression of %[1]s", t, fn))
 		}
 	}
-	sortMethods(tab.val)
-	sortMethods(tab.ptr)
-	methodTables.Store(t, tab)
-	methodSets.Clear()
 }
 
-type methodTable struct{ val, ptr []reflect.Method }
+// registerMethod records fn in its receiver's table when it is a method
+// expression of the named type rt: what RegisterFunc has recorded.
+func registerMethod(rt reflect.Type, fn reflect.Value) {
+	methodsMu.Lock()
+	defer methodsMu.Unlock()
+	tableOf(rt).add(rt, fn)
+}
+
+// methodTable is a type's methods, of T and of *T; own says RegisterMethods
+// gave it (the type's table is whole), not RegisterFunc alone.
+type methodTable struct {
+	val, ptr []reflect.Method
+	own      bool
+}
+
+func tableOf(t reflect.Type) *methodTable {
+	if v, ok := methodTables.Load(t); ok {
+		return v.(*methodTable)
+	}
+	tab := &methodTable{}
+	methodTables.Store(t, tab)
+	return tab
+}
+
+// add records fn, a method expression of t, once by name; false when fn is
+// none.
+func (tab *methodTable) add(t reflect.Type, fn reflect.Value) bool {
+	f := runtime.FuncForPC(fn.Pointer())
+	if f == nil {
+		return false
+	}
+	_, _, name, _ := parseFuncName(f.Name())
+	set := &tab.val
+	switch fn.Type().In(0) {
+	case t:
+	case reflect.PointerTo(t):
+		set = &tab.ptr
+	default:
+		return false
+	}
+	if i, ok := slices.BinarySearchFunc(*set, name, func(m reflect.Method, name string) int { return strings.Compare(m.Name, name) }); !ok {
+		*set = slices.Insert(*set, i, reflect.Method{Name: name, Type: fn.Type(), Func: fn})
+	}
+	methodSets.Clear()
+	return true
+}
 
 var (
+	methodsMu    sync.Mutex
 	methodTables sync.Map // reflect.Type (a named type) → *methodTable
 	methodSets   sync.Map // reflect.Type → []Method: Methods' answers
 )
@@ -162,7 +199,7 @@ func tableMethods(t reflect.Type) ([]Method, bool) {
 		out = append(out, promotedMethods(base, ptr, seen)...)
 	}
 	slices.SortFunc(out, func(a, b Method) int { return strings.Compare(a.Name, b.Name) })
-	return out, tab != nil
+	return out, tab != nil && tab.own
 }
 
 // promotedMethods are the methods t's embedded fields promote to t (to *t
@@ -274,8 +311,4 @@ func promote(t reflect.Type, ptr bool, index []int, m reflect.Method) Method {
 		return fn.Call(args)
 	})
 	return Method{Method: reflect.Method{Name: m.Name, Type: mt, Func: call}, Decl: fn, Promoted: index}
-}
-
-func sortMethods(ms []reflect.Method) {
-	slices.SortFunc(ms, func(a, b reflect.Method) int { return strings.Compare(a.Name, b.Name) })
 }

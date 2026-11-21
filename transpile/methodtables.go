@@ -18,17 +18,20 @@ import (
 // one's), or registered (vuka.RegisterType, a type decorator, attributes
 // on a method, ui.RegisterIsland) — has each of its exported methods; any
 // other type its methods named by a convention: Init, Clean…, …Choices,
-// Update…, …TableName. Generic types have none: there is no one type to
-// name.
+// Update…, …TableName. A method vuka.RegisterFunc records is left to it:
+// it puts the method in the table, and naming it here would count as a
+// use of it (a ui.Defer method's, which Go must not call). Generic types
+// have none: there is no one type to name.
 func MethodTables(srcs ...[]byte) []string {
 	type typ struct {
-		ui      bool
-		methods map[string]bool // exported method → declared on the type (not its pointer)
+		ui         bool
+		methods    map[string]bool // exported method → declared on the type (not its pointer)
+		registered map[string]bool // the methods vuka.RegisterFunc records, in the table by it
 	}
 	types := map[string]*typ{}
 	of := func(name string) *typ {
 		if types[name] == nil {
-			types[name] = &typ{methods: map[string]bool{}}
+			types[name] = &typ{methods: map[string]bool{}, registered: map[string]bool{}}
 		}
 		return types[name]
 	}
@@ -88,8 +91,9 @@ func MethodTables(srcs ...[]byte) []string {
 			if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
 				if fn, ok := call.Fun.(*ast.SelectorExpr); ok && fn.Sel.Name == "RegisterFunc" {
 					if x, ok := fn.X.(*ast.Ident); ok && imported[x.Name] == RuntimePath {
-						if recv := methodExprRecv(call.Args[0]); recv != "" {
+						if recv, m := methodExprOf(call.Args[0]); recv != "" {
 							of(recv).ui = true
+							of(recv).registered[m] = true
 						}
 					}
 				}
@@ -139,7 +143,7 @@ func MethodTables(srcs ...[]byte) []string {
 				}
 			}
 		}) {
-			if !t.ui && !conventionMethod(m) {
+			if !t.ui && !conventionMethod(m) || t.registered[m] {
 				continue
 			}
 			if t.methods[m] {
@@ -148,28 +152,28 @@ func MethodTables(srcs ...[]byte) []string {
 				fns = append(fns, "(*"+name+")."+m)
 			}
 		}
-		if len(fns) > 0 {
+		if len(fns) > 0 || t.ui && len(t.methods) > 0 {
 			out = append(out, "vuka.RegisterMethods["+name+"]("+strings.Join(fns, ", ")+")")
 		}
 	}
 	return out
 }
 
-// methodExprRecv is the receiver type's name of a method expression,
-// (*T).M or T.M; "" for anything else.
-func methodExprRecv(x ast.Expr) string {
+// methodExprOf is the receiver type's name and the method's of a method
+// expression, (*T).M or T.M; "" for anything else.
+func methodExprOf(x ast.Expr) (string, string) {
 	sel, ok := ast.Unparen(x).(*ast.SelectorExpr)
 	if !ok {
-		return ""
+		return "", ""
 	}
 	recv := ast.Unparen(sel.X)
 	if s, ok := recv.(*ast.StarExpr); ok {
 		recv = ast.Unparen(s.X)
 	}
 	if id, ok := recv.(*ast.Ident); ok {
-		return id.Name
+		return id.Name, sel.Sel.Name
 	}
-	return ""
+	return "", ""
 }
 
 // conventionMethod reports whether a method's name is one the runtime

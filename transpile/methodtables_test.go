@@ -69,7 +69,7 @@ func (x *Elsewhere) Render() any { return nil }
 		"vuka.RegisterMethods[Island]((*Island).Pick)",
 		"vuka.RegisterMethods[Model](Model.LegacyTableName, (*Model).UpdateOrder)",
 		"vuka.RegisterMethods[Page]((*Page).Add, (*Page).Render, Page.Title)",
-		"vuka.RegisterMethods[Stats]((*Stats).Load, (*Stats).Other)",
+		"vuka.RegisterMethods[Stats]((*Stats).Other)",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("MethodTables =\n%q\nwant\n%q", got, want)

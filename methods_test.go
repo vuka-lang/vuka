@@ -18,6 +18,7 @@ type mtOuter struct {
 }
 
 func (o *mtOuter) Rename(name string) { o.Name = name }
+func (o *mtOuter) Decorated() string  { return "d" }
 func (o mtOuter) Shadowed() string    { return "outer" }
 func (o mtOuter) Join(sep string, parts ...string) string {
 	return o.Name + sep + parts[0]
@@ -31,6 +32,7 @@ func (mtPlain) Hello() string { return "hi" }
 func init() {
 	RegisterMethods[mtInner]((*mtInner).Bump, mtInner.Count, mtInner.Shadowed)
 	RegisterMethods[mtOuter]((*mtOuter).Rename, mtOuter.Shadowed, mtOuter.Join)
+	RegisterFunc((*mtOuter).Decorated) // in the table too, as generated code leaves it to RegisterFunc
 }
 
 // TestMethodsTable: a registered type's method set is reflect's, promoted
