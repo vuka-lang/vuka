@@ -1,7 +1,9 @@
 package vuka
 
 import (
+	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -164,5 +166,44 @@ func TestRegisterParams(t *testing.T) {
 	d = DeclOf(regShow, Param{Name: "x"})
 	if d.Params[0].Name != "x" || d.Params[1].Name != "" {
 		t.Errorf("DeclOf with params given: %+v", d.Params)
+	}
+}
+
+type regKind string
+
+type regModel struct{ Table string }
+
+type regUser struct{}
+
+type regOrder struct{}
+
+func TestTypesWith(t *testing.T) {
+	if got := TypesWith[regModel](); got != nil {
+		t.Errorf("before any registration: %v", got)
+	}
+	RegisterType[regUser](regModel{"users"}, regKind("entity"))
+	RegisterType[regOrder](regKind("entity"))
+	// Two other packages' types: the order is the registrations', not
+	// the names'.
+	RegisterType[strings.Builder](regModel{"builders"})
+	RegisterType[bytes.Buffer](regModel{"buffers"})
+	RegisterType[regUser](regKind("again")) // a second registration keeps its place
+
+	want := []reflect.Type{reflect.TypeFor[regUser](), reflect.TypeFor[strings.Builder](), reflect.TypeFor[bytes.Buffer]()}
+	if got := TypesWith[regModel](); !reflect.DeepEqual(got, want) {
+		t.Errorf("TypesWith[regModel]: %v", got)
+	}
+	// A type with two attributes is found by each.
+	want = []reflect.Type{reflect.TypeFor[regUser](), reflect.TypeFor[regOrder]()}
+	if got := TypesWith[regKind](); !reflect.DeepEqual(got, want) {
+		t.Errorf("TypesWith[regKind]: %v", got)
+	}
+	var m regModel
+	if !TypeAttrs(reflect.TypeFor[regUser]()).Attr(&m) || m.Table != "users" {
+		t.Errorf("its attribute: %+v", m)
+	}
+	// The attribute's type exactly: a pointer to it is another.
+	if got := TypesWith[*regModel](); got != nil {
+		t.Errorf("TypesWith[*regModel]: %v", got)
 	}
 }

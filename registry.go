@@ -31,7 +31,8 @@ var registry = struct {
 	names map[string][]string     // the functions' parameters' names, as RegisterParams records them
 	types map[string]reflect.Type // "example.com/app.Board"
 	attrs map[reflect.Type]Attrs
-	pcs   sync.Map // uintptr → FuncRef: FuncOf's answers
+	order []reflect.Type // the types of attrs, in the order first registered
+	pcs   sync.Map       // uintptr → FuncRef: FuncOf's answers
 }{funcs: map[string]Attrs{}, names: map[string][]string{}, types: map[string]reflect.Type{}, attrs: map[reflect.Type]Attrs{}}
 
 // RegisterFunc records the typed attributes of a function, or of a method
@@ -90,6 +91,9 @@ func RegisterParams(fn any, names ...string) {
 func RegisterType[T any](attrs ...any) {
 	t := reflect.TypeFor[T]()
 	registry.Lock()
+	if _, ok := registry.attrs[t]; !ok {
+		registry.order = append(registry.order, t)
+	}
 	registry.attrs[t] = append(registry.attrs[t], attrs...)
 	registry.types[typeKey(t)] = t
 	registry.Unlock()
@@ -106,6 +110,35 @@ func TypeAttrs(t reflect.Type) Attrs {
 	registry.RLock()
 	defer registry.RUnlock()
 	return registry.attrs[t]
+}
+
+// TypesWith are the types carrying an attribute of type A (a bundle's
+// count), in the order they were registered: generated code registers a
+// package's declarations in its init, files by name and each in source
+// order, and Go initialises a package after the packages it imports. It is
+// what a library reads to find its declarations without a list of them:
+//
+//	for _, t := range vuka.TypesWith[Model]() {
+//		var m Model
+//		vuka.TypeAttrs(t).Attr(&m)
+//	}
+//
+// It sees what is registered when it runs, so call it after init — from
+// main, or lazily on first use — not from a package variable's initializer.
+func TypesWith[A any]() []reflect.Type {
+	want := reflect.TypeFor[A]()
+	registry.RLock()
+	defer registry.RUnlock()
+	var out []reflect.Type
+	for _, t := range registry.order {
+		for _, a := range registry.attrs[t] {
+			if reflect.TypeOf(a) == want {
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // MethodAttrs are the typed attributes declared on method name of t (or of
