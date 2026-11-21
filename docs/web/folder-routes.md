@@ -1201,8 +1201,29 @@ are each [E0706](/errors/E0706).
 > A parameter named `[path]` would be a method `Path(…)` beside `Path()`:
 > name it for what it holds.
 
-Query parameters are not part of the chain: add them to the path, as in
-`urls.Employers.Path() + "?page=2"`.
+### Query Parameters
+
+A page whose component keeps fields in the query with
+[`@ui.URL("name")`](/web/url-state) takes them in its `URL`. vuka writes a
+struct for the page in `urls`, a field for each. It is named for the page's
+path in PascalCase, less the leading folders every page is in when the names
+stay unique, and with `Query` added to a name the root value already has:
+
+```text
+// pages/employers/index.vuka.html:            Page int @ui.URL("page").Default(1)
+// pages/employers/[employer]/edit.vuka.html:  Tab string @ui.URL("tab")
+urls.Employers.URL(ctx, urls.EmployersQuery{Page: 2})                          // "/employers?page=2"
+urls.Employers.URL(ctx, urls.EmployersQuery{Page: 1})                          // "/employers": the default is left out
+urls.Employers.Employer(7).Edit.URL(ctx, urls.EmployersEmployerEdit{Tab: "x"}) // "/employers/7/edit?tab=x"
+urls.Employers.Employer(7).Edit.URL(ctx)                                       // "/employers/7/edit"
+```
+
+Zero values and defaults are left out, keys are sorted, and values are
+written as the field reads them back: text through `MarshalText`, a slice
+as repeated parameters. `URL` takes at most one query; a second is
+ignored. `Path()` is the path alone. A field `urls` can't name is left out
+([W0705](/errors/W0705)); a bare `@ui.URL`, which binds a path parameter,
+is not a query field. A page with no such fields is as before.
 
 ## Precedence and Conflicts
 

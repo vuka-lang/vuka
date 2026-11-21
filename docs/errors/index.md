@@ -317,6 +317,7 @@ same page in the terminal.
 | [W0702](./W0702) | A hand-written folder-route option |
 | [W0703](./W0703) | A layout reading the request |
 | [W0704](./W0704) | A page's Load that never runs |
+| [W0705](./W0705) | A query field urls can't name |
 
 ## GraphQL
 
