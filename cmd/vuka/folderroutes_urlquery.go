@@ -200,9 +200,9 @@ func (c *routeChecker) queryTypes(q *urlQuery) []queryField {
 		if v == nil {
 			continue
 		}
-		t := v.Type()
-		if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Name() == "Assign" && n.TypeArgs().Len() == 1 {
-			t = n.TypeArgs().At(0)
+		t := assignElem(v.Type())
+		if t == types.Typ[types.Invalid] {
+			continue // the page's own error says so
 		}
 		if why := c.queryProblem(t); why != "" {
 			c.report(diag.Warn("W0705", "%s.%s is kept in ?%s, and urls leaves it out of the page's query: %s", q.typ, f.field, f.key, why), v.Pos()).

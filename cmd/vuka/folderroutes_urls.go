@@ -49,6 +49,18 @@ func (n *urlNode) child(seg string) *urlNode {
 	return c
 }
 
+// find is the folder at rel, nil when there is none.
+func (n *urlNode) find(rel string) *urlNode {
+	for _, seg := range strings.Split(rel, "/") {
+		i := slices.IndexFunc(n.children, func(c *urlNode) bool { return c.seg == seg })
+		if i < 0 {
+			return nil
+		}
+		n = n.children[i]
+	}
+	return n
+}
+
 func (n *urlNode) at(rel string) *urlNode {
 	if rel == "" {
 		return n
@@ -99,25 +111,31 @@ func (n *urlNode) nameTypes(taken map[string]bool) {
 	}
 }
 
-// urlsStub is the package urls the pages are transpiled with, read from
-// their sources: a field for every type with a constructor, parameters
-// taken as ...any.
-func (t *routeTree) urlsStub() []byte {
+// urlNodes is the chain of folders and pages as the files under pages/
+// name them, whether or not their packages type-check: what a page's path is
+// doesn't depend on its component. A type with no markup is a page when
+// isPage says so (nil: it is); one in a .vuka.html file always is. The
+// queries are the fields its source marks @ui.URL, to be typed by the check.
+func (t *routeTree) urlNodes(isPage func(d *routeDir, typ string) bool) *urlNode {
 	root := &urlNode{}
 	for _, d := range t.dirs {
 		rel := urlRel(d.rel)
 		n := root.at(rel)
 		for _, p := range d.pages {
+			if isPage != nil && d.fileOf[p] == "" && !isPage(d, p) {
+				continue
+			}
 			switch name := d.urlName(p); {
 			case load.Bracketed(name):
 				at := root.at(joinRel(rel, name))
-				at.index = true
+				at.index, at.dir = true, d
 				at.addQuery("", d, p)
 			case name == "Index":
-				n.index = true
+				n.index, n.dir = true, d
 				n.addQuery("", d, p)
 			case !slices.Contains(n.pages, name):
 				n.pages = append(n.pages, name)
+				n.dir = d
 				n.addQuery(name, d, p)
 			}
 		}
@@ -129,6 +147,14 @@ func (t *routeTree) urlsStub() []byte {
 	root.prune()
 	root.nameTypes(map[string]bool{"pageURL": true})
 	root.nameQueries()
+	return root
+}
+
+// urlsStub is the package urls the pages are transpiled with, read from
+// their sources: a field for every type with a constructor, parameters
+// taken as ...any.
+func (t *routeTree) urlsStub() []byte {
+	root := t.urlNodes(nil)
 	var b strings.Builder
 	b.WriteString(routesHeading + "package " + urlsDirName + "\n\nimport (\n\t\"context\"\n\n\tweb \"github.com/vuka-lang/web/v2\"\n)\n\nvar Root = new" + upperFirst(root.typ) + "(\"\")\n")
 	b.WriteString("\ntype pageURL struct{ path string }\n\nfunc (p pageURL) Path() string { return p.path }\n\nfunc (p pageURL) URL(ctx context.Context) string { return web.MountPath(ctx, p.path) }\n")
@@ -214,30 +240,21 @@ func rootVars(root *urlNode) []string {
 // collide in a folder's value (E0706) and the parameters urls can't name
 // (E0705).
 func (c *routeChecker) urlTree() *urlNode {
-	root := &urlNode{}
-	for key, p := range c.params {
-		n := root.at(key)
-		n.p = p.p
-	}
+	routed := map[*routeDir]map[string]bool{}
 	for _, r := range c.res.routes {
-		if r.Kind == "handler" {
-			continue
-		}
-		n := root.at(r.node)
-		n.dir = r.dir
-		switch {
-		case r.leaf == "":
-			n.index = true
-			n.addQuery("", r.dir, r.typ)
-		case !slices.Contains(n.pages, r.leaf):
-			n.pages = append(n.pages, r.leaf)
-			n.addQuery(r.leaf, r.dir, r.typ)
+		if r.dir != nil && r.Kind != "handler" {
+			if routed[r.dir] == nil {
+				routed[r.dir] = map[string]bool{}
+			}
+			routed[r.dir][r.typ] = true
 		}
 	}
-	root.mark()
-	root.prune()
-	root.nameTypes(map[string]bool{"pageURL": true})
-	root.nameQueries()
+	root := c.t.urlNodes(func(d *routeDir, typ string) bool { return routed[d][typ] })
+	for key, p := range c.params {
+		if n := root.find(key); n != nil {
+			n.p = p.p
+		}
+	}
 	c.resolveQueries(root)
 	pageAt := func(n *urlNode, page string) diag.Span {
 		for _, r := range c.res.routes {
@@ -402,9 +419,16 @@ func (t *routeTree) urlsFile() []byte {
 				continue
 			}
 			v := paramIdent(c.p.name)
-			fmt.Fprintf(&b, "\n// %s is %s%s, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, types.TypeString(c.p.typ, im.qualifier), c.typ)
+			// nothing binds a parameter whose page doesn't compile: it takes any
+			typ, seg := "any", ""
 			var body strings.Builder
-			seg := t.segment(&body, im, c.p)
+			if c.p.typ != nil {
+				typ = types.TypeString(c.p.typ, im.qualifier)
+				seg = t.segment(&body, im, c.p)
+			} else {
+				seg = im.name("net/url", "url") + ".PathEscape(" + im.name("fmt", "fmt") + ".Sprint(" + v + "))"
+			}
+			fmt.Fprintf(&b, "\n// %s is %s%s, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, typ, c.typ)
 			b.WriteString(body.String())
 			fmt.Fprintf(&b, "\treturn new%s(u.path + \"/\" + %s)\n}\n", upperFirst(c.typ), seg)
 		}

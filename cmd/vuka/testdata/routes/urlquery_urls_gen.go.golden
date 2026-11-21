@@ -134,6 +134,23 @@ func (q OrgsOrgEdit) values() url.Values {
 	return v
 }
 
+// PermitsPermit is the query of pages/ajira/permits/[permit].
+//
+// Each field is a @ui.URL field of the page, written as a parameter unless it
+// is at its zero value or default. The name is the page's path in PascalCase, less the
+// leading folders every page is in when that stays unique.
+type PermitsPermit struct {
+	Panel string // ?panel=
+	Batch *int   // ?batch=
+}
+
+func (q PermitsPermit) values() url.Values {
+	v := url.Values{}
+	setParam(v, "batch", q.Batch)
+	setParam(v, "panel", q.Panel, "info")
+	return v
+}
+
 // rootURL is the folder pages/.
 type rootURL struct {
 	path  string
@@ -152,6 +169,7 @@ type ajiraURL struct {
 	path    string
 	Adverts ajiraAdvertsURL
 	Orgs    ajiraOrgsURL
+	Permits ajiraPermitsURL
 	About   pageURL
 }
 
@@ -160,6 +178,7 @@ func newAjiraURL(path string) ajiraURL {
 		path:    path,
 		Adverts: newAjiraAdvertsURL(path + "/adverts"),
 		Orgs:    newAjiraOrgsURL(path + "/orgs"),
+		Permits: newAjiraPermitsURL(path + "/permits"),
 		About:   pageURL{path + "/about"},
 	}
 }
@@ -209,4 +228,34 @@ func newAjiraOrgsOrgURL(path string) ajiraOrgsOrgURL {
 		path: path,
 		Edit: queryPage[OrgsOrgEdit]{path + "/edit"},
 	}
+}
+
+// ajiraPermitsURL is the folder pages/ajira/permits/.
+type ajiraPermitsURL struct {
+	path string
+}
+
+func newAjiraPermitsURL(path string) ajiraPermitsURL { return ajiraPermitsURL{path: path} }
+
+// Permit is pages/ajira/permits/[permit], for its parameter.
+func (u ajiraPermitsURL) Permit(permit int64) ajiraPermitsPermitURL {
+	return newAjiraPermitsPermitURL(u.path + "/" + strconv.FormatInt(permit, 10))
+}
+
+// ajiraPermitsPermitURL is the parameter pages/ajira/permits/[permit].
+type ajiraPermitsPermitURL struct {
+	path string
+}
+
+func newAjiraPermitsPermitURL(path string) ajiraPermitsPermitURL {
+	return ajiraPermitsPermitURL{path: path}
+}
+
+// Path is the path of the parameter pages/ajira/permits/[permit].
+func (u ajiraPermitsPermitURL) Path() string { return u.path }
+
+// URL is Path carrying the app's mount prefix, and the query q: only its
+// first value is used.
+func (u ajiraPermitsPermitURL) URL(ctx context.Context, q ...PermitsPermit) string {
+	return withQuery(web.MountPath(ctx, u.path), q)
 }

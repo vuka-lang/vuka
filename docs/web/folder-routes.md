@@ -335,7 +335,8 @@ Go identifier and binds once in a path ([E0704](/errors/E0704)).
 
 A parameter's type is the type of the field that binds it: the exported
 field of its name, case aside, on the structs below it — `Employer int` for
-`[employer]`, `ID int64` for `[id]`. Each struct that reads the parameter
+`[employer]`, `ID int64` for `[id]` — or an unexported one marked with a bare
+[`@ui.URL`](/web/url-state#path-parameters) (`employer int @ui.URL`). Each struct that reads the parameter
 declares the field, and they agree ([E0712](/errors/E0712)); the folder's
 `_layout.vuka.html` speaks first. A parameter nothing binds has no type
 ([E0711](/errors/E0711)).
@@ -1228,6 +1229,19 @@ a page tells a zero from no parameter at all. `URL` takes at most one query; a s
 ignored. `Path()` is the path alone. A field `urls` can't name is left out
 ([W0705](/errors/W0705)); a bare `@ui.URL`, which binds a path parameter,
 is not a query field. A page with no such fields is as before.
+
+An unexported field is in the struct under its exported name, `tab` as `Tab`,
+and is written and read back as an exported one is.
+
+### When a Page Doesn't Compile
+
+A folder's and a page's `Path()` and `URL(ctx)` come from the files under
+`pages/`, so they are there whether or not the pages compile; with errors in
+the routes, `urls_gen.go` is still written (unless two names in a folder meet, [E0706](/errors/E0706)), so the packages linking to a page
+keep building and the page's own error is the one reported. A parameter whose
+type isn't known, because nothing that binds it compiles, takes `any`. Only a
+page's query struct needs its component's types: a page that doesn't type-check
+has none, and its `URL` takes no query until it does.
 
 ## Precedence and Conflicts
 

@@ -986,6 +986,10 @@ func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult 
 	t.check(ov, overlay, r)
 	if r.err() == nil {
 		r.files = t.generate(r.routes)
+	} else if t.urlsNamable(r.diags) {
+		// The paths come from the files under pages/: other packages keep
+		// building against them while the errors are fixed.
+		r.files = t.generateURLs()
 	}
 	if shape != "" && len(r.diags) == 0 && len(t.clashes) == 0 {
 		routeMemo[t.pages] = &routeResultMemo{shape, r, t.info, t.urls}

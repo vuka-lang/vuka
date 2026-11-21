@@ -526,8 +526,8 @@ func (c *routeChecker) typeParams() {
 						break
 					}
 				}
-			} else if f := fieldFold(cr.typ, p.name); f != nil {
-				u = &use{f.Type(), f.Pos(), types.TypeString(cr.typ, types.RelativeTo(nil)) + "." + f.Name()}
+			} else if f := c.boundField(cr.typ, p.name); f != nil {
+				u = &use{assignElem(f.Type()), f.Pos(), types.TypeString(cr.typ, types.RelativeTo(nil)) + "." + f.Name()}
 				if n := namedObj(cr.typ); n != nil {
 					u.what = n.Pkg().Name() + "." + n.Name() + "." + f.Name()
 				}
@@ -583,6 +583,41 @@ func (c *routeChecker) typeParams() {
 			p.p.typ = nil
 		}
 	}
+}
+
+// boundField is the field of t a path parameter binds: fieldFold's, else one
+// the source marks with a bare @ui.URL, which may be unexported.
+func (c *routeChecker) boundField(t types.Type, name string) *types.Var {
+	if f := fieldFold(t, name); f != nil {
+		return f
+	}
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	tn, st := namedObj(t), (*types.Struct)(nil)
+	if tn == nil {
+		return nil
+	}
+	if st, _ = t.Underlying().(*types.Struct); st == nil {
+		return nil
+	}
+	for _, b := range c.bareURLFields(tn) {
+		for i := range st.NumFields() {
+			if f := st.Field(i); f.Name() == b && strings.EqualFold(b, name) {
+				return f
+			}
+		}
+	}
+	return nil
+}
+
+// assignElem is T of a ui.Assign[T], the type a vuka file's unexported field
+// is held in; any other type is itself.
+func assignElem(t types.Type) types.Type {
+	if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Name() == "Assign" && n.TypeArgs().Len() == 1 {
+		return n.TypeArgs().At(0)
+	}
+	return t
 }
 
 // fieldFold is t's exported field named name, case aside, promoted ones

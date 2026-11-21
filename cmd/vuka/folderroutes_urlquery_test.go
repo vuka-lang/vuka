@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // queryPages is a tree of pages keeping fields in the query: pages/ajira
@@ -56,6 +59,19 @@ type View struct {
 // Kind is declared in the page's own package, which urls can't import.
 type Kind string
 <p>{Tab}</p>
+`,
+	"pages/ajira/permits/[permit]/index.vuka.html": `package permit
+
+import "github.com/vuka-lang/ui/v2"
+
+// Index shows one permit: every field is unexported.
+type Index struct {
+	ui.Live
+	permit int64  @ui.URL
+	panel  string @ui.URL("panel").Default("info")
+	batch  *int   @ui.URL("batch")
+}
+<p>{panel}</p>
 `,
 	"pages/ajira/orgs/[org]/edit.vuka.html": `package org
 
@@ -144,6 +160,7 @@ import (
 	"context"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vuka-lang/ui/v2"
@@ -231,14 +248,17 @@ func TestURLs(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("size %v: %s, want %s", tc.size, got, tc.want)
 		}
+		if !strings.Contains(got, "size=") {
+			// Left out, so the page holds its default Some(25). ui before
+			// vuka-lang/ui#113 can't give an Option a default: it reads None.
+			// TODO(ui#113): once cmd/vuka requires a ui with it, read the
+			// default back here.
+			continue
+		}
 		idx := &Index{}
 		fill(t, idx, got)
-		want := tc.size
-		if want.IsNone() {
-			want = vuka.Some(25) // left out: the default
-		}
-		if idx.Size != want {
-			t.Errorf("%s filled size %v, want %v", got, idx.Size, want)
+		if idx.Size != tc.size {
+			t.Errorf("%s filled size %v, want %v", got, idx.Size, tc.size)
 		}
 	}
 	if got := urls.Ajira.Orgs.Org(7).Edit.URL(ctx, urls.OrgsOrgEdit{Tab: "x"}); got != "/ajira/orgs/7/edit?tab=x" {
@@ -259,6 +279,71 @@ func TestURLQueryRoundTrip(t *testing.T) {
 	genURLs(t, app)
 	var out bytes.Buffer
 	if err := vukaIn(app, &out, &out, "test", "./pages/ajira/adverts"); err != nil {
+		t.Fatalf("vuka test: %v\n%s", err, out.Bytes())
+	}
+}
+
+const unexportedRoundTrip = `package permit
+
+import (
+	"context"
+	"net/url"
+	"testing"
+
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/app/pages/urls"
+)
+
+func TestUnexportedFields(t *testing.T) {
+	ctx := context.Background()
+	three := 3
+	for _, tc := range []struct {
+		q     urls.PermitsPermit
+		want  string
+		panel string
+		batch *int
+	}{
+		{urls.PermitsPermit{}, "/ajira/permits/7", "info", nil},
+		{urls.PermitsPermit{Panel: "info"}, "/ajira/permits/7", "info", nil},
+		{urls.PermitsPermit{Panel: "docs", Batch: &three}, "/ajira/permits/7?batch=3&panel=docs", "docs", &three},
+	} {
+		got := urls.Ajira.Permits.Permit(7).URL(ctx, tc.q)
+		if got != tc.want {
+			t.Errorf("%+v: %s, want %s", tc.q, got, tc.want)
+		}
+		u, err := url.Parse(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := &Index{}
+		var f ui.URLFields
+		f.Fill(ui.WithPageURL(ctx, u, func(string) string { return "7" }), v, nil, "", false, u.Query())
+		if v.permit.Get() != 7 || v.panel.Get() != tc.panel || (v.batch == nil) != (tc.batch == nil) || tc.batch != nil && *v.batch != *tc.batch {
+			t.Errorf("%s filled permit %v, panel %q, batch %v", got, v.permit.Get(), v.panel.Get(), v.batch)
+		}
+	}
+}
+`
+
+// TestUnexportedURLFields: a page whose @ui.URL fields are all unexported
+// binds its path parameter (a bare one) and has a query struct with exported
+// fields, written and read back as the exported ones are.
+func TestUnexportedURLFields(t *testing.T) {
+	t.Parallel()
+	app := queryModule(t, map[string]string{"pages/ajira/permits/[permit]/urls_test.go": unexportedRoundTrip})
+	urls := genURLs(t, app)
+	for _, want := range []string{
+		"type PermitsPermit struct {\n\tPanel string // ?panel=\n\tBatch *int   // ?batch=\n}",
+		"func (u ajiraPermitsURL) Permit(permit int64) ajiraPermitsPermitURL",
+		"func (u ajiraPermitsPermitURL) URL(ctx context.Context, q ...PermitsPermit) string",
+	} {
+		if !strings.Contains(urls, want) {
+			t.Errorf("urls_gen.go lacks %q", want)
+		}
+	}
+	var out bytes.Buffer
+	if err := vukaIn(app, &out, &out, "test", "./pages/ajira/permits/..."); err != nil {
 		t.Fatalf("vuka test: %v\n%s", err, out.Bytes())
 	}
 }
@@ -325,5 +410,70 @@ func TestURLQueryNames(t *testing.T) {
 				t.Errorf("%s: %s is %q, want %q (all: %v)", tc.name, page, got[page], name, got)
 			}
 		}
+	}
+}
+
+// TestURLQueryBrokenPage: a page whose component doesn't compile (its Go is
+// not in the package) keeps its path and its folders', and the pages that do
+// compile keep their query structs.
+func TestURLQueryBrokenPage(t *testing.T) {
+	t.Parallel()
+	app := queryModule(t, map[string]string{
+		"pages/ajira/index.vuka.html": "package ajira\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Index struct{ ui.Live }\n<p>home</p>\n",
+	})
+	routes := scanRoutes(app, "example.com/app", nil)
+	pkgs, err := load.Discover(app, "example.com/app", app, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pa, err := findAssets(app, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		t.Fatal(err)
+	}
+	gens, overlay, err := cachedTranspile(app)(pkgs, tmp, loadOptions(pa))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// What a failed transpile of two pages leaves: their Go isn't there.
+	ov, err := readOverlay(overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target := range ov {
+		if strings.HasSuffix(filepath.ToSlash(target), "pages/ajira/index_html.go") || strings.HasSuffix(filepath.ToSlash(target), "/edit_html.go") {
+			delete(ov, target)
+		}
+	}
+	data, _ := json.Marshal(struct{ Replace map[string]string }{ov})
+	if err := os.WriteFile(overlay, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, res, err := routes.finish(gens, overlay, tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var urls string
+	for _, g := range res.files {
+		if filepath.Base(g.Target) == urlsGoName {
+			urls = string(g.Src)
+		}
+	}
+	for _, want := range []string{
+		"func (u ajiraURL) Path() string", // the folder's index doesn't compile
+		"func (u ajiraURL) URL(ctx context.Context) string",
+		"Edit pageURL",                       // plain: its query type isn't known
+		"func (q AjiraAdvertsView) values()", // the others' queries
+		"func (u ajiraAdvertsURL) URL(ctx context.Context, q ...AjiraAdverts)",
+	} {
+		if !strings.Contains(urls, want) {
+			t.Errorf("urls_gen.go lacks %q:\n%s", want, urls)
+		}
+	}
+	if strings.Contains(urls, "OrgEdit") {
+		t.Errorf("a page that doesn't compile has a query struct:\n%s", urls)
 	}
 }
