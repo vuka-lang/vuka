@@ -122,8 +122,7 @@ func matchFold(names []string, name string) string {
 }
 
 // bareURLFields are the fields of tn's struct that its Vuka source marks
-// with a bare @ui.URL: read from the .vuka and .vuka.html files of its
-// package's directory.
+// with a bare @ui.URL.
 func (c *routeChecker) bareURLFields(tn *types.TypeName) []string {
 	if tn.Pkg() == nil {
 		return nil
@@ -142,11 +141,23 @@ func (c *routeChecker) bareURLFields(tn *types.TypeName) []string {
 	if d := c.r.byPath[tn.Pkg().Path()]; d != nil {
 		dir = d.dir
 	}
+	var out []string
+	for _, a := range structURLAttrs(dir, tn.Name()) {
+		if a.bare {
+			out = append(out, a.field)
+		}
+	}
+	return out
+}
+
+// structURLAttrs are the @ui.URL attributes on the fields of the struct
+// typeName, read from the .vuka and .vuka.html files of dir.
+func structURLAttrs(dir, typeName string) []urlAttr {
 	if dir == "" {
 		return nil
 	}
 	entries, _ := load.ReadDir(dir)
-	decl := regexp.MustCompile(`\btype\s+` + regexp.QuoteMeta(tn.Name()) + `\s+struct\s*\{`)
+	decl := regexp.MustCompile(`\btype\s+` + regexp.QuoteMeta(typeName) + `\s+struct\s*\{`)
 	for _, e := range entries {
 		n := e.Name()
 		if !strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, ".vuka.html") {
@@ -171,13 +182,7 @@ func (c *routeChecker) bareURLFields(tn *types.TypeName) []string {
 				}
 			}
 		}
-		var out []string
-		for _, a := range urlAttrs(src[loc[1]:end]) {
-			if a.bare {
-				out = append(out, a.field)
-			}
-		}
-		return out
+		return urlAttrs(src[loc[1]:end])
 	}
 	return nil
 }

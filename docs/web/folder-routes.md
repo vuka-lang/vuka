@@ -335,7 +335,8 @@ Go identifier and binds once in a path ([E0704](/errors/E0704)).
 
 A parameter's type is the type of the field that binds it: the exported
 field of its name, case aside, on the structs below it — `Employer int` for
-`[employer]`, `ID int64` for `[id]`. Each struct that reads the parameter
+`[employer]`, `ID int64` for `[id]` — or an unexported one marked with a bare
+[`@ui.URL`](/web/url-state#path-parameters) (`employer int @ui.URL`). Each struct that reads the parameter
 declares the field, and they agree ([E0712](/errors/E0712)); the folder's
 `_layout.vuka.html` speaks first. A parameter nothing binds has no type
 ([E0711](/errors/E0711)).
@@ -1201,8 +1202,46 @@ are each [E0706](/errors/E0706).
 > A parameter named `[path]` would be a method `Path(…)` beside `Path()`:
 > name it for what it holds.
 
-Query parameters are not part of the chain: add them to the path, as in
-`urls.Employers.Path() + "?page=2"`.
+### Query Parameters
+
+A page whose component keeps fields in the query with
+[`@ui.URL("name")`](/web/url-state) takes them in its `URL`. vuka writes a
+struct for the page in `urls`, a field for each. It is named for the page's
+path in PascalCase, less the leading folders every page is in when the names
+stay unique, and with `Query` added to a name the root value already has:
+
+```text
+// pages/employers/index.vuka.html:            Page int @ui.URL("page").Default(1)
+// pages/employers/[employer]/edit.vuka.html:  Tab string @ui.URL("tab")
+//                                              Limit vuka.Option[int64] @ui.URL("limit")
+urls.Employers.URL(ctx, urls.EmployersQuery{Page: 2})                          // "/employers?page=2"
+urls.Employers.URL(ctx, urls.EmployersQuery{Page: 1})                          // "/employers": the default is left out
+urls.Employers.Employer(7).Edit.URL(ctx, urls.EmployersEmployerEdit{Tab: "x"}) // "/employers/7/edit?tab=x"
+urls.Employers.Employer(7).Edit.URL(ctx)                                       // "/employers/7/edit"
+urls.Employers.Employer(7).Edit.URL(ctx, urls.EmployersEmployerEdit{Limit: vuka.Some[int64](0)}) // "/employers/7/edit?limit=0"
+```
+
+Zero values and defaults are left out, keys are sorted, and values are
+written as the field reads them back: text through `MarshalText`, a slice
+as repeated parameters. A `vuka.Option[T]` field is in the struct as it is:
+a `None` is left out, and `Some(0)` or `Some("")` is written, which is how
+a page tells a zero from no parameter at all. `URL` takes at most one query; a second is
+ignored. `Path()` is the path alone. A field `urls` can't name is left out
+([W0705](/errors/W0705)); a bare `@ui.URL`, which binds a path parameter,
+is not a query field. A page with no such fields is as before.
+
+An unexported field is in the struct under its exported name, `tab` as `Tab`,
+and is written and read back as an exported one is.
+
+### When a Page Doesn't Compile
+
+A folder's and a page's `Path()` and `URL(ctx)` come from the files under
+`pages/`, so they are there whether or not the pages compile; with errors in
+the routes, `urls_gen.go` is still written (unless two names in a folder meet, [E0706](/errors/E0706)), so the packages linking to a page
+keep building and the page's own error is the one reported. A parameter whose
+type isn't known, because nothing that binds it compiles, takes `any`. Only a
+page's query struct needs its component's types: a page that doesn't type-check
+has none, and its `URL` takes no query until it does.
 
 ## Precedence and Conflicts
 

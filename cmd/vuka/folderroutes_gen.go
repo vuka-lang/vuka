@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -25,6 +26,17 @@ func (t *routeTree) generate(routes []*folderRoute) []load.Generated {
 		out = append(out, load.Generated{Target: target, Src: t.registrations(routes)})
 	}
 	return out
+}
+
+// generateURLs is generate's urls/urls_gen.go alone.
+func (t *routeTree) generateURLs() []load.Generated {
+	return []load.Generated{{Target: filepath.Join(t.urlsDir(), urlsGoName), Src: t.urlsFile()}}
+}
+
+// urlsNamable reports whether urls_gen.go can be written for a tree with the
+// errors diags: it can unless two names of a folder are alike.
+func (t *routeTree) urlsNamable(diags []diag.Diagnostic) bool {
+	return t.urls != nil && t.urls.prune() && !slices.ContainsFunc(diags, func(d diag.Diagnostic) bool { return d.Code == "E0706" })
 }
 
 // imports names the packages a generated file imports, none of them

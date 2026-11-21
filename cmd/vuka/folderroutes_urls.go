@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,6 +30,7 @@ type urlNode struct {
 	children []*urlNode
 	typ      string
 	dir      *routeDir
+	queries  map[string]*urlQuery // by page; "" for the folder's own
 }
 
 func (n *urlNode) child(seg string) *urlNode {
@@ -45,6 +47,18 @@ func (n *urlNode) child(seg string) *urlNode {
 	n.children = append(n.children, c)
 	slices.SortFunc(n.children, func(a, b *urlNode) int { return strings.Compare(a.seg, b.seg) })
 	return c
+}
+
+// find is the folder at rel, nil when there is none.
+func (n *urlNode) find(rel string) *urlNode {
+	for _, seg := range strings.Split(rel, "/") {
+		i := slices.IndexFunc(n.children, func(c *urlNode) bool { return c.seg == seg })
+		if i < 0 {
+			return nil
+		}
+		n = n.children[i]
+	}
+	return n
 }
 
 func (n *urlNode) at(rel string) *urlNode {
@@ -97,22 +111,32 @@ func (n *urlNode) nameTypes(taken map[string]bool) {
 	}
 }
 
-// urlsStub is the package urls the pages are transpiled with, read from
-// their sources: a field for every type with a constructor, parameters
-// taken as ...any.
-func (t *routeTree) urlsStub() []byte {
+// urlNodes is the chain of folders and pages as the files under pages/
+// name them, whether or not their packages type-check: what a page's path is
+// doesn't depend on its component. A type with no markup is a page when
+// isPage says so (nil: it is); one in a .vuka.html file always is. The
+// queries are the fields its source marks @ui.URL, to be typed by the check.
+func (t *routeTree) urlNodes(isPage func(d *routeDir, typ string) bool) *urlNode {
 	root := &urlNode{}
 	for _, d := range t.dirs {
 		rel := urlRel(d.rel)
 		n := root.at(rel)
 		for _, p := range d.pages {
+			if isPage != nil && d.fileOf[p] == "" && !isPage(d, p) {
+				continue
+			}
 			switch name := d.urlName(p); {
 			case load.Bracketed(name):
-				root.at(joinRel(rel, name)).index = true
+				at := root.at(joinRel(rel, name))
+				at.index, at.dir = true, d
+				at.addQuery("", d, p)
 			case name == "Index":
-				n.index = true
+				n.index, n.dir = true, d
+				n.addQuery("", d, p)
 			case !slices.Contains(n.pages, name):
 				n.pages = append(n.pages, name)
+				n.dir = d
+				n.addQuery(name, d, p)
 			}
 		}
 		for _, f := range d.funcs {
@@ -122,9 +146,31 @@ func (t *routeTree) urlsStub() []byte {
 	root.mark()
 	root.prune()
 	root.nameTypes(map[string]bool{"pageURL": true})
+	root.nameQueries()
+	return root
+}
+
+// urlsStub is the package urls the pages are transpiled with, read from
+// their sources: a field for every type with a constructor, parameters
+// taken as ...any.
+func (t *routeTree) urlsStub() []byte {
+	root := t.urlNodes(nil)
 	var b strings.Builder
 	b.WriteString(routesHeading + "package " + urlsDirName + "\n\nimport (\n\t\"context\"\n\n\tweb \"github.com/vuka-lang/web/v2\"\n)\n\nvar Root = new" + upperFirst(root.typ) + "(\"\")\n")
 	b.WriteString("\ntype pageURL struct{ path string }\n\nfunc (p pageURL) Path() string { return p.path }\n\nfunc (p pageURL) URL(ctx context.Context) string { return web.MountPath(ctx, p.path) }\n")
+	var queries []*urlQuery
+	root.eachQuery(func(q *urlQuery) { queries = append(queries, q) })
+	if len(queries) > 0 {
+		b.WriteString("\ntype queryPage[Q any] struct{ path string }\n\nfunc (p queryPage[Q]) Path() string { return p.path }\n\nfunc (p queryPage[Q]) URL(ctx context.Context, q ...Q) string { return web.MountPath(ctx, p.path) }\n")
+		slices.SortFunc(queries, func(a, b *urlQuery) int { return strings.Compare(a.name, b.name) })
+		for _, q := range queries {
+			b.WriteString("\ntype " + q.name + " struct{\n")
+			for _, f := range q.fields {
+				b.WriteString("\t" + f.name + " any\n")
+			}
+			b.WriteString("}\n")
+		}
+	}
 	var walk func(n *urlNode)
 	walk = func(n *urlNode) {
 		taken := map[string]bool{"Path": n.index}
@@ -140,14 +186,22 @@ func (t *routeTree) urlsStub() []byte {
 		for _, p := range n.pages {
 			if !taken[p] {
 				taken[p] = true
-				fmt.Fprintf(&b, "\t%s pageURL\n", p)
+				if q := n.queries[p]; q.active() {
+					fmt.Fprintf(&b, "\t%s queryPage[%s]\n", p, q.name)
+				} else {
+					fmt.Fprintf(&b, "\t%s pageURL\n", p)
+				}
 			}
 		}
 		b.WriteString("}\n")
 		fmt.Fprintf(&b, "\nfunc new%s(path string) %s { return %s{%s} }\n", upperFirst(n.typ), n.typ, n.typ, strings.Join(inits, ", "))
 		if n.index {
 			fmt.Fprintf(&b, "\nfunc (u %s) Path() string { return u.path }\n", n.typ)
-			fmt.Fprintf(&b, "\nfunc (u %s) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }\n", n.typ)
+			if q := n.queries[""]; q.active() {
+				fmt.Fprintf(&b, "\nfunc (u %s) URL(ctx context.Context, q ...%s) string { return web.MountPath(ctx, u.path) }\n", n.typ, q.name)
+			} else {
+				fmt.Fprintf(&b, "\nfunc (u %s) URL(ctx context.Context) string { return web.MountPath(ctx, u.path) }\n", n.typ)
+			}
 		}
 		for _, c := range n.children {
 			if name := c.name(); c.param && !taken[name] {
@@ -186,27 +240,22 @@ func rootVars(root *urlNode) []string {
 // collide in a folder's value (E0706) and the parameters urls can't name
 // (E0705).
 func (c *routeChecker) urlTree() *urlNode {
-	root := &urlNode{}
-	for key, p := range c.params {
-		n := root.at(key)
-		n.p = p.p
-	}
+	routed := map[*routeDir]map[string]bool{}
 	for _, r := range c.res.routes {
-		if r.Kind == "handler" {
-			continue
-		}
-		n := root.at(r.node)
-		n.dir = r.dir
-		switch {
-		case r.leaf == "":
-			n.index = true
-		case !slices.Contains(n.pages, r.leaf):
-			n.pages = append(n.pages, r.leaf)
+		if r.dir != nil && r.Kind != "handler" {
+			if routed[r.dir] == nil {
+				routed[r.dir] = map[string]bool{}
+			}
+			routed[r.dir][r.typ] = true
 		}
 	}
-	root.mark()
-	root.prune()
-	root.nameTypes(map[string]bool{"pageURL": true})
+	root := c.t.urlNodes(func(d *routeDir, typ string) bool { return routed[d][typ] })
+	for key, p := range c.params {
+		if n := root.find(key); n != nil {
+			n.p = p.p
+		}
+	}
+	c.resolveQueries(root)
 	pageAt := func(n *urlNode, page string) diag.Span {
 		for _, r := range c.res.routes {
 			if r.node == n.rel && r.leaf == page && r.Kind != "handler" {
@@ -297,6 +346,22 @@ func (t *routeTree) urlsFile() []byte {
 		ctxQ = im.name("context", "context")
 		webQ = im.name("github.com/vuka-lang/web/v2", "web")
 	}
+	var queries []*urlQuery
+	root.eachQuery(func(q *urlQuery) { queries = append(queries, q) })
+	slices.SortFunc(queries, func(a, b *urlQuery) int { return strings.Compare(a.name, b.name) })
+	var urlQ, reflectQ, slicesQ, uiQ string
+	if len(queries) > 0 {
+		urlQ, reflectQ, slicesQ, uiQ = im.name("net/url", "url"), im.name("reflect", "reflect"), im.name("slices", "slices"), im.name(load.UIPath, "ui")
+	}
+	var qb strings.Builder
+	if len(queries) > 0 {
+		qb.WriteString(queryHelpers(ctxQ, webQ, urlQ, reflectQ, slicesQ, uiQ))
+		typeOf := func(t types.Type) string { return types.TypeString(t, im.qualifier) }
+		for _, q := range queries {
+			q.decl(&qb, func(f queryField) string { return typeOf(f.typ) })
+			q.valuesMethod(&qb, urlQ, typeOf)
+		}
+	}
 	var b strings.Builder
 	pageType := false
 	var walk func(n *urlNode)
@@ -318,6 +383,11 @@ func (t *routeTree) urlsFile() []byte {
 			}
 		}
 		for _, p := range n.pages {
+			if q := n.queries[p]; q.active() {
+				fmt.Fprintf(&b, "\t%s queryPage[%s]\n", p, q.name)
+				inits = append(inits, fmt.Sprintf("%s: queryPage[%s]{path + %q}", p, q.name, "/"+kebab(p)))
+				continue
+			}
 			pageType = true
 			fmt.Fprintf(&b, "\t%s pageURL\n", p)
 			inits = append(inits, fmt.Sprintf("%s: pageURL{path + %q}", p, "/"+kebab(p)))
@@ -338,16 +408,27 @@ func (t *routeTree) urlsFile() []byte {
 				ret = `"/"`
 			}
 			fmt.Fprintf(&b, "\n// Path is the path of %s.\nfunc (u %s) Path() string { return %s }\n", strings.TrimSuffix(what, "/"), n.typ, ret)
-			fmt.Fprintf(&b, "\n// URL is Path carrying the app's mount prefix.\nfunc (u %s) URL(ctx %s.Context) string { return %s.MountPath(ctx, %s) }\n", n.typ, ctxQ, webQ, ret)
+			if q := n.queries[""]; q.active() {
+				fmt.Fprintf(&b, "\n// URL is Path carrying the app's mount prefix, and the query q: only its\n// first value is used.\nfunc (u %s) URL(ctx %s.Context, q ...%s) string { return withQuery(%s.MountPath(ctx, %s), q) }\n", n.typ, ctxQ, q.name, webQ, ret)
+			} else {
+				fmt.Fprintf(&b, "\n// URL is Path carrying the app's mount prefix.\nfunc (u %s) URL(ctx %s.Context) string { return %s.MountPath(ctx, %s) }\n", n.typ, ctxQ, webQ, ret)
+			}
 		}
 		for _, c := range n.children {
 			if !c.param {
 				continue
 			}
 			v := paramIdent(c.p.name)
-			fmt.Fprintf(&b, "\n// %s is %s%s, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, types.TypeString(c.p.typ, im.qualifier), c.typ)
+			// nothing binds a parameter whose page doesn't compile: it takes any
+			typ, seg := "any", ""
 			var body strings.Builder
-			seg := t.segment(&body, im, c.p)
+			if c.p.typ != nil {
+				typ = types.TypeString(c.p.typ, im.qualifier)
+				seg = t.segment(&body, im, c.p)
+			} else {
+				seg = im.name("net/url", "url") + ".PathEscape(" + im.name("fmt", "fmt") + ".Sprint(" + v + "))"
+			}
+			fmt.Fprintf(&b, "\n// %s is %s%s, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, typ, c.typ)
 			b.WriteString(body.String())
 			fmt.Fprintf(&b, "\treturn new%s(u.path + \"/\" + %s)\n}\n", upperFirst(c.typ), seg)
 		}
@@ -371,7 +452,7 @@ func (t *routeTree) urlsFile() []byte {
 		head.WriteString("\n// pageURL is a page's path.\ntype pageURL struct{ path string }\n\n// Path is the page's path.\nfunc (p pageURL) Path() string { return p.path }\n")
 		fmt.Fprintf(&head, "\n// URL is Path carrying the app's mount prefix.\nfunc (p pageURL) URL(ctx %s.Context) string { return %s.MountPath(ctx, p.path) }\n", ctxQ, webQ)
 	}
-	return gofmt(head.String() + b.String())
+	return gofmt(head.String() + qb.String() + b.String())
 }
 
 // mark makes each folder named for a parameter one.
@@ -379,5 +460,18 @@ func (n *urlNode) mark() {
 	n.param = load.Bracketed(n.seg)
 	for _, c := range n.children {
 		c.mark()
+	}
+}
+
+// eachQuery calls f with each query of the folder and below that has a
+// struct.
+func (n *urlNode) eachQuery(f func(*urlQuery)) {
+	for _, leaf := range slices.Sorted(maps.Keys(n.queries)) {
+		if q := n.queries[leaf]; q.active() {
+			f(q)
+		}
+	}
+	for _, c := range n.children {
+		c.eachQuery(f)
 	}
 }
