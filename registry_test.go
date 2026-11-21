@@ -183,16 +183,18 @@ func TestTypesWith(t *testing.T) {
 	}
 	RegisterType[regUser](regModel{"users"}, regKind("entity"))
 	RegisterType[regOrder](regKind("entity"))
-	// Two other packages' types, to see the order across packages.
+	// Two other packages' types: the order is the registrations', not
+	// the names'.
 	RegisterType[strings.Builder](regModel{"builders"})
 	RegisterType[bytes.Buffer](regModel{"buffers"})
+	RegisterType[regUser](regKind("again")) // a second registration keeps its place
 
-	want := []reflect.Type{reflect.TypeFor[bytes.Buffer](), reflect.TypeFor[regUser](), reflect.TypeFor[strings.Builder]()}
+	want := []reflect.Type{reflect.TypeFor[regUser](), reflect.TypeFor[strings.Builder](), reflect.TypeFor[bytes.Buffer]()}
 	if got := TypesWith[regModel](); !reflect.DeepEqual(got, want) {
 		t.Errorf("TypesWith[regModel]: %v", got)
 	}
 	// A type with two attributes is found by each.
-	want = []reflect.Type{reflect.TypeFor[regOrder](), reflect.TypeFor[regUser]()}
+	want = []reflect.Type{reflect.TypeFor[regUser](), reflect.TypeFor[regOrder]()}
 	if got := TypesWith[regKind](); !reflect.DeepEqual(got, want) {
 		t.Errorf("TypesWith[regKind]: %v", got)
 	}

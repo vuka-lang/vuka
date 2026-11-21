@@ -31,6 +31,7 @@ var registry = struct {
 	names map[string][]string     // the functions' parameters' names, as RegisterParams records them
 	types map[string]reflect.Type // "example.com/app.Board"
 	attrs map[reflect.Type]Attrs
+	order []reflect.Type // the types of attrs, in the order first registered
 	pcs   sync.Map // uintptr → FuncRef: FuncOf's answers
 }{funcs: map[string]Attrs{}, names: map[string][]string{}, types: map[string]reflect.Type{}, attrs: map[reflect.Type]Attrs{}}
 
@@ -90,6 +91,9 @@ func RegisterParams(fn any, names ...string) {
 func RegisterType[T any](attrs ...any) {
 	t := reflect.TypeFor[T]()
 	registry.Lock()
+	if _, ok := registry.attrs[t]; !ok {
+		registry.order = append(registry.order, t)
+	}
 	registry.attrs[t] = append(registry.attrs[t], attrs...)
 	registry.types[typeKey(t)] = t
 	registry.Unlock()
@@ -109,8 +113,10 @@ func TypeAttrs(t reflect.Type) Attrs {
 }
 
 // TypesWith are the types carrying an attribute of type A (a bundle's
-// count), sorted by their package path and name: what a library reads to
-// find its declarations without a list of them, as
+// count), in the order they were registered: generated code registers a
+// package's declarations in its init, files by name and each in source
+// order, and Go initialises a package after the packages it imports. It is
+// what a library reads to find its declarations without a list of them:
 //
 //	for _, t := range vuka.TypesWith[Model]() {
 //		var m Model
@@ -122,17 +128,16 @@ func TypeAttrs(t reflect.Type) Attrs {
 func TypesWith[A any]() []reflect.Type {
 	want := reflect.TypeFor[A]()
 	registry.RLock()
+	defer registry.RUnlock()
 	var out []reflect.Type
-	for t, attrs := range registry.attrs {
-		for _, a := range attrs {
+	for _, t := range registry.order {
+		for _, a := range registry.attrs[t] {
 			if reflect.TypeOf(a) == want {
 				out = append(out, t)
 				break
 			}
 		}
 	}
-	registry.RUnlock()
-	slices.SortFunc(out, func(a, b reflect.Type) int { return strings.Compare(typeKey(a), typeKey(b)) })
 	return out
 }
 

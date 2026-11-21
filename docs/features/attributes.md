@@ -93,7 +93,7 @@ The lookup functions are these:
 | `vuka.FuncOf(fn)` | the declaration of a function, method expression or method value: `Recv` and `Method` for a method, its `Attrs`; `Literal` for a function literal, which has none |
 | `vuka.MethodAttrs(t, name)` | a method's attributes (its own; its type's are `TypeAttrs`) |
 | `vuka.TypeAttrs(t)` | a type's attributes |
-| `vuka.TypesWith[A]()` | the types carrying an attribute of type `A`, sorted by package and name: how a library finds its declarations without being handed a list — read each one's value with `TypeAttrs(t).Attr(&a)`. It sees what init has registered, so call it from `main` or on first use, not from a package variable's initializer |
+| `vuka.TypesWith[A]()` | the types carrying an attribute of type `A`, in the order they were registered (packages in init order, then files by name and source order): how a library finds its declarations without being handed a list — read each one's value with `TypeAttrs(t).Attr(&a)`. It sees what init has registered, so call it from `main` or on first use, not from a package variable's initializer |
 | `attrs.Attr(&x)` | fills `x` with the attribute of its type, as `c.Attr` does |
 
 The lookups are a map read (`FuncOf` caches its answer per function);
