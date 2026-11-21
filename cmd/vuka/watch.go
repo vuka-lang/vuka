@@ -905,23 +905,62 @@ func devFlags(cmd string, args []string, modPath string) []string {
 	return flags
 }
 
+// releaseTag is the build tag of vuka build and install: web leaves its
+// development toolbar out of the binary.
+const releaseTag = "vuka_release"
+
 // releaseFlags are vuka build's and install's: the binary is linked without
 // debug information (-w), which is a quarter of a small app's binary and
-// that panics and pprof don't need. -debug, cut from args, keeps it; -w is
-// added to args' own -ldflags, else to flags, which go before the packages.
+// that panics and pprof don't need, and built with releaseTag. -debug, cut
+// from args, keeps both out. Each is added to args' own flag, else to
+// flags, which go before the packages.
 func releaseFlags(cmd string, args []string) (outArgs, flags []string) {
 	if cmd != "build" && cmd != "install" {
 		return args, nil
 	}
 	args, debug := cutDebug(args)
-	switch {
-	case debug:
-	case namesFlag(args, "ldflags"):
+	if debug {
+		return args, nil
+	}
+	if namesFlag(args, "ldflags") {
 		args = noDWARF(args)
-	default:
-		flags = []string{devLdflags}
+	} else {
+		flags = append(flags, devLdflags)
+	}
+	if namesFlag(args, "tags") {
+		args = addTag(args, releaseTag)
+	} else {
+		flags = append(flags, "-tags="+releaseTag)
 	}
 	return args, flags
+}
+
+// addTag adds tag to the last -tags of flags, the one go takes.
+func addTag(flags []string, tag string) []string {
+	out := slices.Clone(flags)
+	at, inline := -1, false
+	for i := 0; i < len(out) && out[i] != "--" && out[i] != "-args"; i++ {
+		name, _, hasValue := strings.Cut(strings.TrimLeft(out[i], "-"), "=")
+		if name == "tags" && strings.HasPrefix(out[i], "-") {
+			at, inline = i, hasValue
+			if !hasValue {
+				at, i = i+1, i+1
+			}
+		}
+	}
+	if at < 0 || at >= len(out) {
+		return out
+	}
+	prefix, value := "", out[at]
+	if inline {
+		name, v, _ := strings.Cut(out[at], "=")
+		prefix, value = name+"=", v
+	}
+	if value = strings.Trim(value, ", "); value != "" {
+		value += ","
+	}
+	out[at] = prefix + value + tag
+	return out
 }
 
 // namesFlag reports whether args, up to the program's or test binary's own,

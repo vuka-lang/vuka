@@ -219,9 +219,11 @@ components to the library's new version, merging its changes with yours
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are. `vuka build` and `install` link
-without debug information (`-ldflags=-w`, added to your own `-ldflags`), a
-quarter of a small app's binary that panics and pprof don't need; `-debug`
-keeps it, for delve. `vuka build` precompresses what the
+without debug information (`-ldflags=-w`), a quarter of a small app's
+binary that panics and pprof don't need, and without the
+[development toolbar](/web/toolbar#when-it-is-on) (`-tags=vuka_release`),
+each added to your own flag; `-debug` keeps both, for delve or
+`VUKA_ENV=development`. `vuka build` precompresses what the
 binary serves as it is: the stylesheet, the components' scripts and the
 island chunks are embedded with their brotli and gzip, and `vite build` and
 `vuka build -islands` write a `.br` and a `.gz` beside the files of a

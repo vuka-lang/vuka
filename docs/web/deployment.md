@@ -199,8 +199,10 @@ func main() {
 The binary has no debug information: `vuka build` links with `-ldflags=-w`
 (added to the `-ldflags` you pass), which takes a quarter off a small app.
 Panic traces, `runtime/pprof` and profiles keep their function names and
-lines; only a debugger needs it, so `vuka build -debug` keeps it. `-s` (no
-symbol table) takes a little more off and is yours to add:
+lines; only a debugger needs it. Nor does it have the
+[development toolbar](/web/toolbar#when-it-is-on): `vuka build` sets the
+`vuka_release` build tag, which leaves it out. `vuka build -debug` keeps
+both. `-s` (no symbol table) takes a little more off and is yours to add:
 `vuka build -ldflags=-s`.
 
 ## Running Several Replicas

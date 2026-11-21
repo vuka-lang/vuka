@@ -965,16 +965,19 @@ func TestDevBuildsShareFlags(t *testing.T) {
 
 func TestReleaseFlags(t *testing.T) {
 	t.Parallel()
+	release := []string{devLdflags, "-tags=" + releaseTag}
 	for _, c := range []struct {
 		cmd              string
 		args, out, flags []string
 	}{
-		{"build", []string{"-o", "app", "."}, []string{"-o", "app", "."}, []string{devLdflags}},
-		{"install", nil, nil, []string{devLdflags}},
+		{"build", []string{"-o", "app", "."}, []string{"-o", "app", "."}, release},
+		{"install", nil, nil, release},
 		{"build", []string{"-debug", "."}, []string{"."}, nil},
-		{"build", []string{"-ldflags=-s", "."}, []string{"-ldflags=-w -s", "."}, nil},
-		{"build", []string{"-ldflags", "-X main.v=1", "."}, []string{"-ldflags", "-w -X main.v=1", "."}, nil},
-		{"build", []string{"-debug", "-ldflags=-s", "."}, []string{"-ldflags=-s", "."}, nil},
+		{"build", []string{"-ldflags=-s", "."}, []string{"-ldflags=-w -s", "."}, release[1:]},
+		{"build", []string{"-ldflags", "-X main.v=1", "."}, []string{"-ldflags", "-w -X main.v=1", "."}, release[1:]},
+		{"build", []string{"-tags=a,b", "."}, []string{"-tags=a,b," + releaseTag, "."}, release[:1]},
+		{"build", []string{"-tags", "a", "-tags", "", "."}, []string{"-tags", "a", "-tags", releaseTag, "."}, release[:1]},
+		{"build", []string{"-debug", "-ldflags=-s", "-tags=a", "."}, []string{"-ldflags=-s", "-tags=a", "."}, nil},
 		{"test", []string{"./..."}, []string{"./..."}, nil},
 		{"run", []string{"-debug", "."}, []string{"-debug", "."}, nil},
 	} {

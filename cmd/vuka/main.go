@@ -47,8 +47,9 @@ Usage:
 	        (or written to --out), with the app's stylesheet (--css) over it
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
-	        build and install link without debug information (-ldflags=-w,
-	        added to yours; -debug keeps it);
+	        build and install link without debug information (-ldflags=-w) and
+	        without web's development toolbar (-tags=vuka_release), each added
+	        to your own flag; -debug keeps both;
 	        vet runs vukavet's checks too (the app's go tool vukavet, else one
 	        beside vuka or on PATH, else one it builds; -vettool=… overrides,
 	        VUKA_VUKAVET=off for go vet's own);
@@ -245,7 +246,7 @@ func goCmdUsage(cmd string) string {
 	debug := ""
 	if cmd == "build" || cmd == "install" {
 		cmd += " [-debug]"
-		debug = "\nThe binary is linked without debug information: -ldflags=-w, added to\nyour own -ldflags. -debug keeps it, for delve.\n"
+		debug = "\nThe binary has no debug information (-ldflags=-w) and no development\ntoolbar (-tags=vuka_release), each added to your own flag. -debug keeps\nboth, for delve or VUKA_ENV=development.\n"
 	}
 	name, _, _ := strings.Cut(cmd, " ")
 	return fmt.Sprintf(`usage: vuka %[1]s [go flags] [packages]

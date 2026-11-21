@@ -24,8 +24,12 @@ func clientStateApp(t *testing.T, files map[string]string, path string) (p *tab,
 	root := assetsModule(t, files)
 	t.Chdir(root)
 	app := filepath.Join(t.TempDir(), "app")
+	args := []string{"-o", app, "."}
+	if os.Getenv("VUKA_ENV") == "development" {
+		args = append([]string{"-debug"}, args...) // a release build has no toolbar
+	}
 	var stderr bytes.Buffer
-	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+	if err := runGo("build", args, io.Discard, &stderr); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
