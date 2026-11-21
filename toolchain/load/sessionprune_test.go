@@ -73,3 +73,33 @@ func TestSessionPruneMarksItsKey(t *testing.T) {
 		t.Errorf("the session's directory was not marked used: %v", fi.ModTime())
 	}
 }
+
+// TestSaveEntryKeepsRecent: a package keeps keepOuts entries, the ones
+// used last; reading one counts as a use.
+func TestSaveEntryKeepsRecent(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Now().Add(-time.Hour)
+	var files []string
+	for i := range keepOuts + 2 {
+		f := entryFile(dir, "out", "example.com/app/lib", string(rune('a'+i)))
+		saveEntry(f, []byte{byte(i)})
+		at := start.Add(time.Duration(i) * time.Minute)
+		os.Chtimes(f, at, at)
+		files = append(files, f)
+		if i == 0 {
+			continue
+		}
+		if i == keepOuts-1 {
+			readEntry(files[0]) // the oldest, used again: kept
+		}
+	}
+	exists := func(p string) bool { _, err := os.Stat(p); return err == nil }
+	entries, _ := os.ReadDir(filepath.Dir(files[0]))
+	if len(entries) != keepOuts {
+		t.Fatalf("%d entries, want %d", len(entries), keepOuts)
+	}
+	if !exists(files[0]) || exists(files[1]) || exists(files[2]) || !exists(files[len(files)-1]) {
+		t.Errorf("kept: first %v, second %v, third %v, last %v; want true false false true",
+			exists(files[0]), exists(files[1]), exists(files[2]), exists(files[len(files)-1]))
+	}
+}
