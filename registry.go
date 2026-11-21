@@ -108,6 +108,34 @@ func TypeAttrs(t reflect.Type) Attrs {
 	return registry.attrs[t]
 }
 
+// TypesWith are the types carrying an attribute of type A (a bundle's
+// count), sorted by their package path and name: what a library reads to
+// find its declarations without a list of them, as
+//
+//	for _, t := range vuka.TypesWith[Model]() {
+//		var m Model
+//		vuka.TypeAttrs(t).Attr(&m)
+//	}
+//
+// It sees what is registered when it runs, so call it after init — from
+// main, or lazily on first use — not from a package variable's initializer.
+func TypesWith[A any]() []reflect.Type {
+	want := reflect.TypeFor[A]()
+	registry.RLock()
+	var out []reflect.Type
+	for t, attrs := range registry.attrs {
+		for _, a := range attrs {
+			if reflect.TypeOf(a) == want {
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	registry.RUnlock()
+	slices.SortFunc(out, func(a, b reflect.Type) int { return strings.Compare(typeKey(a), typeKey(b)) })
+	return out
+}
+
 // MethodAttrs are the typed attributes declared on method name of t (or of
 // the type t points to), its bundles' included; not its type's, which
 // TypeAttrs has. None for a method Vuka registered nothing for.
