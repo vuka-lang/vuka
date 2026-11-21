@@ -145,3 +145,45 @@ func subquery() {
 		OrderBy(orm.Objects[Product]().Filter(ProductColumns.Status.Eq("active")).Values[int64](ProductColumns.ID)).
 		All(nil)
 }
+
+// CategoryQuery is the set orm generate writes for Category.
+type CategoryQuery struct{ orm.Core }
+
+var CategoryQueries CategoryQuery
+
+func CategoryQueriesIn(s string) CategoryQuery { return CategoryQueries }
+
+func (q CategoryQuery) Filter(conds ...orm.Cond) CategoryQuery                  { return q }
+func (q CategoryQuery) Join(j orm.Joinable, kind ...orm.JoinKind) CategoryQuery { return q }
+func (q CategoryQuery) All(ctx any) ([]Category, error)                         { return nil, nil }
+func (q CategoryQuery) Values[R any](cols ...any) orm.Values[Category, R] {
+	return orm.Values[Category, R]{}
+}
+
+func sets(narrowed CategoryQuery) {
+	CategoryQueries.
+		Filter(ProductColumns.Status.Eq("active")). // want `E0504: Product isn't joined`
+		All(nil)
+	CategoryQueriesIn("legacy").
+		Filter(ProductColumns.Status.Eq("active")). // want `E0504: Product isn't joined`
+		All(nil)
+	CategoryQueries.
+		Join(ProductCategoryColumns.On(ProductColumns.ID.Eq(1))). // want `E0504: Product is joined after this Join`
+		Join(ProductColumns.On(ProductCategoryColumns.Product().Eq(ProductColumns.ID))).
+		Values[int64](CategoryColumns.ID).
+		All(nil)
+	CategoryQueries.
+		Join(ProductCategoryColumns.On(ProductCategoryColumns.CategoryID.EqCol(CategoryColumns.ID))).
+		Join(ProductColumns.On(ProductCategoryColumns.Product().Eq(ProductColumns.ID))).
+		Filter(ProductColumns.Status.Eq("active")).
+		Values[int64](CategoryColumns.ID).
+		All(nil)
+	CategoryQueries.
+		Values[CategoryProducts](CategoryColumns.ID, CategoryColumns.Name). // want `E0505: Values\[CategoryProducts\] fills its 3 fields by position, and 2 columns are given`
+		All(nil)
+	CategoryQueries.
+		Join(CategoryColumns.Links()).
+		All(nil) // want `W0502: the Join of ProductCategory can repeat Category's rows`
+	// A set a caller narrowed may have joined: not the whole query.
+	narrowed.Filter(ProductColumns.Status.Eq("active")).All(nil)
+}

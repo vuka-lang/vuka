@@ -123,6 +123,9 @@ func (q *queryPass) chainCall(call *ast.CallExpr) string {
 	if !ok || s.Kind() != types.MethodVal {
 		return ""
 	}
+	if setModel(q.pass.TypesInfo.TypeOf(sel.X)) != nil {
+		return sel.Sel.Name // a model's set: its methods are QuerySet's, by name
+	}
 	fn := s.Obj().(*types.Func)
 	recv := fn.Type().(*types.Signature).Recv()
 	if recv == nil || fn.Pkg() == nil || fn.Pkg().Path() != ormPath {
@@ -182,7 +185,7 @@ func (q *queryPass) chain(outer *ast.CallExpr, seen map[*ast.CallExpr]bool) {
 	model := queriedModel(info.TypeOf(root))
 	// A chain from a manager is the whole query; one from a variable may
 	// have joined before.
-	whole := model != nil && isManager(info.TypeOf(root))
+	whole := model != nil && (isManager(info.TypeOf(root)) || q.isSetRows(root))
 	var joins []joined
 	for _, l := range links {
 		if l.name == "Join" && len(l.call.Args) > 0 {
@@ -235,8 +238,12 @@ func isManager(t types.Type) bool {
 	return named(p.Elem(), ormPath, "QuerySet")
 }
 
-// queriedModel is T of a Manager[T], QuerySet[T] or Values[T, R].
+// queriedModel is T of a Manager[T], QuerySet[T] or Values[T, R], or the
+// model of a set orm generate writes (setModel).
 func queriedModel(t types.Type) *types.TypeName {
+	if m := setModel(t); m != nil {
+		return m
+	}
 	if p, ok := t.(*types.Pointer); ok {
 		t = p.Elem()
 	}
@@ -249,6 +256,56 @@ func queriedModel(t types.Type) *types.TypeName {
 		return nil
 	}
 	return m.Obj()
+}
+
+// setModel is the model of t when t is a set orm generate writes,
+// <Model>Query: a struct of the model's package embedding orm.Core alone.
+func setModel(t types.Type) *types.TypeName {
+	n, ok := types.Unalias(t).(*types.Named)
+	if !ok || n.Obj().Pkg() == nil || n.TypeArgs().Len() > 0 {
+		return nil
+	}
+	st, ok := n.Underlying().(*types.Struct)
+	if !ok || st.NumFields() != 1 || !st.Field(0).Embedded() || !named(st.Field(0).Type(), ormPath, "Core") {
+		return nil
+	}
+	name, ok := strings.CutSuffix(n.Obj().Name(), "Query")
+	if !ok {
+		return nil
+	}
+	m, _ := n.Obj().Pkg().Scope().Lookup(name).(*types.TypeName)
+	return m
+}
+
+// isSetRows is whether e is a set's whole query: <Model>Queries, the
+// package variable orm generate writes, or <Model>QueriesIn(…).
+func (q *queryPass) isSetRows(e ast.Expr) bool {
+	e = ast.Unparen(e)
+	if call, ok := e.(*ast.CallExpr); ok {
+		e = ast.Unparen(call.Fun)
+	}
+	var id *ast.Ident
+	switch x := e.(type) {
+	case *ast.Ident:
+		id = x
+	case *ast.SelectorExpr:
+		id = x.Sel
+	default:
+		return false
+	}
+	obj := q.pass.TypesInfo.Uses[id]
+	if obj == nil || obj.Pkg() == nil || obj.Parent() != obj.Pkg().Scope() {
+		return false
+	}
+	t := obj.Type()
+	if sig, ok := t.(*types.Signature); ok {
+		if sig.Results().Len() != 1 {
+			return false
+		}
+		t = sig.Results().At(0).Type()
+	}
+	m := setModel(t)
+	return m != nil && (obj.Name() == m.Name()+"Queries" || obj.Name() == m.Name()+"QueriesIn")
 }
 
 // fieldsModel is the model of generated typed fields' type, <Model>Fields.
@@ -414,7 +471,7 @@ func (q *queryPass) fields(e ast.Expr, model *types.TypeName, allowed, joins []j
 			q.count(call, joins)
 		}
 		t := info.TypeOf(x)
-		if queriedModel(t) != nil && (named(t, ormPath, "QuerySet") || named(t, ormPath, "Values")) {
+		if queriedModel(t) != nil && (named(t, ormPath, "QuerySet") || named(t, ormPath, "Values") || setModel(t) != nil) {
 			return false // a subquery: a query of its own
 		}
 		if t == nil || !typedColumn(t) && fieldsModel(t) == nil {
