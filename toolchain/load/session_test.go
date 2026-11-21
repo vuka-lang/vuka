@@ -365,11 +365,41 @@ func TestSessionDiskCache(t *testing.T) {
 	if !hasTarget(gens, "more_vuka.go") || s.ran.transpiled != 2 {
 		t.Errorf("a file added: %+v", s.ran)
 	}
+	// Removed again: the module is as it was before, and the cache still
+	// has that output of both.
 	os.Remove(filepath.Join(root, "lib", "more.vuka"))
 	s = fresh()
 	gens = sessionGens(t, s, root)
-	if hasTarget(gens, "more_vuka.go") || s.ran.transpiled != 2 {
+	if hasTarget(gens, "more_vuka.go") || s.ran.transpiled != 0 || s.ran.reused != 2 {
 		t.Errorf("a file removed: %+v", s.ran)
+	}
+
+	// An API edit undone: main, transpiled again for the edit, is the
+	// cache's again without transpiling or type-checking.
+	lib := filepath.Join(root, "lib", "lib.vuka")
+	edit(t, lib, "func Count() (int64, error)", "func Count() (uint64, error)")
+	edit(t, lib, "return int64(dep.N()), nil", "return uint64(dep.N()), nil")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 2 {
+		t.Errorf("lib's API again: %+v", s.ran)
+	}
+	edit(t, lib, "func Count() (uint64, error)", "func Count() (int64, error)")
+	edit(t, lib, "return uint64(dep.N()), nil", "return int64(dep.N()), nil")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 0 || s.ran.reused != 2 || s.ran.checked != 0 {
+		t.Errorf("lib's API edit undone: %+v", s.ran)
+	}
+
+	// A comment, which moves every line under it: lib is transpiled and
+	// type-checked again; main, whose imports' APIs are as they were,
+	// neither.
+	edit(t, lib, "func Count()", "// Count counts.\n//\n// Its doc moves the lines under it.\nfunc Count()")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 1 || s.ran.reused != 1 || s.ran.checked != 1 {
+		t.Errorf("a comment in lib: %+v", s.ran)
 	}
 
 	// A broken cache entry is a miss.
