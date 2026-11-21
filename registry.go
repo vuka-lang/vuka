@@ -32,7 +32,7 @@ var registry = struct {
 	types map[string]reflect.Type // "example.com/app.Board"
 	attrs map[reflect.Type]Attrs
 	order []reflect.Type // the types of attrs, in the order first registered
-	pcs   sync.Map // uintptr → FuncRef: FuncOf's answers
+	pcs   sync.Map       // uintptr → FuncRef: FuncOf's answers
 }{funcs: map[string]Attrs{}, names: map[string][]string{}, types: map[string]reflect.Type{}, attrs: map[reflect.Type]Attrs{}}
 
 // RegisterFunc records the typed attributes of a function, or of a method
