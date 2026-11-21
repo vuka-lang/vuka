@@ -7,3 +7,5 @@ func (r Result[T]) Get() (T, error) { return r.v, nil }
 func RegisterParams(fn any, names ...string) {}
 
 func RegisterFunc(fn any, attrs ...any) {}
+
+func RegisterMethods[T any](fns ...any) {}

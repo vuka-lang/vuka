@@ -48,6 +48,8 @@ func init() {
 	vuka.RegisterFunc((*Service).Load, ui.Defer(""))               // want `E0341: ui.Defer goes on a page's or component's method: Load is a method of Service, which renders nothing`
 	vuka.RegisterFunc(load, ui.Defer(""))                          // want `E0341: ui.Defer goes on a page's or component's method: load is a function`
 	vuka.RegisterFunc((*Live).Stats, []any{ui.Defer("")}...)       // want `E0346: ui.Defer is for stateless pages; Live is live`
+	// a method table names the methods, calling none
+	vuka.RegisterMethods[Index]((*Index).Count, (*Index).Recent, (*Index).Stats)
 }
 
 // Bound loads only when its lazy binding is read by its element.

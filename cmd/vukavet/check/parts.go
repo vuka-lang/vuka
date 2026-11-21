@@ -49,9 +49,18 @@ func runParts(pass *analysis.Pass) (any, error) {
 			})
 		}
 	}
-	// The registrations.
+	// The registrations: a method table (vuka.RegisterMethods) names its
+	// type's methods without calling them.
 	inspect(func(n ast.Node, _ []ast.Node) {
 		call, ok := n.(*ast.CallExpr)
+		if ok && funcOf(info, call, vukaPath) == "RegisterMethods" {
+			for _, a := range call.Args {
+				if id, fn := methodRef(info, a); fn != nil {
+					allowed[id] = true
+				}
+			}
+			return
+		}
 		if !ok || funcOf(info, call, vukaPath) != "RegisterFunc" || len(call.Args) < 2 {
 			return
 		}
