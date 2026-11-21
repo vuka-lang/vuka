@@ -875,7 +875,7 @@ func cutDebug(flags []string) ([]string, bool) {
 // good part of the compiler's output. They are one value everywhere because
 // the compiler flags are part of Go's cache key: builds that differ in them
 // compile every package again, each in a cache entry of its own. vuka build
-// keeps its debug information.
+// and install compile as go does and link with -w too (releaseFlags).
 //
 // The module's own packages are also compiled without inlining: a shared
 // package's edit then recompiles only what imports it by a changed
@@ -903,6 +903,25 @@ func devFlags(cmd string, args []string, modPath string) []string {
 		flags = append(flags, devLdflags)
 	}
 	return flags
+}
+
+// releaseFlags are vuka build's and install's: the binary is linked without
+// debug information (-w), which is a quarter of a small app's binary and
+// that panics and pprof don't need. -debug, cut from args, keeps it; -w is
+// added to args' own -ldflags, else to flags, which go before the packages.
+func releaseFlags(cmd string, args []string) (outArgs, flags []string) {
+	if cmd != "build" && cmd != "install" {
+		return args, nil
+	}
+	args, debug := cutDebug(args)
+	switch {
+	case debug:
+	case namesFlag(args, "ldflags"):
+		args = noDWARF(args)
+	default:
+		flags = []string{devLdflags}
+	}
+	return args, flags
 }
 
 // namesFlag reports whether args, up to the program's or test binary's own,

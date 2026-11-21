@@ -22,6 +22,7 @@ vuka ui upgrade [--check] [--dry-run] [library/component…]
 vuka ui theme [--dry-run] [--registry r] [--offline] [name]
 vuka ui list [--registry r] [--offline] [library | component | library/component]
 vuka build|run|test|vet|install [go flags] [packages]
+vuka build|install -debug [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [-keep-cache] [go flags] [package] [args]
 vuka mod tidy [-check] [-e] [-v] [-go=version] [-compat=version]
 vuka mod why|vendor|graph|… [args]
@@ -217,7 +218,10 @@ components to the library's new version, merging its changes with yours
 `vuka build`, `run`, `test`, `vet` and `install` are the go command's, with every `.vuka` file in the module transpiled into an
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
-packages are passed to go as they are. `vuka build` precompresses what the
+packages are passed to go as they are. `vuka build` and `install` link
+without debug information (`-ldflags=-w`, added to your own `-ldflags`), a
+quarter of a small app's binary that panics and pprof don't need; `-debug`
+keeps it, for delve. `vuka build` precompresses what the
 binary serves as it is: the stylesheet, the components' scripts and the
 island chunks are embedded with their brotli and gzip, and `vite build` and
 `vuka build -islands` write a `.br` and a `.gz` beside the files of a

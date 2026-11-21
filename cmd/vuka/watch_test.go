@@ -959,7 +959,29 @@ func TestDevBuildsShareFlags(t *testing.T) {
 		t.Errorf("the link flags changed to %s: change the orm tool's too", devLdflags)
 	}
 	if got := devFlags("build", nil, "app"); got != nil {
-		t.Errorf("vuka build adds %q: it keeps its debug information", got)
+		t.Errorf("vuka build adds %q: it compiles as go does", got)
+	}
+}
+
+func TestReleaseFlags(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		cmd              string
+		args, out, flags []string
+	}{
+		{"build", []string{"-o", "app", "."}, []string{"-o", "app", "."}, []string{devLdflags}},
+		{"install", nil, nil, []string{devLdflags}},
+		{"build", []string{"-debug", "."}, []string{"."}, nil},
+		{"build", []string{"-ldflags=-s", "."}, []string{"-ldflags=-w -s", "."}, nil},
+		{"build", []string{"-ldflags", "-X main.v=1", "."}, []string{"-ldflags", "-w -X main.v=1", "."}, nil},
+		{"build", []string{"-debug", "-ldflags=-s", "."}, []string{"-ldflags=-s", "."}, nil},
+		{"test", []string{"./..."}, []string{"./..."}, nil},
+		{"run", []string{"-debug", "."}, []string{"-debug", "."}, nil},
+	} {
+		out, flags := releaseFlags(c.cmd, slices.Clone(c.args))
+		if !slices.Equal(out, c.out) || !slices.Equal(flags, c.flags) {
+			t.Errorf("releaseFlags(%q, %q) = %q, %q, want %q, %q", c.cmd, c.args, out, flags, c.out, c.flags)
+		}
 	}
 }
 

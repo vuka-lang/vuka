@@ -196,6 +196,13 @@ func main() {
 }
 ```
 
+The binary has no debug information: `vuka build` links with `-ldflags=-w`
+(added to the `-ldflags` you pass), which takes a quarter off a small app.
+Panic traces, `runtime/pprof` and profiles keep their function names and
+lines; only a debugger needs it, so `vuka build -debug` keeps it. `-s` (no
+symbol table) takes a little more off and is yours to add:
+`vuka build -ldflags=-s`.
+
 ## Running Several Replicas
 
 Several replicas behind one hostname need a shared `web.LiveKey(key)` for
