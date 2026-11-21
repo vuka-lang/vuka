@@ -39,6 +39,11 @@ func (b *Box[T]) Render() any { return nil }
 
 type Island struct{}
 
+type Session struct{}
+
+func (s *Session) Render() (string, error) { return "", nil }
+func (s *Session) Close()                  {}
+
 func init() { vuka.RegisterType[Island]() }
 `), []byte(`package p
 
