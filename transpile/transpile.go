@@ -738,7 +738,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 			res.Files[i].Src, res.Files[i].Map, res.Files[i].Body = srcs[i], maps[i], 0
 		}
 	}
-	res.Calls = e.callAdapters()
+	res.Calls = e.callAdapters(res.Files, files)
 	return res, nil, nil
 }
 

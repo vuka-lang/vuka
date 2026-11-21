@@ -16,8 +16,10 @@ import (
 
 // goCallAdapters are the vuka_calls_gen.go files of the module's packages
 // written in Go: a typed adapter for each signature their vuka.Wrap calls
-// wrap, what the compiler writes for a .vuka file's call decorators. A
-// package with .vuka files gets its file from the compiler.
+// wrap, what the compiler writes for a .vuka file's call decorators, and
+// the method tables of their types (transpile.MethodTables) when they
+// import one of Vuka's packages. A package with .vuka files gets its file
+// from the compiler.
 func goCallAdapters(root string) []load.Generated {
 	dirs := map[string][]string{}
 	vuka := map[string]bool{}
@@ -64,9 +66,12 @@ func newGens(gens, more []load.Generated) []load.Generated {
 
 // wrapAdapters reads a package's Go files for the functions vuka.Wrap wraps
 // — a function literal, a function or method of the package, or the type
-// argument it is given — and writes their adapters.
+// argument it is given — and writes their adapters, with the package's
+// method tables.
 func wrapAdapters(files []string) []byte {
 	var parsed []goSrc
+	var srcs [][]byte
+	usesVuka := false
 	pkg := ""
 	for _, p := range files {
 		src, err := os.ReadFile(p)
@@ -80,6 +85,12 @@ func wrapAdapters(files []string) []byte {
 		}
 		pkg = f.Name.Name
 		parsed = append(parsed, goSrc{f, src, fset})
+		srcs = append(srcs, src)
+		for _, imp := range f.Imports {
+			if p, _ := strconv.Unquote(imp.Path.Value); strings.HasPrefix(p, "github.com/vuka-lang/") {
+				usesVuka = true
+			}
+		}
 	}
 	// decl finds a function, or a method by its receiver's type name, and
 	// the file declaring it.
@@ -165,7 +176,11 @@ func wrapAdapters(files []string) []byte {
 			return true
 		})
 	}
-	return transpile.CallAdapters(pkg, sigs)
+	var methods []string
+	if usesVuka {
+		methods = transpile.MethodTables(srcs...)
+	}
+	return transpile.Calls(pkg, sigs, methods)
 }
 
 // goSrc is a parsed Go file.

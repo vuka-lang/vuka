@@ -19,6 +19,7 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // folderRoute is one route of the table: a page, one of its method
@@ -1039,10 +1040,11 @@ func buildsPtr(ctor *types.Func, t *types.Named) bool {
 	return ok && types.Identical(p.Elem(), t)
 }
 
-// called reports whether code in d's package uses obj.
+// called reports whether code in d's package uses obj: its method table
+// (vuka_calls_gen.go) names methods without calling them.
 func (c *routeChecker) called(d *routeDir, obj types.Object) bool {
-	for _, used := range c.r.syntax[d.importPath].uses {
-		if used == obj {
+	for id, used := range c.r.syntax[d.importPath].uses {
+		if used == obj && filepath.Base(c.r.fset.Position(id.Pos()).Filename) != transpile.CallsGoName {
 			return true
 		}
 	}

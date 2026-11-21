@@ -845,6 +845,17 @@ call through two decorators: 500ns by reflection, 110ns with the adapter,
 95ns through the adapter older commands inlined (`vuka.NewCall`, still
 working, deprecated).
 
+The same file holds each package's method tables (`vuka.RegisterMethods`):
+the methods the runtime finds by name — a live page's events and Update
+overloads, a form's `Clean…` and `…Choices`, an island's calls, a model's
+`<Names>TableName` — as method expressions, which ui, web and the orm read
+with `vuka.Methods` in place of reflect's `Method` and `MethodByName`. One
+call of those with a name that isn't a constant makes the linker keep every
+exported method of every type converted to an interface; with the tables,
+a binary built with the `vuka_release` tag (`vuka build`) links no such
+call and the linker drops the methods nothing calls. Without the tag, a
+type with no table has its methods found by reflection, as before.
+
 Step 4a closes what was left: an overload is named after its parameters'
 types as a person names such functions — `area(c Circle)` is `areaCircle`,
 `Add(a, b int)` `AddIntInt`, a live component's `Update(m NewMessage)`

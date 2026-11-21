@@ -53,12 +53,17 @@ func RegisterFunc(fn any, attrs ...any) {
 	}
 	registry.Lock()
 	registry.funcs[key] = append(registry.funcs[key], attrs...)
+	var method reflect.Type
 	if t := v.Type(); recv != "" && t.NumIn() > 0 {
 		if rt := named(t.In(0)); rt != nil && typeKey(rt) == recv {
 			registry.types[recv] = rt // a method expression: its receiver
+			method = rt
 		}
 	}
 	registry.Unlock()
+	if method != nil {
+		registerMethod(method, v) // and a method of its type's table (Methods)
+	}
 	registry.pcs.Clear()
 }
 
