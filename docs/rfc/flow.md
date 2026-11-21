@@ -149,12 +149,24 @@ Field types:
 
 - **The View's trailing struct is the task's form.** It is bound and validated
   with web's binder, from the struct's own field attributes. There is
-  no `Form:` field.
+  no `Form:` field on the View.
+- **An outcome can have its own form.** `@flow.On{…, Form: RejectForm{}}` (the
+  zero value of a struct; `Form` is also a field of `@flow.View` for its single
+  outcome) makes completing with that outcome bind and validate that struct
+  instead. A View whose outcomes all have a `Form` omits the struct parameter;
+  with a parameter, an outcome's `Form` must be the same type. Register refuses
+  a `Form` that is not a struct, naming the method and the outcome.
 - **A View's body runs on completion**, after `Can` and `Guard` and before the
   token moves. `p.Outcome()` says which `@flow.On` fired. Returning an error,
   or `flow.Refuse`, vetoes the move.
 - **An Action's body runs in the same transaction** as the move that reached
   it.
+- **Later nodes read the submitted form** with `p.Form() any` (a pointer to the
+  outcome's struct) and `flow.FormAs[F](p) (F, bool)`. In the View's body and in
+  an Action in the same transition it is the bound form in memory; in a node
+  reached in a later transition it is decoded from the stored task data into
+  the outcome's struct. It is the form of the last completed View, nil when that
+  had none.
 
 ## 6. flow.Workflow[R]: the embedded base
 
@@ -321,7 +333,7 @@ The flow module ships no task UI and never imports the ui kit. A View, or one
   the page can show the outcome buttons and hide what the task does not allow.
 - **`Template: "review.vuka.html"`** is a `.vuka.html` file in the flow's
   package, rendered with a typed context `*flow.Task[R]`: the record, the form
-  (the View's struct parameter), the allowed outcomes with their labels,
+  (the View's struct parameter, and each outcome's own form), the allowed outcomes with their labels,
   confirmations and guard refusals, the actor, the process id, and helpers to
   complete an outcome. The template uses any of the project's own components.
   The file is checked at compile time where vuka allows a file-typed attribute
