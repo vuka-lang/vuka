@@ -1212,15 +1212,19 @@ stay unique, and with `Query` added to a name the root value already has:
 ```text
 // pages/employers/index.vuka.html:            Page int @ui.URL("page").Default(1)
 // pages/employers/[employer]/edit.vuka.html:  Tab string @ui.URL("tab")
+//                                              Limit vuka.Option[int64] @ui.URL("limit")
 urls.Employers.URL(ctx, urls.EmployersQuery{Page: 2})                          // "/employers?page=2"
 urls.Employers.URL(ctx, urls.EmployersQuery{Page: 1})                          // "/employers": the default is left out
 urls.Employers.Employer(7).Edit.URL(ctx, urls.EmployersEmployerEdit{Tab: "x"}) // "/employers/7/edit?tab=x"
 urls.Employers.Employer(7).Edit.URL(ctx)                                       // "/employers/7/edit"
+urls.Employers.Employer(7).Edit.URL(ctx, urls.EmployersEmployerEdit{Limit: vuka.Some[int64](0)}) // "/employers/7/edit?limit=0"
 ```
 
 Zero values and defaults are left out, keys are sorted, and values are
 written as the field reads them back: text through `MarshalText`, a slice
-as repeated parameters. `URL` takes at most one query; a second is
+as repeated parameters. A `vuka.Option[T]` field is in the struct as it is:
+a `None` is left out, and `Some(0)` or `Some("")` is written, which is how
+a page tells a zero from no parameter at all. `URL` takes at most one query; a second is
 ignored. `Path()` is the path alone. A field `urls` can't name is left out
 ([W0705](/errors/W0705)); a bare `@ui.URL`, which binds a path parameter,
 is not a query field. A page with no such fields is as before.

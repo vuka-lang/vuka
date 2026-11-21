@@ -615,7 +615,7 @@ func paramKindOf(t types.Type) (paramKind, bool) {
 	if n, ok := t.(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == webPath && n.Obj().Name() == "Rest" {
 		return paramRest, true
 	}
-	if hasMethod(t, "MarshalText") && hasMethod(types.NewPointer(t), "UnmarshalText") {
+	if hasMethod(t, "MarshalText") && hasMethod(types.NewPointer(t), "UnmarshalText") && !isOptionType(t) {
 		return paramText, true
 	}
 	b, ok := t.Underlying().(*types.Basic)

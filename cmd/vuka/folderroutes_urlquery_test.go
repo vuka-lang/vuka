@@ -17,13 +17,15 @@ var queryPages = map[string]string{
 	"pages/ajira/adverts/index.vuka.html": `package adverts
 
 import "github.com/vuka-lang/ui/v2"
+import "github.com/vuka-lang/vuka/v2"
 
 // Index lists the adverts.
 type Index struct {
 	ui.Live
-	Page int      @ui.URL("page").Default(1)
-	Tags []string @ui.URL("tag")
-	Q    string   @ui.URL("q")
+	Page int                 @ui.URL("page").Default(1)
+	Tags []string            @ui.URL("tag")
+	Q    string              @ui.URL("q")
+	Size vuka.Option[int]    @ui.URL("size").Default(25)
 }
 <p>{Page}</p>
 `,
@@ -31,6 +33,7 @@ type Index struct {
 
 import (
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
 
 	"example.com/app/codes"
 )
@@ -45,6 +48,9 @@ type View struct {
 	Owner  *int        @ui.URL("owner")
 	hidden int         @ui.URL("hidden")
 	Kind   Kind        @ui.URL("kind")
+	Limit  vuka.Option[int64]  @ui.URL("limit")
+	Name   vuka.Option[string] @ui.URL("name")
+	Bad    vuka.Option[[]int]  @ui.URL("bad")
 }
 
 // Kind is declared in the page's own package, which urls can't import.
@@ -127,8 +133,8 @@ func TestURLQuery(t *testing.T) {
 	if err := vukaIn(app, io.Discard, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	if got := errOut.String(); !strings.Contains(got, "W0705") || !strings.Contains(got, "View.Kind") || strings.Count(got, "warning[W0705]") != 1 {
-		t.Errorf("no W0705 for the field urls can't name, or more than that:\n%s", got)
+	if got := errOut.String(); !strings.Contains(got, "W0705") || !strings.Contains(got, "View.Kind") || !strings.Contains(got, "View.Bad") || strings.Count(got, "warning[W0705]") != 2 {
+		t.Errorf("no W0705 for the fields urls can't name (a page-package type, an Option of a slice), or more than that:\n%s", got)
 	}
 }
 
@@ -141,6 +147,7 @@ import (
 	"testing"
 
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
 
 	"example.com/app/codes"
 	"example.com/app/pages/urls"
@@ -167,6 +174,8 @@ func TestURLs(t *testing.T) {
 		{urls.AdvertsView{Tab: "overview", Status: "open"}, "/ajira/adverts/view"},
 		{urls.AdvertsView{Tab: "a b&c", Status: "closed", Ratio: 1.5, Open: true, Owner: &seven, Hidden: 3},
 			"/ajira/adverts/view?hidden=3&open=true&owner=7&ratio=1.5&status=CLOSED&tab=a+b%26c"},
+		{urls.AdvertsView{Limit: vuka.Some[int64](0), Name: vuka.Some("")}, "/ajira/adverts/view?limit=0&name="},
+		{urls.AdvertsView{Limit: vuka.Some[int64](25), Name: vuka.Some("a b")}, "/ajira/adverts/view?limit=25&name=a+b"},
 	} {
 		got := urls.Ajira.Adverts.View.URL(ctx, tc.q)
 		if got != tc.want {
@@ -181,7 +190,7 @@ func TestURLs(t *testing.T) {
 		if want.Status == "" {
 			want.Status = codes.Open
 		}
-		have := urls.AdvertsView{Tab: v.Tab, Status: v.Status, Ratio: v.Ratio, Open: v.Open, Owner: v.Owner, Hidden: v.hidden.Get()}
+		have := urls.AdvertsView{Tab: v.Tab, Status: v.Status, Ratio: v.Ratio, Open: v.Open, Owner: v.Owner, Hidden: v.hidden.Get(), Limit: v.Limit, Name: v.Name}
 		if !reflect.DeepEqual(have, want) {
 			t.Errorf("%s filled %+v, want %+v", got, have, want)
 		}
@@ -208,6 +217,29 @@ func TestURLs(t *testing.T) {
 	}
 	if got := urls.Ajira.Adverts.URL(ctx, urls.Adverts{Page: 1}); got != "/ajira/adverts" {
 		t.Errorf("the default page: %s", got)
+	}
+	for _, tc := range []struct {
+		size vuka.Option[int]
+		want string
+	}{
+		{vuka.Some(25), "/ajira/adverts"},
+		{vuka.Some(0), "/ajira/adverts?size=0"},
+		{vuka.Some(50), "/ajira/adverts?size=50"},
+		{vuka.None[int](), "/ajira/adverts"},
+	} {
+		got := urls.Ajira.Adverts.URL(ctx, urls.Adverts{Size: tc.size})
+		if got != tc.want {
+			t.Errorf("size %v: %s, want %s", tc.size, got, tc.want)
+		}
+		idx := &Index{}
+		fill(t, idx, got)
+		want := tc.size
+		if want.IsNone() {
+			want = vuka.Some(25) // left out: the default
+		}
+		if idx.Size != want {
+			t.Errorf("%s filled size %v, want %v", got, idx.Size, want)
+		}
 	}
 	if got := urls.Ajira.Orgs.Org(7).Edit.URL(ctx, urls.OrgsOrgEdit{Tab: "x"}); got != "/ajira/orgs/7/edit?tab=x" {
 		t.Errorf("a path parameter and a query: %s", got)

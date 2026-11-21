@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // A page whose component keeps fields in the query with @ui.URL("name")
@@ -299,7 +300,7 @@ func constOf(e ast.Expr, uses map[*ast.Ident]types.Object) constant.Value {
 // import.
 func (c *routeChecker) queryProblem(t types.Type) string {
 	if !urlText(t) {
-		return t.String() + " has no text form a URL can hold: a string, a number, a bool, a type with UnmarshalText, or a slice or pointer of one"
+		return t.String() + " has no text form a URL can hold: a string, a number, a bool, a type with UnmarshalText, a slice or pointer of one, or an Option of one"
 	}
 	return c.unnameable(t, map[types.Type]bool{})
 }
@@ -307,6 +308,13 @@ func (c *routeChecker) queryProblem(t types.Type) string {
 // urlText reports whether a URL parameter's text can set a t, as ui's
 // @ui.URL checks it.
 func urlText(t types.Type) bool {
+	if e := optionElem(t); e != nil {
+		switch e.Underlying().(type) {
+		case *types.Pointer, *types.Slice:
+			return false
+		}
+		return urlText(e)
+	}
 	if ms := types.NewMethodSet(types.NewPointer(t)).Lookup(nil, "UnmarshalText"); ms != nil {
 		if sig, ok := ms.Type().(*types.Signature); ok && sig.Params().Len() == 1 && sig.Results().Len() == 1 {
 			return true
@@ -330,6 +338,16 @@ func urlText(t types.Type) bool {
 	}
 	return false
 }
+
+// optionElem is T of a vuka.Option[T], nil for another type.
+func optionElem(t types.Type) types.Type {
+	if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == transpile.RuntimePath && n.Obj().Name() == "Option" && n.TypeArgs().Len() == 1 {
+		return n.TypeArgs().At(0)
+	}
+	return nil
+}
+
+func isOptionType(t types.Type) bool { return optionElem(t) != nil }
 
 // unnameable is why the package urls can't write t, "" when it can: a
 // type it can't reach, an unexported one, or one of a package that imports
@@ -419,15 +437,20 @@ func (q *urlQuery) defaultArg(f queryField, typeOf func(types.Type) string) stri
 	default:
 		return ""
 	}
-	b, ok := f.typ.Underlying().(*types.Basic)
+	// an Option's default is its T, whose text is the Some's
+	typ := f.typ
+	if e := optionElem(typ); e != nil {
+		typ = e
+	}
+	b, ok := typ.Underlying().(*types.Basic)
 	if !ok {
 		return ""
 	}
-	if _, named := types.Unalias(f.typ).(*types.Named); !named && (b.Kind() == types.String && f.def.Kind() == constant.String ||
+	if _, named := types.Unalias(typ).(*types.Named); !named && (b.Kind() == types.String && f.def.Kind() == constant.String ||
 		b.Kind() == types.Bool && f.def.Kind() == constant.Bool || b.Kind() == types.Int && f.def.Kind() == constant.Int) {
 		return ", " + lit
 	}
-	return ", " + typeOf(f.typ) + "(" + lit + ")"
+	return ", " + typeOf(typ) + "(" + lit + ")"
 }
 
 // queryHelpers are what the structs share, written for the names the file

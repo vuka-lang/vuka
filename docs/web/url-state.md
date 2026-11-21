@@ -96,10 +96,22 @@ default too: the component renders, where a page's own field would answer
 A URL parameter's text sets the field as a page's parameters bind: a
 string as it is, a number or bool as `strconv` reads it, a type with
 `UnmarshalText` through it, a slice from every value of the parameter
-(`?tag=a&tag=b`), a pointer when the parameter is there. Writing formats
-it back the same way. A field of another type — a map, a struct without
+(`?tag=a&tag=b`), a pointer when the parameter is there, an
+[`Option`](/features/result-option#option-text) of a string, a number, a bool
+or a type with `UnmarshalText`. Writing formats it back the same way. A field of another type — a map, a struct without
 `UnmarshalText` — fails the component's check at start-up
 ([E0335](/errors/E0335)).
+
+An `Option` field tells "not in the URL" from a value that is zero: a None
+leaves the parameter out, and `Some(0)` or `Some("")` is written (`?page=0`,
+`?q=`) and read back as it was, where a plain `0` or `""` is left out.
+`.Default(25)` is the `Some(25)` the field holds without the parameter, and
+the one value that leaves it out; with a default, a None is the default
+again. `?page=x` doesn't parse, so the field is its default or None.
+
+```html
+Limit vuka.Option[int] @ui.URL("limit")  <!-- /orders: None; /orders?limit=0: Some(0) -->
+```
 
 ### Props the Parent Passes {#props}
 

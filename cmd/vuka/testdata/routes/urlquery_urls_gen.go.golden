@@ -13,6 +13,7 @@ import (
 
 	"example.com/app/codes"
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
 	"github.com/vuka-lang/web/v2"
 )
 
@@ -74,15 +75,17 @@ func setParam(v url.Values, key string, value any, def ...any) {
 // is at its zero value or default. The name is the page's path in PascalCase, less the
 // leading folders every page is in when that stays unique.
 type Adverts struct {
-	Page int      // ?page=
-	Tags []string // ?tag=
-	Q    string   // ?q=
+	Page int              // ?page=
+	Tags []string         // ?tag=
+	Q    string           // ?q=
+	Size vuka.Option[int] // ?size=
 }
 
 func (q Adverts) values() url.Values {
 	v := url.Values{}
 	setParam(v, "page", q.Page, 1)
 	setParam(v, "q", q.Q)
+	setParam(v, "size", q.Size, 25)
 	setParam(v, "tag", q.Tags)
 	return v
 }
@@ -93,17 +96,21 @@ func (q Adverts) values() url.Values {
 // is at its zero value or default. The name is the page's path in PascalCase, less the
 // leading folders every page is in when that stays unique.
 type AdvertsView struct {
-	Tab    string     // ?tab=
-	Status codes.Code // ?status=
-	Ratio  float64    // ?ratio=
-	Open   bool       // ?open=
-	Owner  *int       // ?owner=
-	Hidden int        // ?hidden=
+	Tab    string              // ?tab=
+	Status codes.Code          // ?status=
+	Ratio  float64             // ?ratio=
+	Open   bool                // ?open=
+	Owner  *int                // ?owner=
+	Hidden int                 // ?hidden=
+	Limit  vuka.Option[int64]  // ?limit=
+	Name   vuka.Option[string] // ?name=
 }
 
 func (q AdvertsView) values() url.Values {
 	v := url.Values{}
 	setParam(v, "hidden", q.Hidden)
+	setParam(v, "limit", q.Limit)
+	setParam(v, "name", q.Name)
 	setParam(v, "open", q.Open)
 	setParam(v, "owner", q.Owner)
 	setParam(v, "ratio", q.Ratio)
