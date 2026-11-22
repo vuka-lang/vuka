@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -126,6 +127,37 @@ func TestOrmToolShared(t *testing.T) {
 	}
 	if out, _ := exec.Command(b).CombinedOutput(); !strings.Contains(string(out), "two") {
 		t.Errorf("replaced orm's binary printed %q", out)
+	}
+}
+
+// TestOrmToolCrossCompile: a cross-compile's GOOS/GOARCH (vuka build with
+// GOOS=linux on a mac) must not reach the orm tool, which executes on this
+// machine — built for the target it cannot run, and the build would silently
+// miss every piece of orm-generated code.
+func TestOrmToolCrossCompile(t *testing.T) {
+	ormProxy(t, "v2.99.0")
+	goos, goarch := "linux", "arm64"
+	if runtime.GOOS == goos {
+		goos = "darwin"
+	}
+	if runtime.GOARCH == goarch {
+		goarch = "amd64"
+	}
+	t.Setenv("GOOS", goos)
+	t.Setenv("GOARCH", goarch)
+	t.Setenv("CGO_ENABLED", "0")
+
+	root, mod := ormApp(t, "v2.99.0", "")
+	bin, args := ormCommand(root, mod)
+	if bin == "go" {
+		t.Fatalf("no binary: go %v", args)
+	}
+	out, err := exec.Command(bin).CombinedOutput()
+	if err != nil {
+		t.Fatalf("orm tool built under GOOS=%s GOARCH=%s cannot run on the host: %v\n%s", goos, goarch, err, out)
+	}
+	if !strings.Contains(string(out), "v2.99.0") {
+		t.Errorf("orm tool printed %q", out)
 	}
 }
 

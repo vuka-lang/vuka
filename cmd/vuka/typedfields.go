@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -124,14 +125,24 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 // their types are the ones go build then finds in Go's cache, not a second
 // compile of the module's changed packages. Nil (vuka's own) otherwise.
 func ormEnv(root string) []string {
+	env := hostToolEnv()
 	if len(compileFlags) == 0 {
-		return nil
+		return env
 	}
 	goflags, ok := goFlagsWith(root, compileFlags)
 	if !ok {
-		return nil
+		return env
 	}
-	return append(os.Environ(), "GOFLAGS="+goflags)
+	return append(env, "GOFLAGS="+goflags)
+}
+
+// hostToolEnv is the environment for go commands that build or run the
+// orm tool: the tool executes on this machine, so a cross-compile's
+// GOOS/GOARCH (vuka build with GOOS=linux on a mac) must not leak into
+// it — the tool would be built for the target and fail to exec, and the
+// whole build would miss its generated code.
+func hostToolEnv() []string {
+	return append(os.Environ(), "GOOS="+runtime.GOOS, "GOARCH="+runtime.GOARCH)
 }
 
 // goFlagsWith is the GOFLAGS of the go command in root (the environment's,
@@ -313,7 +324,7 @@ func ormCommand(root string, mod []byte) (string, []string) {
 	var bin string
 	if tool {
 		c := exec.Command("go", "tool", "-n", "orm")
-		c.Dir = root
+		c.Dir, c.Env = root, hostToolEnv()
 		out, err := c.Output()
 		if err != nil {
 			return "go", fallback
@@ -330,7 +341,7 @@ func ormCommand(root string, mod []byte) (string, []string) {
 		}
 		bin, err = cachedOrmTool(filepath.Join(dir, "orm"), toolKey, func(out string) error {
 			c := exec.Command("go", "build", "-o", out, ormModule+"/cmd/orm")
-			c.Dir = root
+			c.Dir, c.Env = root, hostToolEnv()
 			return c.Run()
 		})
 		if err != nil {
@@ -351,7 +362,7 @@ func ormCommand(root string, mod []byte) (string, []string) {
 // directory is hashed by its packages' files.
 func ormToolKey(root string) (string, error) {
 	c := exec.Command("go", "env", "GOVERSION", "GOOS", "GOARCH", "GOEXPERIMENT", "CGO_ENABLED", "GOARM64", "GOAMD64", "GOFLAGS")
-	c.Dir = root
+	c.Dir, c.Env = root, hostToolEnv()
 	env, err := c.Output()
 	if err != nil {
 		return "", err
@@ -363,7 +374,7 @@ func ormToolKey(root string) (string, error) {
 	fmt.Fprintf(h, "1\n%s\n%s\n", strings.Join(lines[:len(lines)-1], "\n"), strings.Join(flags, " "))
 
 	c = exec.Command("go", "list", "-deps", "-json=ImportPath,Dir,GoFiles,CgoFiles,EmbedFiles,Module", ormModule+"/cmd/orm")
-	c.Dir = root
+	c.Dir, c.Env = root, hostToolEnv()
 	out, err := c.Output()
 	if err != nil {
 		return "", err
