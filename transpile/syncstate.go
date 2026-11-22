@@ -236,6 +236,39 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 		f.rewriteSel(sel, func(s string) string { return s + ".Get()" })
 		e.progress = true
 	}
+	if e.goStateInfo != e.info {
+		e.goStateInfo = e.info
+		e.classifyGoStateUses(fields)
+	}
+}
+
+// classifyGoStateUses classifies the shape state fields plain .go files of
+// the package touch: the compiler doesn't rewrite those files — a .go read
+// is a hand-written .Get() — but a read is a read, so the field is synced.
+func (e *engine) classifyGoStateUses(fields map[*types.Var]stateShape) {
+	for _, f := range e.files {
+		if f.vuka || f.ast == nil {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			s := e.info.Selections[sel]
+			if s == nil || s.Kind() != types.FieldVal {
+				return true
+			}
+			v, _ := s.Obj().(*types.Var)
+			if v == nil {
+				return true
+			}
+			if sh, ok := fields[v.Origin()]; ok {
+				e.recordSynced(sh.typ, sh.field, "used in "+e.useSite(f, sel)+" ("+f.name+")")
+			}
+			return true
+		})
+	}
 }
 
 // stateGenPathOf is the gen package path of f's target, "" when it has none.
