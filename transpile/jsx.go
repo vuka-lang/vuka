@@ -398,7 +398,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case isLetter(c) || c == '_':
 			a := &jsxAttr{off: i}
 			a.name, i = p.name(i)
-			if base, mods, ok := strings.Cut(a.name, "."); ok && (isEvent(base) || base == "bind:value") {
+			if base, mods, ok := strings.Cut(a.name, "."); ok && (isEvent(base) || comp && base == "on" || base == "bind:value") {
 				a.emods = p.eventMods(a, base, mods)
 				a.name = base
 			}
@@ -457,7 +457,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 				el.lets = p.lets(a)
 				continue
 			}
-			if a.kind == 'e' && isEvent(a.name) && isStmts(p.src[a.expr.start:a.expr.end]) {
+			if a.kind == 'e' && (isEvent(a.name) || comp) && isStmts(p.src[a.expr.start:a.expr.end]) {
 				if !p.f.target.has("VukaState") || !comp && !p.f.target.has("On") {
 					p.fail(a.off, "%s={…} holds statements: an on… attribute writes states with them (open = !open) when the markup's target has states", a.name)
 				}
@@ -1141,7 +1141,7 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 		a.some = some
 		return
 	}
-	if a.emods != nil && a.kind == 'e' && isEvent(a.name) {
+	if a.emods != nil && a.kind == 'e' && (isEvent(a.name) || a.name == "on") {
 		w.modded(a, func() { w.attrValueOf(a) })
 		return
 	}

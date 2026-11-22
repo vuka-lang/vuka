@@ -169,6 +169,9 @@ func RegisterOptions(m any) {
 // Action is what an event does: a chain, a method or a closure.
 type Action interface{}
 
+// ActionOf is what an event does with a T: a method or a closure taking one.
+type ActionOf[T any] interface{}
+
 // CallOption is how a component a Call opens shows.
 type CallOption func()
 

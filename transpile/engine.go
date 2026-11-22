@@ -253,6 +253,9 @@ func (e *engine) run() {
 		e.checkMarkupFuncs()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
+		e.checkActions()
+	}
+	if len(*e.errs) == 0 && e.info != nil {
 		e.checkTargets()
 		e.checkRefs()
 		e.checkGoTracked()
@@ -707,7 +710,7 @@ func (e *engine) oldRuntime() bool {
 // display writes t the way Vuka source spells it, for messages.
 func (e *engine) display(t types.Type) string {
 	return types.TypeString(t, func(p *types.Package) string {
-		if p == e.pkg || p.Path() == RuntimePath {
+		if p == e.pkg || e.pkg != nil && p.Path() == e.pkg.Path() || p.Path() == RuntimePath {
 			return ""
 		}
 		return p.Name()

@@ -123,7 +123,8 @@ doesn't declare: that is [E0106](/errors/E0106), naming the component.
 A prop that takes browser commands — `OnClick ui.JSChain`, or `any` —
 takes the call too, and the component forwards it to its element:
 `<Chip label="Manage" onClick={Select(id)}/>`. See [Handing a Click to a
-Child](/ui/state#click-to-a-child).
+Child](/ui/state#click-to-a-child). A prop declared `ui.Action` takes it
+under any name; see [Typed Handler Props](#typed-handler-props).
 
 ### A Component's `on` Prop and an Element's `on…` Attribute {#on-prop}
 
@@ -164,6 +165,65 @@ The same holds the other way round: moving markup from a `<button>` into a
 `<design.Button>`, `onClick` keeps working, as the Button declares an
 `OnClick ui.JSChain` too; a component that declares neither takes the
 event through its `Attrs`, as above.
+
+### Typed Handler Props {#typed-handler-props}
+
+A component declares what its handler props take with their types, and
+the tag's sugar follows the type, not the attribute's spelling:
+
+- `ui.Action` takes everything an element's `on…` attribute takes, with the
+  same meaning: a call of the page's method is a push, statements are
+  browser commands, a method or a closure is the handler, and modifiers
+  ride along.
+- `ui.JSChain` takes browser commands only.
+- `ui.ActionOf[T]` takes a handler the component calls with a `T`: a method
+  of the page or a closure taking one, checked at the tag.
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Order is declared in order.go, beside this file.
+type OrderTable struct {
+	Orders   []Order
+	OnSelect ui.ActionOf[Order]
+	OnRename ui.ActionOf[string]
+	On       ui.Action
+}
+</script>
+
+<table>
+  for _, o := range Orders {
+    <tr onClick={OnSelect(o)}>
+      <td><input value={o.Number} onChange={OnRename(this.value)} /></td>
+      <td><button onClick={On}>Refresh</button></td>
+    </tr>
+  }
+</table>
+```
+
+Inside the component, an `ui.ActionOf[T]` called in an `on…` attribute is
+the push of the handler it holds, given the value — `onClick={OnSelect(o)}`
+is `onClick={ui.JS.Push(OnSelect, o)}` — and a `ui.Action` is forwarded as
+it is. The page gives them:
+
+```vuka
+<components.OrderTable orders={List} onSelect={Select} onRename={Rename} on={Reload()} />
+<components.OrderTable orders={List} onSelect={func(o components.Order) { … }} on.stop={Reload()} />
+```
+
+with `func (p *Orders) Select(ctx context.Context, o components.Order) error`
+and `func (p *Orders) Rename(name string)`. Neither method runs while the
+page renders.
+
+The compiler reports what would: a prop declared as a plain func given a
+call of a method, or a func field called in an event,
+[E0192](/errors/E0192); a value an `ui.ActionOf[T]` can't hold — a call, a
+method taking another type, statements, text — [E0193](/errors/E0193); and
+an action called outside an `on…` attribute, or with a value it doesn't
+take, [E0194](/errors/E0194). `vuka:"required"` works on all of them.
 
 ## Calls That Keep Their Meaning {#other-calls}
 

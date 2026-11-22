@@ -101,6 +101,9 @@ same page in the terminal.
 | [E0189](./E0189) | A ui.Spec the compiler can tell is wrong |
 | [E0190](./E0190) | A ui.Meta that describes no field |
 | [E0191](./E0191) | A Call of a component that cannot be sent |
+| [E0192](./E0192) | A func prop given a call that runs while the page renders |
+| [E0193](./E0193) | A value an ActionOf[T] prop can't hold |
+| [E0194](./E0194) | An action called outside an event, or with a value it does not take |
 | [E0195](./E0195) | A widget whose Value or Choices don't fit its field |
 | [E0196](./E0196) | A quoted value that is none of its prop type's constants |
 | [E0197](./E0197) | Markup in a func literal that is Go |
