@@ -291,6 +291,7 @@ type fileState struct {
 	files     []*fileLit     // embedded vuka.File literals, by offset
 
 	bare           bool
+	keepGuards     bool // an unlowered match keeps its guards in place (Uses: not type-checked)
 	statics        []*staticDecl
 	staticFuncs    []*staticFunc
 	static         genWriter // the statics' declarations
@@ -478,6 +479,12 @@ func (f *fileState) build() {
 			edit{start: m.start, end: m.subj.start, text: "if " + v + " := "},
 			edit{start: m.subj.end, end: m.lbrace + 1, text: "; false { _ = " + v + ";"})
 		for _, c := range m.cases {
+			if f.keepGuards && c.guard.start >= 0 {
+				cur = append(cur,
+					edit{start: c.start, end: c.guard.start, text: "} else if false && ("},
+					edit{start: c.guard.end, end: c.colon + 1, text: ") {"})
+				continue
+			}
 			cur = append(cur, edit{start: c.start, end: c.colon + 1, text: "} else if false {"})
 		}
 	}
