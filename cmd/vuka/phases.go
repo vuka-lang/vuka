@@ -8,11 +8,13 @@ import (
 )
 
 // phases says what a rebuild under vuka run -watch is doing once a step of
-// it has taken longer than slowPhase: a first build on a cold cache, or a
-// slow disk, otherwise looks like a hang.
+// it has taken longer than slowPhase, and again every slowPhaseAgain while
+// it runs: a first build on a cold cache, or a slow disk, otherwise looks
+// like a hang.
 type phases struct {
 	w     io.Writer
 	after time.Duration
+	every time.Duration // how often a slow step is named again while it runs
 
 	mu    sync.Mutex
 	name  string
@@ -25,7 +27,10 @@ type phases struct {
 // slowPhase is how long a step runs before it is named.
 var slowPhase = 3 * time.Second
 
-func newPhases(w io.Writer) *phases { return &phases{w: w, after: slowPhase} }
+// slowPhaseAgain is how often a step still running is named again.
+var slowPhaseAgain = 10 * time.Second
+
+func newPhases(w io.Writer) *phases { return &phases{w: w, after: slowPhase, every: slowPhaseAgain} }
 
 // step ends the step before and starts name.
 func (p *phases) step(name string) {
@@ -35,14 +40,20 @@ func (p *phases) step(name string) {
 	p.n++
 	n := p.n
 	p.name, p.start = name, time.Now()
-	p.timer = time.AfterFunc(p.after, func() {
+	var tell func()
+	tell = func() {
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		if p.n == n && p.name != "" && !p.said {
-			p.said = true
-			fmt.Fprintf(p.w, "● %s… (%.0fs so far)\n", name, time.Since(p.start).Seconds())
+		if p.n != n || p.name == "" {
+			return
 		}
-	})
+		p.said = true
+		fmt.Fprintf(p.w, "● %s… (%.0fs so far)\n", name, time.Since(p.start).Seconds())
+		if p.every > 0 {
+			p.timer = time.AfterFunc(p.every, tell)
+		}
+	}
+	p.timer = time.AfterFunc(p.after, tell)
 }
 
 // done ends the last step.

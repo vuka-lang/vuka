@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/build"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"go/types"
 	"hash"
@@ -45,10 +46,11 @@ import (
 // listed again on every run that LocalSources doesn't say they are as they
 // were, and a change in their export data starts the session over too.
 //
-// Errors in Vuka source, and imports the go command can't resolve, are
-// reported as Transpile reports them. A run that fails in any other way (a
-// Go package of the module that doesn't type-check, cgo, an import cycle) is
-// done again by Transpile, so errors read exactly as Transpile reports them.
+// Errors in Vuka source, imports the go command can't resolve, and Go
+// packages of the module whose own files don't compile are reported as
+// Transpile reports them. A run that fails in any other way (Go generated
+// for a Vuka package that doesn't type-check, cgo, an import cycle) is done
+// again by Transpile, so errors read exactly as Transpile reports them.
 // A session is not safe for concurrent use.
 type Session struct {
 	root, modPath string
@@ -64,6 +66,7 @@ type Session struct {
 	now      map[string]*checkedPkg // the module's packages checked this run
 	broken   map[string]bool        // Vuka packages that didn't transpile
 	failed   error                  // why the session gave up on this run; nil when it didn't
+	errNow   map[string]error       // the module's packages that failed to check this run
 	walking  map[string]bool        // packages being checked, for cycles
 	tolerant bool                   // the language server: a package with type errors still imports
 	ran      runStats
@@ -116,6 +119,9 @@ type checkedPkg struct {
 	// Checked with type errors (a tolerant run), or importing a package
 	// that was: usable to keep editing against, never cached as an API.
 	partial bool
+
+	// Some of its files are Go the run generated (a Vuka package's).
+	generated bool
 }
 
 // pkgOut is what a run generated for a package.
@@ -173,17 +179,18 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 	defer s.imp.cache.save()
 	s.pruneCache()
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
+	s.errNow = map[string]error{}
 	s.tolerant = opts.Tolerant
 	s.ran = runStats{}
 	gens, overlay, err := transpileRun(pkgs, tmp, opts, s)
 	if errors.Is(err, ErrStopped) {
-		s.gen, s.now, s.walking = nil, nil, nil
+		s.gen, s.now, s.walking, s.errNow = nil, nil, nil, nil
 		return nil, "", err
 	}
 	var list transpile.ErrorList
 	var goVersion *GoVersionError
 	if errors.As(err, &goVersion) {
-		s.gen, s.now, s.walking = nil, nil, nil
+		s.gen, s.now, s.walking, s.errNow = nil, nil, nil, nil
 		return nil, "", err // a run without the session reads the same export data
 	}
 	if s.failed == nil && err != nil && !errors.As(err, &list) {
@@ -199,7 +206,7 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 			}
 		}
 	}
-	s.gen, s.now, s.walking = nil, nil, nil
+	s.gen, s.now, s.walking, s.errNow = nil, nil, nil, nil
 	if s.failed != nil {
 		s.ran.fellBack = true
 		return transpileRun(pkgs, tmp, opts, nil)
@@ -268,10 +275,14 @@ func (s *Session) ImportFrom(path, dir string, mode types.ImportMode) (*types.Pa
 	if s.inModule(path) {
 		c, err := s.check(path)
 		if err == nil {
-			err = s.typeCheck(c)
+			if err = s.typeCheck(c); err != nil {
+				s.errNow[path] = err
+			}
 		}
 		if err != nil {
-			s.fail(err)
+			if !ownCompileError(err) {
+				s.fail(err)
+			}
 			return nil, err
 		}
 		return c.pkg, nil
@@ -291,6 +302,9 @@ func (s *Session) OverlayChanged() {}
 func (s *Session) check(path string) (*checkedPkg, error) {
 	if c := s.now[path]; c != nil {
 		return c, nil
+	}
+	if err := s.errNow[path]; err != nil {
+		return nil, err
 	}
 	if s.walking[path] {
 		return nil, errors.New("import cycle through " + path)
@@ -313,8 +327,12 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	fmt.Fprintf(h, "%s %s\n", path, s.goVersion)
 	fmt.Fprintf(ah, "%s %s\n", path, s.goVersion)
 	srcs := make([][]byte, len(bp.GoFiles))
+	generated := false
 	for i, name := range bp.GoFiles {
-		if srcs[i], err = s.read(filepath.Join(dir, name)); err != nil {
+		file := filepath.Join(dir, name)
+		_, gen := s.gen[file]
+		generated = generated || gen
+		if srcs[i], err = s.read(file); err != nil {
 			return nil, err
 		}
 		writeFile(h, name, srcs[i])
@@ -326,6 +344,11 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		if s.inModule(imp) {
 			c, err := s.check(imp)
 			if err != nil {
+				var ce *compileError
+				if errors.As(err, &ce) {
+					err = s.imp.dependentError(path, ce)
+					s.errNow[path] = err
+				}
 				return nil, err
 			}
 			imports = append(imports, c)
@@ -343,7 +366,7 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		s.now[path] = c
 		return c, nil
 	}
-	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs}
+	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs, generated: generated}
 	for _, imp := range imports {
 		c.imports = append(c.imports, imp.path)
 	}
@@ -353,6 +376,7 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		return c, nil
 	}
 	if err := s.typeCheck(c); err != nil {
+		s.errNow[path] = err
 		return nil, err
 	}
 	for _, imp := range imports {
@@ -387,23 +411,40 @@ func (s *Session) typeCheck(c *checkedPkg) error {
 	}
 	fset := token.NewFileSet()
 	files := make([]*ast.File, len(c.srcs))
+	var syntaxErrs []goDiag
 	for i, src := range c.srcs {
 		var err error
-		if files[i], err = parser.ParseFile(fset, filepath.Join(c.dir, c.names[i]), src, parser.SkipObjectResolution); err != nil {
+		files[i], err = parser.ParseFile(fset, filepath.Join(c.dir, c.names[i]), src, parser.SkipObjectResolution)
+		var list scanner.ErrorList
+		switch {
+		case errors.As(err, &list):
+			for _, e := range list {
+				syntaxErrs = append(syntaxErrs, goDiag{e.Pos, e.Msg})
+			}
+		case err != nil:
 			return err
 		}
 	}
-	var typeErr error
+	if len(syntaxErrs) > 0 {
+		return s.imp.compileError(c, syntaxErrs)
+	}
+	var typeErrs []goDiag
+	var other error
 	conf := types.Config{Importer: s, GoVersion: s.goVersion, Sizes: s.sizes, Error: func(err error) {
-		if typeErr == nil {
-			typeErr = err
+		if te, ok := err.(types.Error); ok {
+			typeErrs = append(typeErrs, goDiag{te.Fset.Position(te.Pos), te.Msg})
+		} else if other == nil {
+			other = err
 		}
 	}}
 	s.ran.checked++
 	pkg, _ := conf.Check(c.path, fset, files, nil)
-	if typeErr != nil {
+	if len(typeErrs) > 0 || other != nil {
 		if !s.tolerant || pkg == nil {
-			return fmt.Errorf("%s doesn't compile: %w", c.path, typeErr)
+			if other != nil {
+				return fmt.Errorf("%s doesn't compile: %w", c.path, other)
+			}
+			return s.imp.compileError(c, typeErrs)
 		}
 		// The language server: a package with type errors still has its
 		// declarations, so the packages importing it keep transpiling — an
@@ -513,6 +554,10 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 			continue
 		}
 		c, err := s.check(path)
+		if ownCompileError(err) {
+			fmt.Fprintf(h, "processor package %s: %v\n", path, err)
+			continue
+		}
 		if err != nil {
 			s.fail(err)
 			return ""
@@ -536,6 +581,12 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 			continue
 		}
 		c, err := s.check(imp)
+		if ownCompileError(err) {
+			// Imported as Transpile's importer has it: failing, its
+			// error said where it is used; go build reports it in full.
+			fmt.Fprintf(h, "import %s: %v\n", imp, err)
+			continue
+		}
 		if err != nil {
 			s.fail(err)
 			return ""

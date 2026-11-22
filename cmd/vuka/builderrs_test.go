@@ -810,3 +810,54 @@ func (p *Index) Reload(ctx context.Context) {
 		t.Errorf("vet -v:\n%s", v)
 	}
 }
+
+// TestWatchGoPackageErrors: under run -watch, a Go package of the module
+// that doesn't compile — by its types or its syntax — fails the rebuild as
+// a build without the session reports it, without the session's run done
+// again.
+func TestWatchGoPackageErrors(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	files := map[string]string{
+		"main.go":          "package main\n\nimport \"example.com/app/views\"\n\nfunc main() { _ = views.Title }\n",
+		"views/views.vuka": "package views\n\nimport \"example.com/app/models\"\n\nfunc Title() Result[string] {\n\tn := models.Count()?\n\treturn Ok(models.Name(n))\n}\n",
+		"models/models.go": "package models\n\nfunc Count() (int, error) { return missing, nil }\n\nfunc Name(n int) string { return undefinedName(n) }\n",
+	}
+	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
+	root := tempModule(t, files)
+	t.Chdir(root)
+	slow := slowPhase
+	slowPhase = time.Hour
+	defer func() { slowPhase = slow }()
+	watch := func(withSession bool) string {
+		var stderr bytes.Buffer
+		s := &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: os.Environ(), stderr: &stderr}
+		if withSession {
+			sess, err := load.NewSession(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.sess = sess
+		}
+		r := s.build(context.Background(), 1, &app{})
+		s.finish(r, time.Time{})
+		if withSession && s.sess.Transpiled() == -1 {
+			t.Errorf("the session's run was done again")
+		}
+		return stderr.String()
+	}
+	for _, src := range []string{
+		files["models/models.go"],
+		"package models\n\nfunc Count() (int, error) { return 1, nil }\n\nfunc Name(n int) string { return \n",
+	} {
+		writeFile(t, filepath.Join(root, "models", "models.go"), src)
+		want := watch(false)
+		if !strings.Contains(want, "build failed") || !strings.Contains(want, "models/models.go:") {
+			t.Fatalf("without a session, run -watch says:\n%s", want)
+		}
+		if got := watch(true); got != want {
+			t.Errorf("with a session, run -watch says:\n%s\nwithout:\n%s", got, want)
+		}
+	}
+}
