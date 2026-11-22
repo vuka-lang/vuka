@@ -206,6 +206,7 @@ func (e *engine) run() {
 			e.lowerTracked(f, e.lowerWrites(f))
 			e.lowerJSX(f)
 			e.checkShows(f)
+			e.checkInnerHTML(f)
 			e.checkEvents(f)
 			if !f.wrapped {
 				e.vetTries(f)

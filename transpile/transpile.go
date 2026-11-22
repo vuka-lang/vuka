@@ -316,6 +316,7 @@ type fileState struct {
 	deriveOrder    map[string][]*fromAttr
 	underivedDone  bool
 	showsChecked   bool // its show={…} and transition={…} are checked (showattr.go)
+	innerChecked   bool // its innerHTML={…} are checked (innerhtml.go)
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.

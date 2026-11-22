@@ -1,0 +1,29 @@
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+type Post struct {
+	Body ui.RawHTML
+}
+
+func children(p Post) ui.Node {
+	return <div innerHTML={p.Body}>more</div>
+}
+
+func quoted() ui.Node {
+	return <div innerHTML="<b>bold</b>" />
+}
+
+func bare() ui.Node {
+	return <div innerHTML />
+}
+
+func void(p Post) ui.Node {
+	return <img innerHTML={p.Body} />
+}
+
+func text(p Post) ui.Node {
+	return <textarea innerHTML={p.Body}></textarea>
+}
+
+func main() {}

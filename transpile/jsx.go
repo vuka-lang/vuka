@@ -152,9 +152,10 @@ type jsxText struct {
 
 // jsxHole is a {expr} child.
 type jsxHole struct {
-	expr span
-	json bool       // {json(x)} in a template's inline script: x as JSON
-	bind *stateBind // an expression reading states, lowered (state.go)
+	expr  span
+	json  bool       // {json(x)} in a template's inline script: x as JSON
+	bind  *stateBind // an expression reading states, lowered (state.go)
+	inner *innerUse  // an element's innerHTML={…}, its one child (innerhtml.go)
 }
 
 // jsxBlock is a {for …}, {if …} or {match …} child. For and if keep their
@@ -325,10 +326,13 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
 			p.checkStyle(el)
-			p.formTag(el)
+			if !p.formTag(el) && !comp {
+				p.innerHTML(el)
+			}
 			p.legend(el)
 			return el
 		case c == '>' && (p.f.html != nil && (el.tag == "script" || el.tag == "style") || el.isAsset()):
+			p.innerHTML(el)
 			el.asset = el.isAsset()
 			end := strings.Index(string(p.src[i+1:]), "</"+el.tag)
 			if end < 0 {
@@ -356,6 +360,9 @@ func (p *jsxParser) element(off int) *jsxElem {
 			el.kids, i = p.children(i+1, el, 0, false)
 			if scoped {
 				p.scopes = p.scopes[:len(p.scopes)-1]
+			}
+			if !comp {
+				p.innerHTML(el)
 			}
 			p.legend(el)
 			if comp {

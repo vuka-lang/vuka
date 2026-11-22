@@ -19,5 +19,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/vuka-lang/orm/v2 v2.18.0 // indirect
 	github.com/vuka-lang/web/v2 v2.24.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )

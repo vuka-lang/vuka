@@ -1,0 +1,26 @@
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+type Post struct {
+	Body    string
+	Preview ui.RawHTML
+}
+
+func body(p Post) ui.Node {
+	return <div innerHTML={p.Body} />
+}
+
+func literal() ui.Node {
+	return <div innerHTML={"<b>bold</b>"} />
+}
+
+func node(p Post) ui.Node {
+	return <div innerHTML={ui.Text(p.Body)} />
+}
+
+func preview(p Post) ui.Node {
+	return <div innerHTML={p.Preview} />
+}
+
+func main() {}

@@ -1,0 +1,3 @@
+err_innerhtml.vuka:11:14: <div innerHTML={p.Body}>: innerHTML takes a ui.RawHTML, and p.Body is a string; wrap it in ui.Sanitize(p.Body) when users write it, or ui.RawHTML(p.Body) when it is trusted
+err_innerhtml.vuka:15:14: <div innerHTML={"<b>bold</b>"}>: innerHTML takes a ui.RawHTML, and "<b>bold</b>" is a string; wrap it in ui.Sanitize("<b>bold</b>") when users write it, or ui.RawHTML("<b>bold</b>") when it is trusted
+err_innerhtml.vuka:19:14: <div innerHTML={ui.Text(p.Body)}>: innerHTML takes a ui.RawHTML, and ui.Text(p.Body) is a ui.Node; a ui.Node goes in as a child: <div>{ui.Text(p.Body)}</div>
