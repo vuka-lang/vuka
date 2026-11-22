@@ -394,6 +394,8 @@ TestFixCtxVarsFolderPage
 TestGoPatterns
 TestOverlayDirsShared
 TestTestAndVetRouteFolders
+# typeerrpage_test.go
+TestTypeErrorStaysInItsPage
 # watch_test.go
 TestBinaryID
 TestBuildDWARF
