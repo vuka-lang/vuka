@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"vukatest.local/design"
 	ui "vukatest.local/stateui"
 )
 
@@ -19,6 +20,9 @@ type Orders struct {
 	tab      ui.State[string]
 	note     ui.State[string]
 	draft    ui.State[string]
+	pop      ui.State[bool] // handed to another package's Modal: escape, synced
+	flag     ui.State[bool] // handed to Sheet, which only renders it: browser-local
+	gate     ui.State[bool] // handed to Gate, whose Check reads its prop: synced
 }
 
 type Order struct {
@@ -67,4 +71,7 @@ func (o *Orders) Confirm() {
   </dialog>
   <input value={note} />
   <button onClick={note = "draft"}>note</button>
+  <design.Modal show={pop} />
+  <Sheet show={flag} />
+  <Gate show={gate} />
 </section>

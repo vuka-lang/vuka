@@ -9,6 +9,7 @@ require (
 	github.com/vuka-lang/ui/v2 v2.3.1-0.20261023182800-ff7cd1d0e53d
 	github.com/vuka-lang/vuka/v2 v2.3.0
 	github.com/vuka-lang/web/v2 v2.0.0
+	vukatest.local/design v0.0.0
 	vukatest.local/islandui v0.0.0
 	vukatest.local/opttarget v0.0.0
 	vukatest.local/orm v0.0.0
@@ -35,3 +36,5 @@ replace vukatest.local/opttarget => ./opttarget
 replace vukatest.local/orm => ./orm
 
 replace vukatest.local/ui => ./ui
+
+replace vukatest.local/design => ./design

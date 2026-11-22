@@ -49,10 +49,47 @@ func (e *engine) syncedState(typ, field string) bool {
 	return e.syncRecs[typ] != nil && e.syncRecs[typ][field] != ""
 }
 
+// recordProp notes that typ's exported State prop is touched by Go code —
+// its own methods', or transitively a component it hands the prop to — so a
+// state a parent passes into it must be synced.
+func (e *engine) recordProp(typ, field, why string) {
+	if e.syncProps == nil {
+		e.syncProps = map[string]map[string]string{}
+	}
+	if e.syncProps[typ] == nil {
+		e.syncProps[typ] = map[string]string{}
+	}
+	if e.syncProps[typ][field] == "" {
+		e.syncProps[typ][field] = why
+	}
+}
+
+// recordUse classifies a Go use of a shape's state: an unexported field is
+// synced; an exported State prop is touched, which syncs whatever a parent
+// passes into it (resolveSyncEdges).
+func (e *engine) recordUse(sh stateShape, why string) {
+	if sh.prop {
+		e.recordProp(sh.typ, sh.field, why)
+		return
+	}
+	e.recordSynced(sh.typ, sh.field, why)
+}
+
 // stateShape is a shape struct's State field, as classification sees it.
 type stateShape struct {
 	typ   string // the shape struct's name
 	field string
+	prop  bool // an exported field: a State-typed prop
+}
+
+// syncEdge is a state handed to a component's State-typed prop: the prop is
+// the same state ("a state passed as a prop is the same state"), so the
+// child's uses flow back to the source.
+type syncEdge struct {
+	src      stateShape
+	dstType  string
+	dstField string
+	via      string
 }
 
 // shapeStateVars maps each shape struct's ui.State fields' objects to their
@@ -76,7 +113,7 @@ func (e *engine) shapeStateVars() map[*types.Var]stateShape {
 		}
 		for i := 0; i < st.NumFields(); i++ {
 			v := st.Field(i)
-			if v.Embedded() || v.Exported() {
+			if v.Embedded() {
 				continue
 			}
 			if _, ok := stateOf(v.Type()); !ok {
@@ -88,7 +125,7 @@ func (e *engine) shapeStateVars() map[*types.Var]stateShape {
 			if out == nil {
 				out = map[*types.Var]stateShape{}
 			}
-			out[v] = stateShape{typ: f.html.shape.Type, field: v.Name()}
+			out[v] = stateShape{typ: f.html.shape.Type, field: v.Name(), prop: v.Exported()}
 		}
 	}
 	return out
@@ -108,7 +145,19 @@ func (e *engine) goUse(f *fileState, n ast.Node, attrs []span) bool {
 		return false // @ui.From's expression, a field attribute's value
 	}
 	if h := f.html; h != nil && off >= h.start && off < h.end {
-		return e.inFuncLit(f, n)
+		// Inside the markup, only a func literal the user wrote is Go code
+		// (a handler): the compiler's own closures — a slot's content, a
+		// guard's block — are still the markup's expressions.
+		for p := f.parents[n]; p != nil; p = f.parents[p] {
+			switch p := p.(type) {
+			case *ast.FuncLit:
+				fo := f.orig(p.Pos())
+				return fo >= 0 && fo+4 <= len(f.src) && string(f.src[fo:fo+4]) == "func"
+			case *ast.FuncDecl:
+				return false
+			}
+		}
+		return false
 	}
 	return true
 }
@@ -188,7 +237,21 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 		}
 		v, _ := s.Obj().(*types.Var)
 		sh, ok := fields[v.Origin()]
-		if !ok || !e.goUse(f, sel, attrs) || inWrite(sel) {
+		if !ok {
+			return true
+		}
+		// A state in a composite literal's State-typed spot — a component
+		// tag's prop — is the state itself, identity-preserving: never
+		// .Get(). The child's uses flow back (resolveSyncEdges).
+		if d, decided := e.statePropDest(f, sel); decided && d != nil {
+			e.recordPropEdge(f, sel, sh, d)
+			return false
+		} else if decided && d == nil && !e.goUse(f, sel, attrs) {
+			return true // a value-typed spot in markup: E0125's business
+		} else if !decided {
+			return false // the literal's type isn't resolved yet: next round
+		}
+		if !e.goUse(f, sel, attrs) || inWrite(sel) {
 			return true
 		}
 		// The state's own methods (Get, Set) and uigen's calls are the
@@ -204,7 +267,7 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 			if fn, ok := call.Fun.(*ast.SelectorExpr); ok {
 				if id, ok := fn.X.(*ast.Ident); ok && id.Obj == nil {
 					if pn, ok := e.info.Uses[id].(*types.PkgName); ok && pn.Imported().Path() == stateGenPathOf(e, f) {
-						e.recordSynced(sh.typ, sh.field, "written in "+e.useSite(f, sel))
+						e.recordUse(sh, "written in "+e.useSite(f, sel))
 						return false // uigen.SrvSet(p.q, …): the write's own lowering
 					}
 				}
@@ -214,7 +277,7 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 				return false // the callee's type isn't resolved yet: next round
 			}
 			if expects {
-				e.recordSynced(sh.typ, sh.field, "passed to "+callName(f, call)+" in "+e.useSite(f, sel))
+				e.recordUse(sh, "passed to "+callName(f, call)+" in "+e.useSite(f, sel))
 				return false // escape: the state itself travels
 			}
 		}
@@ -222,13 +285,13 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 			for i, r := range p.Rhs {
 				if r == sel && i < len(p.Lhs) {
 					if _, ok := stateOf(e.info.TypeOf(p.Lhs[i])); ok {
-						e.recordSynced(sh.typ, sh.field, "copied in "+e.useSite(f, sel))
+						e.recordUse(sh, "copied in "+e.useSite(f, sel))
 						return false // a state assigned to a state: an alias
 					}
 				}
 			}
 		}
-		e.recordSynced(sh.typ, sh.field, "read in "+e.useSite(f, sel))
+		e.recordUse(sh, "read in "+e.useSite(f, sel))
 		reads = append(reads, sel)
 		return false
 	})
@@ -239,6 +302,127 @@ func (e *engine) lowerStateReads(f *fileState, attrs []span) {
 	if e.goStateInfo != e.info {
 		e.goStateInfo = e.info
 		e.classifyGoStateUses(fields)
+	}
+	e.resolveSyncEdges()
+}
+
+// statePropDest is the composite-literal spot sel fills, when it fills one:
+// the destination's shape when its declared type is a state (the prop takes
+// the state itself), nil for a value-typed spot, and decided false while
+// the literal's type isn't known yet. Not a composite spot is (nil, true)
+// with goUse deciding the rest.
+func (e *engine) statePropDest(f *fileState, sel *ast.SelectorExpr) (*syncEdge, bool) {
+	var lit *ast.CompositeLit
+	key := ""
+	at := -1
+	switch p := f.parents[sel].(type) {
+	case *ast.KeyValueExpr:
+		if p.Value != sel {
+			return nil, true
+		}
+		lit, _ = f.parents[p].(*ast.CompositeLit)
+		if id, ok := p.Key.(*ast.Ident); ok {
+			key = id.Name
+		}
+	case *ast.CompositeLit:
+		lit = p
+		for i, el := range p.Elts {
+			if el == sel {
+				at = i
+			}
+		}
+	}
+	if lit == nil || key == "" && at < 0 {
+		return nil, true
+	}
+	t := e.info.TypeOf(lit)
+	if t == nil || isInvalid(t) {
+		return nil, false
+	}
+	for {
+		if p, ok := t.(*types.Pointer); ok {
+			t = p.Elem()
+			continue
+		}
+		break
+	}
+	n, _ := types.Unalias(t).(*types.Named)
+	st, _ := t.Underlying().(*types.Struct)
+	if st == nil {
+		return nil, true // a map or slice literal: the value is wanted
+	}
+	var fv *types.Var
+	if key != "" {
+		for i := 0; i < st.NumFields(); i++ {
+			if st.Field(i).Name() == key {
+				fv = st.Field(i)
+			}
+		}
+	} else if at < st.NumFields() {
+		fv = st.Field(at)
+	}
+	if fv == nil {
+		return nil, true
+	}
+	if _, ok := stateOf(fv.Type()); !ok {
+		return nil, true // a value-typed spot
+	}
+	d := &syncEdge{dstField: fv.Name()}
+	if n != nil {
+		d.dstType = n.Obj().Name()
+		if n.Obj().Pkg() != e.pkg {
+			d.dstType = n.Obj().Pkg().Name() + "." + d.dstType
+			d.via = "foreign"
+		}
+	}
+	return d, true
+}
+
+// recordPropEdge records that sel's state fills the destination's State
+// prop: the same state, so the child's uses flow back. A component of
+// another package can't be followed — escape means synced.
+func (e *engine) recordPropEdge(f *fileState, sel *ast.SelectorExpr, sh stateShape, d *syncEdge) {
+	if d.via == "foreign" || d.dstType == "" {
+		e.recordUse(sh, "passed to "+d.dstType+"."+d.dstField+" (another package) in "+e.useSite(f, sel))
+		return
+	}
+	ed := syncEdge{src: sh, dstType: d.dstType, dstField: d.dstField, via: e.useSite(f, sel)}
+	k := sh.typ + "." + sh.field + "→" + ed.dstType + "." + ed.dstField
+	if e.syncEdges == nil {
+		e.syncEdges = map[string]syncEdge{}
+	}
+	e.syncEdges[k] = ed
+}
+
+// resolveSyncEdges flows the classification along prop edges to a fixpoint:
+// a state handed to a Go-touched State prop is synced; a prop handed on to
+// a Go-touched prop is touched.
+func (e *engine) resolveSyncEdges() {
+	touched := func(t, f string) (string, bool) {
+		if e.syncProps[t] == nil {
+			return "", false
+		}
+		why, ok := e.syncProps[t][f]
+		return why, ok && why != ""
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, ed := range e.syncEdges {
+			why, ok := touched(ed.dstType, ed.dstField)
+			if !ok {
+				continue
+			}
+			why = "passed to " + ed.dstType + "." + ed.dstField + " in " + ed.via + ", " + why
+			if ed.src.prop {
+				if _, done := touched(ed.src.typ, ed.src.field); !done {
+					e.recordProp(ed.src.typ, ed.src.field, why)
+					changed = true
+				}
+			} else if !e.syncedState(ed.src.typ, ed.src.field) {
+				e.recordSynced(ed.src.typ, ed.src.field, why)
+				changed = true
+			}
+		}
 	}
 }
 
@@ -264,7 +448,7 @@ func (e *engine) classifyGoStateUses(fields map[*types.Var]stateShape) {
 				return true
 			}
 			if sh, ok := fields[v.Origin()]; ok {
-				e.recordSynced(sh.typ, sh.field, "used in "+e.useSite(f, sel)+" ("+f.name+")")
+				e.recordUse(sh, "used in "+e.useSite(f, sel)+" ("+f.name+")")
 			}
 			return true
 		})
@@ -350,7 +534,7 @@ func (e *engine) recordStateWrite(f *fileState, lhs ast.Expr, at ast.Node) {
 		return
 	}
 	if sh, ok := e.shapeStateVars()[v.Origin()]; ok {
-		e.recordSynced(sh.typ, sh.field, "written in "+e.useSite(f, at))
+		e.recordUse(sh, "written in "+e.useSite(f, at))
 	}
 }
 

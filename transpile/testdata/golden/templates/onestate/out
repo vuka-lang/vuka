@@ -1,4 +1,4 @@
 true beans all
 false 
-<section><p></p><button>tea <span><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></span></button><button>beans <span><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></span></button><dialog data-vk-b-open="{&#34;$&#34;:0} field open=false"><p><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></p><button>confirm</button></dialog><input value="" data-vk-b-value="{&#34;$&#34;:0} field note="><button data-vk-js-click="set field note= draft">note</button></section> <nil>
-[draft open tab]
+<section><p></p><button>tea <span><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></span></button><button>beans <span><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></span></button><dialog data-vk-b-open="{&#34;$&#34;:0} field open=false"><p><vk-t data-vk-b="{&#34;$&#34;:0} field tab=">all</vk-t></p><button>confirm</button></dialog><input value="" data-vk-b-value="{&#34;$&#34;:0} field note="><button data-vk-js-click="set field note= draft">note</button><div class="modal"></div><aside hidden data-vk-b-hidden="[&#34;!&#34;,{&#34;$&#34;:0}] field flag=false">sheet</aside><button>check</button></section> <nil>
+[draft gate open pop tab]

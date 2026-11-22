@@ -83,6 +83,8 @@ type engine struct {
 	gqlArgs     map[*fileState][]GraphQLArg // the non-null arguments, by the file declaring their function (graphql.go)
 
 	syncRecs    map[string]map[string]string // one state: shape type → synced State fields → why (syncstate.go)
+	syncProps   map[string]map[string]string // shape type → Go-touched exported State props → why
+	syncEdges   map[string]syncEdge          // states handed to State-typed props, deduped
 	goStateInfo *types.Info                  // the round whose .go files' state uses are classified
 
 	brokenScripts map[string]bool // template files whose script form is reported broken

@@ -1,0 +1,12 @@
+package main
+
+import (
+	ui "vukatest.local/stateui"
+)
+
+// Sheet only renders its Show prop: a state handed to it stays the
+// parent's — and browser-local, when nothing else reads it in Go.
+type Sheet struct {
+	Show ui.State[bool]
+}
+<aside hidden={!Show}>sheet</aside>
