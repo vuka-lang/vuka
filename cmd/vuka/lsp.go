@@ -1476,7 +1476,7 @@ func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, rep
 			go func() { reply(h()) }()
 			return
 		}
-		if m.Method == "textDocument/completion" && strings.HasSuffix(vf.source, ".vuka.html") && off > 0 && markupText(src)(off-1) {
+		if m.Method == "textDocument/completion" && strings.HasSuffix(vf.source, ".vuka.html") && off > 0 && markupText(src)(off-1) && !valueSpotAt(src, off) {
 			// Markup text is no Go: nothing completes there, and an item
 			// would import a package for it.
 			p.mu.Unlock()
