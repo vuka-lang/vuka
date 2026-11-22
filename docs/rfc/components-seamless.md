@@ -579,6 +579,30 @@ Costs, stated plainly:
   of form fields today, now true of every synced state, and the docs say
   it loudly.
 
+What the merge retires — the split's fingerprints across the
+vocabulary, each a bridge that stops needing to be learned:
+
+- **Gone**: `Notify` as a channel (it was the hand-built sync; it survives
+  only as pacing), `Derived` and memoized derived fields (rule 4: derived
+  values are expressions), `Keep` (the version rule subsumes "the browser
+  keeps this"), and the generated-code shims (`uigen.Assign`,
+  `AssignDirty`, `AssignValue`) — one engine, no translation layer.
+- **Reduced to sugar**: `ui.JS.Set` (a method writes the field and it
+  propagates; the chain step remains for browser-side sequencing),
+  `Shared` (a synced field handed to several components shares naturally),
+  and §9's `ui.Bound` — under one state a synced prop is two-way by
+  identity, so `Bound` shrinks to the element-spread helper; §9 is to be
+  read against this section.
+- **Re-platformed later**: the form engine's generation mechanism (loaded
+  data under the browser's fields, adopted when the generation advances)
+  is a hand-tuned, form-shaped instance of this section's reconciliation;
+  forms keep their own machinery through the first pass and move onto
+  state versions when the merge has settled.
+- **Untouched, correctly**: `@ui.URL` fields (the URL is a third owner,
+  not the split), `data-vk-ignore` (DOM ownership), `URLParams`/`Update`
+  (navigation), and `ui.Value` in pushes (argument provenance; §2 already
+  retired it at `ActionOf` sites).
+
 What the build must pin with tests: a state read only inside another
 state's event handler (ordering within one event); a state whose only Go
 read is `Mount` (a read is a read: synced); the wire regression proving
