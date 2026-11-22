@@ -551,6 +551,12 @@ sees all of it — the same move as reads deciding reactivity:
    states is the server form. The `Derived` option deprecates with
    `Assign`.
 
+The contract is transport-neutral: a live page's dirty states ride its
+socket events; a plain page's ride the HTTP channel its pushes and form
+posts already use (§2's registered handlers), and the response's render
+reconciles by version exactly as a patch does. A browser-local state
+behaves identically on both page kinds — never sent.
+
 Two rules keep the inference honest:
 
 - **Escape means synced.** A state passed where the compiler cannot follow
