@@ -354,7 +354,7 @@ func (e *engine) suggestAction(f *fileState, t types.Type) string {
 		}
 		vals = append(vals, pt)
 	}
-	if len(vals) == 1 && f.target.pkg != nil && f.target.pkg.Scope().Lookup("ActionOf") != nil {
+	if len(vals) == 1 && f.target.has("ActionOf") {
 		return f.target.q + "ActionOf[" + e.display(vals[0]) + "]"
 	}
 	return f.target.q + "Action"
