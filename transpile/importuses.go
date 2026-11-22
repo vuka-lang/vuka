@@ -3,6 +3,7 @@ package transpile
 import (
 	"errors"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"strings"
@@ -19,6 +20,10 @@ type ImportUses struct {
 	Qualifiers map[string]int
 	// Attrs are the names its attributes qualify (orm in @orm.PK).
 	Attrs map[string]bool
+	// Tags are the names the markup's component tags use bare (Counter in
+	// <Counter/>): a use of an import of that name — an island's .vue, a
+	// component package's — though never a package to add.
+	Tags map[string]bool
 }
 
 // Uses reads which package names the file's code uses: the code Vuka's
@@ -37,7 +42,7 @@ func Uses(file File, opts Options, others ...File) (*ImportUses, error) {
 	}
 	file = all[0]
 	f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: true,
-		lines: newLineIndex(file.Src), done: map[int]bool{}, bare: true, eng: e}
+		lines: newLineIndex(file.Src), done: map[int]bool{}, bare: true, keepGuards: true, eng: e}
 	e.detectSelfTarget(all)
 	if file.IsTemplate() && !e.template(f, all) {
 		return nil, errs.err()
@@ -60,7 +65,7 @@ func Uses(file File, opts Options, others ...File) (*ImportUses, error) {
 		}
 		return off
 	}
-	u := &ImportUses{Qualifiers: map[string]int{}, Attrs: map[string]bool{}}
+	u := &ImportUses{Qualifiers: map[string]int{}, Attrs: map[string]bool{}, Tags: map[string]bool{}}
 	add := func(name string, at int) {
 		if prev, ok := u.Qualifiers[name]; !ok || at < prev {
 			u.Qualifiers[name] = at
@@ -75,13 +80,27 @@ func Uses(file File, opts Options, others ...File) (*ImportUses, error) {
 		if !ok || x.Obj != nil || strings.HasPrefix(x.Name, "__") {
 			return true
 		}
-		at := toSrc(f.orig(x.Pos()))
+		off := f.orig(x.Pos())
+		at := toSrc(off)
 		if at < 0 || at+len(x.Name) > len(src) || string(src[at:at+len(x.Name)]) != x.Name {
 			return true // Vuka wrote it
+		}
+		if f.shapeName(off, x.Name) {
+			return true // the markup's own field (user in {user.Name})
+		}
+		if matchBound(f, off, x.Name) {
+			return true // a pattern's binding read by its guard
 		}
 		add(x.Name, at)
 		return true
 	})
+	for _, t := range f.jsx {
+		for _, c := range t.comps {
+			if tag := c.el.tag; !strings.Contains(tag, ".") {
+				u.Tags[tag] = true
+			}
+		}
+	}
 	for _, a := range f.attrs {
 		if pkg, _, ok := strings.Cut(a.Name, "."); ok && pkg != "vuka" {
 			add(pkg, attrOffset(src, a.Pos))
@@ -89,6 +108,35 @@ func Uses(file File, opts Options, others ...File) (*ImportUses, error) {
 		}
 	}
 	return u, nil
+}
+
+// matchBound reports whether name at off (an f.src offset) is inside a match
+// case's guard and bound by that case's pattern: u in `case u if u.Admin:`.
+func matchBound(f *fileState, off int, name string) bool {
+	for _, m := range f.matches {
+		for _, c := range m.cases {
+			if c.guard.start < 0 || off < c.guard.start || off >= c.guard.end {
+				continue
+			}
+			for _, sp := range c.pats {
+				x, err := parser.ParseExpr(string(f.src[sp.start:sp.end]))
+				if err != nil {
+					continue
+				}
+				bound := false
+				ast.Inspect(x, func(n ast.Node) bool {
+					if id, ok := n.(*ast.Ident); ok && id.Name == name {
+						bound = true
+					}
+					return !bound
+				})
+				if bound {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // syntaxOnly is errs' first error that stops the file being read: the

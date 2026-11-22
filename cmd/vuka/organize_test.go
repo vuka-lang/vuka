@@ -296,3 +296,94 @@ func TestFmtImports(t *testing.T) {
 		t.Errorf("-w -imports wrote:\n%s", got)
 	}
 }
+
+// TestOrganizeFieldHole: a dotted markup hole on the component's own field
+// ({user.Name}) is the field, not a package to import (os/user); same for a
+// field named like a std package (list, container/list).
+func TestOrganizeFieldHole(t *testing.T) {
+	t.Parallel()
+	src := `<script lang="go">
+package pages
+
+type Account struct{ Name string }
+
+type Index struct {
+	user Account
+	list []string
+}
+</script>
+
+<div>
+  <p>{user.Name}</p>
+  for _, x := range list {
+    <span>{x}</span>
+  }
+</div>
+`
+	dir := orgModule(t, map[string]string{"pages/index.vuka.html": src})
+	organizesTo(t, dir, "pages/index.vuka.html", src)
+}
+
+// TestOrganizeMatchGuard: imports used only inside a match case's guard
+// (case e if errors.Is(e, io.EOF)) stay; a binding the guard reads (e) is
+// no package.
+func TestOrganizeMatchGuard(t *testing.T) {
+	t.Parallel()
+	src := `package store
+
+import (
+	"errors"
+	"io"
+)
+
+func check(err error) string {
+	match err {
+	case nil:
+		return "ok"
+	case e if errors.Is(e, io.EOF):
+		return "eof"
+	case _:
+		return "other"
+	}
+}
+`
+	dir := orgModule(t, map[string]string{"store/guard.vuka": src})
+	organizesTo(t, dir, "store/guard.vuka", src)
+}
+
+// TestOrganizeIslandImport: a .vue island import used by a bare component
+// tag (<Counter/>) stays; an island nothing in the markup names goes.
+func TestOrganizeIslandImport(t *testing.T) {
+	t.Parallel()
+	dir := orgModule(t, map[string]string{
+		"web/islands/Counter.vue": "<template><button>0</button></template>\n",
+		"web/islands/Gauge.vue":   "<template><meter/></template>\n",
+		"pages/island/index.vuka.html": `<script lang="go">
+package island
+
+import (
+	Counter "../../web/islands/Counter.vue"
+	Gauge "../../web/islands/Gauge.vue"
+)
+
+type Index struct{}
+</script>
+
+<div>
+  <Counter/>
+</div>
+`,
+	})
+	organizesTo(t, dir, "pages/island/index.vuka.html", `<script lang="go">
+package island
+
+import Counter "../../web/islands/Counter.vue"
+
+type Index struct{}
+</script>
+
+<div>
+  <Counter/>
+</div>
+`)
+}

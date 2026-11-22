@@ -229,10 +229,13 @@ func packageScope(path string, read load.ReadFunc) (transpile.ImportScope, []tra
 	return scope, others
 }
 
-// usedAt reports whether uses has name: a use at offset 0 is a use too.
+// usedAt reports whether uses has name — as a qualifier (a use at offset 0
+// is a use too) or a markup component tag (<Counter/> uses a Counter import).
 func usedAt(uses *transpile.ImportUses, name string) bool {
-	_, ok := uses.Qualifiers[name]
-	return ok
+	if _, ok := uses.Qualifiers[name]; ok {
+		return true
+	}
+	return uses.Tags[name]
 }
 
 // nameGuesses are the names a package at path may go by: its last
