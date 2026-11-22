@@ -55,7 +55,10 @@ func (s *sourceShapes) pin(root string) string {
 // fileShapes are a file's hashes: of everything; without the function
 // bodies a step doesn't read; and, for the orm's step, without the functions
 // it doesn't read either.
-type fileShapes struct{ full, decls, models [sha256.Size]byte }
+type fileShapes struct {
+	full, decls, models [sha256.Size]byte
+	orm                 *ormFileFacts
+}
 
 // shapeKind is what of a file a step reads.
 type shapeKind int
@@ -85,9 +88,45 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 	if s == nil {
 		return ""
 	}
+	head, paths, files, ok := s.moduleFiles(root, overlay, tests)
+	if !ok {
+		return ""
+	}
+	h := sha256.New()
+	h.Write([]byte(head))
+	for _, p := range paths {
+		src, err := os.ReadFile(files[p])
+		if err != nil {
+			return ""
+		}
+		fmt.Fprintf(h, "%s %x\n", p, s.file(src).of(kind, p))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// of is the hash of the file at path kind says counts; a nil kind counts
+// everything.
+func (f fileShapes) of(kind func(path string) shapeKind, path string) [sha256.Size]byte {
+	k := shapeFull
+	if kind != nil {
+		k = kind(path)
+	}
+	switch k {
+	case shapeFull:
+		return f.full
+	case shapeDecls:
+		return f.decls
+	}
+	return f.models
+}
+
+// moduleFiles is what module hashes: the line naming go.mod, go.sum and
+// the local modules, and the module's Go files as overlay has them, in
+// order, each with where its content is. Not ok when one can't be read.
+func (s *sourceShapes) moduleFiles(root, overlay string, tests bool) (head string, paths []string, files map[string]string, ok bool) {
 	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
-		return ""
+		return "", nil, nil, false
 	}
 	local := ""
 	if localReplace.Match(mod) || inWorkspace(root) {
@@ -98,15 +137,15 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 			local = s.localSources(root)
 		}
 		if local == "" {
-			return ""
+			return "", nil, nil, false
 		}
 	}
 	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
 	ov, err := readOverlay(overlay)
 	if err != nil {
-		return ""
+		return "", nil, nil, false
 	}
-	files := map[string]string{} // path → where its content is
+	files = map[string]string{} // path → where its content is
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -124,7 +163,7 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 		return nil
 	})
 	if err != nil {
-		return ""
+		return "", nil, nil, false
 	}
 	for target, file := range ov {
 		switch {
@@ -135,35 +174,14 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 			files[target] = file
 		}
 	}
-	paths := make([]string, 0, len(files))
 	for p := range files {
 		if tests || !strings.HasSuffix(p, "_test.go") {
 			paths = append(paths, p)
 		}
 	}
 	slices.Sort(paths)
-	h := sha256.New()
-	fmt.Fprintf(h, "go.mod %x\ngo.sum %x\nlocal %s\n", sha256.Sum256(mod), sha256.Sum256(sum), local)
-	for _, p := range paths {
-		src, err := os.ReadFile(files[p])
-		if err != nil {
-			return ""
-		}
-		shape := s.file(src)
-		k := shapeFull
-		if kind != nil {
-			k = kind(p)
-		}
-		switch k {
-		case shapeFull:
-			fmt.Fprintf(h, "%s %x\n", p, shape.full)
-		case shapeDecls:
-			fmt.Fprintf(h, "%s %x\n", p, shape.decls)
-		default:
-			fmt.Fprintf(h, "%s %x\n", p, shape.models)
-		}
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
+	head = fmt.Sprintf("go.mod %x\ngo.sum %x\nlocal %s\n", sha256.Sum256(mod), sha256.Sum256(sum), local)
+	return head, paths, files, true
 }
 
 func (s *sourceShapes) file(src []byte) fileShapes {
@@ -309,7 +327,7 @@ func shapesOf(src []byte) fileShapes {
 	f, err := parser.ParseFile(fset, "", src, parser.SkipObjectResolution)
 	if err != nil {
 		sum := sha256.Sum256(src)
-		return fileShapes{sum, sum, sum}
+		return fileShapes{sum, sum, sum, &ormFileFacts{Broken: true}}
 	}
 	statics := frameStatics(fset, f)
 	unread := unreadBodies(fset, f)
@@ -318,6 +336,7 @@ func shapesOf(src []byte) fileShapes {
 		full:   hashTokens(src, statics),
 		decls:  hashTokens(src, decls),
 		models: hashTokens(src, mergeRanges(append(decls, ormUnread(fset, f, src)...))),
+		orm:    ormFactsOf(f, src),
 	}
 }
 
