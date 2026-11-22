@@ -110,3 +110,131 @@ func TestLSPEnumValues(t *testing.T) {
 		t.Errorf("inserts %v", it["textEdit"])
 	}
 }
+
+// A prefix typed inside the quotes still offers every value, replacing the
+// prefix; a quote just typed after = (no closing quote yet) completes too.
+func TestLSPEnumValuesTyping(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for name, src := range map[string]string{
+		"components/button.vuka.html": lspEnumButton,
+		"design/design.go":            lspEnumDesign,
+	} {
+		os.MkdirAll(filepath.Join(dir, filepath.Dir(name)), 0o755)
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
+	page := filepath.Join(dir, "pages", "index.vuka.html")
+	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
+	labels := func(text, needle, attr string) []string {
+		t.Helper()
+		src := []byte(text)
+		off := strings.Index(text, needle) + len(needle)
+		spot, ok := completionSpot(src, off)
+		if !ok || spot.kind != "value" {
+			t.Fatalf("%s: spot %+v %v", needle, spot, ok)
+		}
+		quote := strings.Index(text, attr+`="`) + len(attr) + 2
+		from := positionOf(src, quote)
+		var out []string
+		for _, it := range p.completeJSX(&vfile{source: page, from: src}, "", spot, off).(map[string]any)["items"].([]any) {
+			m := it.(map[string]any)
+			if edit := m["textEdit"].(map[string]any)["range"].(lspRange); edit.Start != from {
+				t.Errorf("%s: %s replaces from %+v, want %+v (the quote)", needle, m["label"], edit.Start, from)
+			}
+			out = append(out, m["label"].(string))
+		}
+		return out
+	}
+	prefix := strings.Replace(lspEnumPage, `variant=""`, `variant="out"`, 1)
+	if got := labels(prefix, `variant="out`, "variant"); strings.Join(got, ",") != `"",outline,ghost` {
+		t.Errorf("with a prefix typed: %v", got)
+	}
+	open := strings.Replace(lspEnumPage, `tone="" icon="">Save</components.Button>`, `tone="`, 1)
+	if got := labels(open, `tone="`, "tone"); strings.Join(got, ",") != "info,danger" {
+		t.Errorf("after a quote not closed yet: %v", got)
+	}
+}
+
+const lspEnumSibling = `<script lang="go">
+package components
+
+type Panel struct{}
+</script>
+
+<div>
+  <Button variant="">x</Button>
+</div>
+`
+
+// A bare tag naming a component of the file's own package completes its
+// enum props' values too.
+func TestLSPEnumValuesBareTag(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for name, src := range map[string]string{
+		"components/button.vuka.html": lspEnumButton,
+		"components/panel.vuka.html":  lspEnumSibling,
+		"design/design.go":            lspEnumDesign,
+	} {
+		os.MkdirAll(filepath.Join(dir, filepath.Dir(name)), 0o755)
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
+	page := filepath.Join(dir, "components", "panel.vuka.html")
+	src := []byte(lspEnumSibling)
+	off := strings.Index(lspEnumSibling, `variant="`) + len(`variant="`)
+	spot, ok := completionSpot(src, off)
+	if !ok || spot.kind != "value" {
+		t.Fatalf("spot %+v %v", spot, ok)
+	}
+	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
+	var got []string
+	for _, it := range p.completeJSX(&vfile{source: page, from: src}, "", spot, off).(map[string]any)["items"].([]any) {
+		got = append(got, it.(map[string]any)["label"].(string))
+	}
+	if strings.Join(got, ",") != `"",outline,ghost` {
+		t.Errorf("bare <Button variant=: %v", got)
+	}
+}
+
+// Completing an attribute name on a component tag: an enum prop inserts a
+// quoted value spot and re-triggers completion there; other props are
+// unchanged.
+func TestLSPEnumPropAttr(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for name, src := range map[string]string{
+		"components/button.vuka.html": lspEnumButton,
+		"design/design.go":            lspEnumDesign,
+	} {
+		os.MkdirAll(filepath.Join(dir, filepath.Dir(name)), 0o755)
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
+	page := filepath.Join(dir, "pages", "index.vuka.html")
+	text := strings.Replace(lspEnumPage, `variant="" tone="" icon=""`, ``, 1)
+	src := []byte(text)
+	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
+	off := strings.Index(text, `<components.Button `) + len(`<components.Button `)
+	items, ok := p.propCompletion(page, src, off)
+	if !ok {
+		t.Fatal("no prop completion in <components.Button>")
+	}
+	got := map[string]map[string]any{}
+	for _, it := range items {
+		m := it.(map[string]any)
+		got[m["label"].(string)] = m
+	}
+	for attr, want := range map[string]string{"variant": `variant="$1"`, "tone": `tone="$1"`, "icon": `icon="$1"`} {
+		if text := got[attr]["textEdit"].(map[string]any)["newText"]; text != want {
+			t.Errorf("%s inserts %v, want %q", attr, text, want)
+		}
+	}
+	for attr, want := range map[string]bool{"variant": true, "tone": true, "icon": false} {
+		if _, has := got[attr]["command"]; has != want {
+			t.Errorf("%s re-triggers completion: %v, want %v", attr, has, want)
+		}
+	}
+	enums := p.tagEnumAttrs(page, src, "components.Button")
+	if !enums["variant"] || !enums["tone"] || enums["icon"] {
+		t.Errorf("tagEnumAttrs: %v", enums)
+	}
+}

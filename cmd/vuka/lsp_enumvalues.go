@@ -26,46 +26,73 @@ func (p *proxy) tagEnumValues(file string, src []byte, tag, attr string) []enumV
 		return nil
 	}
 	for _, pr := range info.props {
-		if !strings.EqualFold(pr.attr, attr) && !strings.EqualFold(pr.name, attr) {
-			continue
+		if strings.EqualFold(pr.attr, attr) || strings.EqualFold(pr.name, attr) {
+			return p.propEnumValues(info, pr)
 		}
-		typ := strings.TrimPrefix(pr.typ, "*")
-		if inner, ok := strings.CutPrefix(typ, "vuka.Option["); ok && strings.HasSuffix(inner, "]") {
-			typ = strings.TrimSuffix(inner, "]")
-		}
-		qual, name := "", typ
-		if i := strings.IndexByte(typ, '.'); i >= 0 {
-			qual, name = typ[:i], typ[i+1:]
-		}
-		if !token.IsIdentifier(name) || builtinTypes[name] || strings.Contains(name, ".") {
-			return nil
-		}
-		dir := filepath.Dir(pr.file)
-		if pr.file == "" {
-			dir = filepath.Dir(info.file)
-		}
-		if qual != "" {
-			declFile := pr.file
-			if declFile == "" {
-				declFile = info.file
-			}
-			b, err := os.ReadFile(declFile)
-			if err != nil {
-				return nil
-			}
-			dir = ""
-			for _, im := range sourceImports(declFile, b) {
-				if im.Name == qual || im.Name == "" && path.Base(tagPathMajor.ReplaceAllString(im.Path, "")) == qual {
-					dir = p.importDir(im.Path)
-				}
-			}
-			if dir == "" {
-				return nil
-			}
-		}
-		return enumValuesIn(dir, name)
 	}
 	return nil
+}
+
+// tagEnumAttrs are the attributes of a component tag setting a prop a
+// quoted value completes, lowercased: ones of a defined string type
+// declaring constants.
+func (p *proxy) tagEnumAttrs(file string, src []byte, tag string) map[string]bool {
+	info := p.resolveComponent(file, src, tag)
+	if info == nil {
+		return nil
+	}
+	var out map[string]bool
+	for _, pr := range info.props {
+		if len(p.propEnumValues(info, pr)) == 0 {
+			continue
+		}
+		if out == nil {
+			out = map[string]bool{}
+		}
+		out[strings.ToLower(pr.attr)] = true
+		out[strings.ToLower(pr.name)] = true
+	}
+	return out
+}
+
+// propEnumValues are the constants of a prop's defined string type, nil for
+// any other type.
+func (p *proxy) propEnumValues(info *tagInfo, pr tagProp) []enumValue {
+	typ := strings.TrimPrefix(pr.typ, "*")
+	if inner, ok := strings.CutPrefix(typ, "vuka.Option["); ok && strings.HasSuffix(inner, "]") {
+		typ = strings.TrimSuffix(inner, "]")
+	}
+	qual, name := "", typ
+	if i := strings.IndexByte(typ, '.'); i >= 0 {
+		qual, name = typ[:i], typ[i+1:]
+	}
+	if !token.IsIdentifier(name) || builtinTypes[name] || strings.Contains(name, ".") {
+		return nil
+	}
+	dir := filepath.Dir(pr.file)
+	if pr.file == "" {
+		dir = filepath.Dir(info.file)
+	}
+	if qual != "" {
+		declFile := pr.file
+		if declFile == "" {
+			declFile = info.file
+		}
+		b, err := os.ReadFile(declFile)
+		if err != nil {
+			return nil
+		}
+		dir = ""
+		for _, im := range sourceImports(declFile, b) {
+			if im.Name == qual || im.Name == "" && path.Base(tagPathMajor.ReplaceAllString(im.Path, "")) == qual {
+				dir = p.importDir(im.Path)
+			}
+		}
+		if dir == "" {
+			return nil
+		}
+	}
+	return enumValuesIn(dir, name)
 }
 
 // enumValuesIn are the exported constants of type typeName the package at
