@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,55 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
+
+// settleModule makes the requirements of the module at dir the versions its
+// build selects — what the replaced checkouts' own requirements raise, at
+// any depth — and adds the raised modules' sums, so the go command builds
+// it as it is, whatever a checkout comes to require.
+func settleModule(t *testing.T, dir string) {
+	t.Helper()
+	before := modRequires(t, dir)
+	cmd := exec.Command("go", "list", "-mod=mod", "-m", "all")
+	cmd.Dir, cmd.Env = dir, append(os.Environ(), "GOFLAGS=", "GOWORK=off")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go list -m all in %s: %v\n%s", dir, err, out)
+	}
+	after := modRequires(t, dir)
+	raised := map[string]bool{}
+	for m, v := range after {
+		raised[m] = before[m] != v
+	}
+	if sums := moduleSums(t, raised, after); sums != "" {
+		f, err := os.OpenFile(filepath.Join(dir, "go.sum"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if _, err := f.WriteString(sums); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// modRequires is the module at dir's requirements, by path.
+func modRequires(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	out, err := exec.Command("go", "mod", "edit", "-json", filepath.Join(dir, "go.mod")).Output()
+	if err != nil {
+		t.Fatalf("go mod edit -json %s: %v", dir, err)
+	}
+	var mf struct {
+		Require []struct{ Path, Version string }
+	}
+	if err := json.Unmarshal(out, &mf); err != nil {
+		t.Fatal(err)
+	}
+	reqs := map[string]string{}
+	for _, r := range mf.Require {
+		reqs[r.Path] = r.Version
+	}
+	return reqs
+}
 
 // testModule is a test module's go.mod and go.sum: it requires the local
 // vuka (this repository), the local github.com/vuka-lang/ui/v2 (a sibling
