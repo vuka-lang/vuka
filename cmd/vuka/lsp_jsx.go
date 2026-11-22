@@ -524,6 +524,15 @@ func completionSpot(src []byte, off int) (jsxSpot, bool) {
 	return jsxSpot{kind: "attr", tag: t, from: w}, true
 }
 
+// valueSpotAt reports whether a completion at off is inside an attribute's
+// quotes. markupText counts a quoted value as text, but the spot is
+// completeJSX's to answer — a component prop's constants, a variant's or an
+// HTML attribute's values — even with a prefix typed.
+func valueSpotAt(src []byte, off int) bool {
+	spot, ok := completionSpot(src, off)
+	return ok && spot.kind == "value"
+}
+
 // completeJSX answers a completion in markup.
 func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) any {
 	src := vf.text()
