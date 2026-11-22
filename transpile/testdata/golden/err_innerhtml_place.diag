@@ -1,0 +1,41 @@
+error[E0134]: <div> has innerHTML and children: innerHTML={…} is its content, so it takes no other
+  --> err_innerhtml_place.vuka:10:14
+   |
+10 |     return <div innerHTML={p.Body}>more</div>
+   |                 ^^^^^^^^^
+   |
+   = help: write innerHTML={…} alone on an element that holds markup, a <div>
+
+error[E0134]: <div innerHTML> takes a ui.RawHTML: innerHTML={body}
+  --> err_innerhtml_place.vuka:14:14
+   |
+14 |     return <div innerHTML="<b>bold</b>" />
+   |                 ^^^^^^^^^
+   |
+   = help: write innerHTML={…} alone on an element that holds markup, a <div>
+
+error[E0134]: <div innerHTML> takes a ui.RawHTML: innerHTML={body}
+  --> err_innerhtml_place.vuka:18:14
+   |
+18 |     return <div innerHTML />
+   |                 ^^^^^^^^^
+   |
+   = help: write innerHTML={…} alone on an element that holds markup, a <div>
+
+error[E0134]: <img> holds no markup: innerHTML goes on an element that does, a <div>
+  --> err_innerhtml_place.vuka:22:14
+   |
+22 |     return <img innerHTML={p.Body} />
+   |                 ^^^^^^^^^
+   |
+   = help: write innerHTML={…} alone on an element that holds markup, a <div>
+
+error[E0134]: <textarea> holds no markup: innerHTML goes on an element that does, a <div>
+  --> err_innerhtml_place.vuka:26:19
+   |
+26 |     return <textarea innerHTML={p.Body}></textarea>
+   |                      ^^^^^^^^^
+   |
+   = help: write innerHTML={…} alone on an element that holds markup, a <div>
+
+For more information about this error, try `vuka explain E0134`.

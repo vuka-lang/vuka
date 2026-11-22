@@ -196,6 +196,7 @@ func confModule(t *testing.T, src string, mods map[string]string, extra map[stri
 	}
 	writeFile(t, filepath.Join(root, "go.mod"), mod.String())
 	writeFile(t, filepath.Join(root, "go.sum"), string(sums))
+	settleModule(t, root)
 	if nodeModules != "" {
 		if err := os.Symlink(nodeModules, filepath.Join(root, "node_modules")); err != nil {
 			t.Fatal(err)

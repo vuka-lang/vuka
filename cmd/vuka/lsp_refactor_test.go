@@ -73,6 +73,7 @@ func refactorModule(t *testing.T, files map[string]string) string {
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	writeFile(t, filepath.Join(dir, "go.mod"), gomod)
 	writeFile(t, filepath.Join(dir, "go.sum"), gosum+string(webSum)+moduleSums(t, raised, reqs))
+	settleModule(t, dir)
 	for name, src := range files {
 		writeFile(t, filepath.Join(dir, name), src)
 	}

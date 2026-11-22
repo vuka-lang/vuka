@@ -1,0 +1,5 @@
+err_innerhtml_place.vuka:10:14: <div> has innerHTML and children: innerHTML={…} is its content, so it takes no other
+err_innerhtml_place.vuka:14:14: <div innerHTML> takes a ui.RawHTML: innerHTML={body}
+err_innerhtml_place.vuka:18:14: <div innerHTML> takes a ui.RawHTML: innerHTML={body}
+err_innerhtml_place.vuka:22:14: <img> holds no markup: innerHTML goes on an element that does, a <div>
+err_innerhtml_place.vuka:26:19: <textarea> holds no markup: innerHTML goes on an element that does, a <div>

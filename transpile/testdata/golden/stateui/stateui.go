@@ -30,6 +30,9 @@ const VukaState = "vukatest.local/stateui/uigen"
 type (
 	Node = ui.Node
 	Attr = ui.Attr
+
+	// RawHTML is HTML written as is.
+	RawHTML = ui.RawHTML
 )
 
 func El(tag string, attrs []Attr, children ...Node) Node {

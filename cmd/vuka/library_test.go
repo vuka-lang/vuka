@@ -133,4 +133,5 @@ func withModule(t *testing.T, root, path, dir string) {
 	if err := os.WriteFile(filepath.Join(root, "go.sum"), append(sum, more...), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	settleModule(t, root)
 }

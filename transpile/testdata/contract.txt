@@ -135,6 +135,7 @@ public github.com/vuka-lang/ui/v2.Part
 public github.com/vuka-lang/ui/v2.PartFallback
 public github.com/vuka-lang/ui/v2.Props
 public github.com/vuka-lang/ui/v2.Ptr
+public github.com/vuka-lang/ui/v2.RawHTML
 public github.com/vuka-lang/ui/v2.RegisterIsland
 public github.com/vuka-lang/ui/v2.Safe
 public github.com/vuka-lang/ui/v2.Shared

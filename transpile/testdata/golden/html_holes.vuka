@@ -1,0 +1,45 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// A ui.RawHTML is written as is wherever a hole holds one: a child, a
+// prop, children, innerHTML={…}. A string beside it is escaped.
+
+type Post struct {
+	Title string
+	Body  ui.RawHTML
+}
+
+type CardProps struct {
+	Title    string
+	Body     ui.RawHTML
+	Children ui.Node
+}
+
+func Card(p CardProps) ui.Node {
+	return <section>
+		<h2>{p.Title}</h2>
+		<div innerHTML={p.Body} />
+		{p.Children}
+	</section>
+}
+
+func page(p Post, note string) ui.Node {
+	return <article title={p.Body}>
+		<p>{note}</p>
+		<div class="body">{p.Body}</div>
+		<div class="inner" innerHTML={p.Body}></div>
+		<Card title={p.Title} body={p.Body}>{p.Body}</Card>
+	</article>
+}
+
+func main() {
+	p := Post{Title: "<i>Hello</i>", Body: ui.RawHTML(`<b>bold</b> &amp; <em>em</em>`)}
+	s, err := ui.String(context.Background(), page(p, "<script>x()</script>"))
+	fmt.Println(s, err)
+}

@@ -275,8 +275,102 @@ Holes accept Go expressions; their required type depends on their place:
 | `onClick={c.Inc}`, `onClick={c.Add(2)}`, `onChange={c.Choose(this.value)}` | an event: a method value, or a call of an exported method, pushed when the event fires with the element's reads ([Events](/ui/events)); a `ctx` it names is the event's |
 | `bind:value={Q}` | two-way: the field's value, and what is typed sets it — a field marked `@ui.Bind` on a live page (`@ui.Bind` on the field, its debounce and `validate:` rules), else an error |
 | `style:--accent={Color}` | a CSS variable (any property) beside the element's `style`, sanitized as a `ui.Style` |
+| `<div innerHTML={Body} />` | the element's content: a `ui.RawHTML`, written as is ([HTML as is](#raw-html)) |
 
 <span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
+
+### Rendering HTML as Is {#raw-html}
+
+A hole's string is text: `<p>{Note}</p>` with `Note` set to `<b>hi</b>`
+shows the tags, escaped. HTML meant as markup — a post's body from an
+editor, a page rendered from Markdown — is a `ui.RawHTML`, and the type
+is the contract: a hole, a prop or a slot holding a `ui.RawHTML` writes it
+unescaped, wherever a hole goes, and nothing else does.
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Article struct {
+	Title string
+	Body  ui.RawHTML
+}
+</script>
+
+<article>
+  <h1>{Title}</h1>
+  <div class="prose" innerHTML={Body} />
+</article>
+```
+
+`innerHTML={Body}` is the element's content, the same as
+`<div class="prose">{Body}</div>`, and says so at the tag; it takes a
+`ui.RawHTML` only ([E0133](/errors/E0133)) and no children beside it
+([E0134](/errors/E0134)). In an attribute's value, `title={Body}`, a
+`ui.RawHTML` is text, escaped like any other.
+
+Where the HTML comes from decides how it becomes one:
+
+- **Anything a user could have written** goes through `ui.Sanitize(s)`,
+  which parses it, keeps formatting, headings, lists, quotes, code,
+  tables, links and images, drops everything else and writes it again,
+  well-formed. Links and images keep `href`, `src` and `alt`, on `http`,
+  `https`, `mailto` or relative URLs; table cells keep `colspan` and
+  `rowspan`; everything keeps `title`. `class`, `id`, `style` and every
+  `on…` handler go, as do scripts, styles, frames, forms' controls, SVG
+  and MathML. Sanitize once, where the value is set, and keep the field a
+  `ui.RawHTML`.
+- **HTML the app trusts as it is** — its own files, a renderer it runs
+  over its own content — is converted, `ui.RawHTML(s)`. The conversion is
+  the line a review greps for: each one says its string can't hold what a
+  user typed.
+
+`ui.SanitizeWith(s, p)` takes a `ui.Policy` — its elements, attributes and
+URL schemes — for content that needs more, such as `class` for a code
+block's language:
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+var postPolicy = func() ui.Policy {
+	p := ui.DefaultPolicy()
+	p.Elements = append(p.Elements, "figure", "figcaption")
+	p.ElementAttrs["code"] = []string{"class"}
+	return p
+}()
+
+type Editor struct {
+	ui.Live
+	Preview ui.RawHTML
+}
+
+func (e *Editor) Write(html string) {
+	e.Preview = ui.SanitizeWith(html, postPolicy)
+}
+</script>
+
+<section>
+  <textarea onInput={Write(this.value)}></textarea>
+  <div class="prose" innerHTML={Preview} />
+</section>
+```
+
+A policy adds to what is kept, never past what is unsafe: scripts, styles
+and the elements whose content isn't markup go with their content, and
+`on…` and `style` attributes go, whatever it names.
+
+On a live page a `ui.RawHTML` is one value of the render tree, like a
+string: when an event changes it, the patch carries its new markup and the
+browser replaces that region, leaving its siblings as they were (long
+markup changes by a token patch). The region is opaque: states, bindings
+and the change tracking never reach inside it, and sanitized content
+never carries the runtime's `data-vk-` attributes, which it drops with
+every other `data-` one.
 
 ### Fallible and Optional Values {#calls-returning-an-error}
 
