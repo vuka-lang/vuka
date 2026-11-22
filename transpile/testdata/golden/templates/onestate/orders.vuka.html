@@ -59,7 +59,7 @@ func (o *Orders) Confirm() {
 <section>
   <p>{selected.Name}</p>
   for _, r := range rows {
-    <button onClick={Show(0)}>{r.Name}</button>
+    <button onClick={Show(0)}>{r.Name} <span>{tab}</span></button>
   }
   <dialog open={open}>
     <p>{tab}</p>

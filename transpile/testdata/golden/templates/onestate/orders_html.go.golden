@@ -24,6 +24,7 @@ type Orders struct {
 	open     ui.State[bool]
 	tab      ui.State[string]
 	note     ui.State[string]
+	draft    ui.State[string]
 }
 
 type Order struct {
@@ -31,7 +32,7 @@ type Order struct {
 	Name string
 }
 
-//line orders.vuka.html:29
+//line orders.vuka.html:30
 func (o *Orders) mount(ctx context.Context) error {
 	if o.tab.Get() == "" {
 		uigen.SrvSet(o.tab, "all")
@@ -48,6 +49,12 @@ func (o *Orders) Show(i int) {
 	uigen.SrvSet(o.open, true)
 }
 
+// Park passes draft where the compiler can't follow its reads: escape
+// means synced.
+func (o *Orders) Park() {
+	stash(o.draft)
+}
+
 func (o *Orders) Confirm() {
 	if !o.open.Get() {
 		return
@@ -56,17 +63,17 @@ func (o *Orders) Confirm() {
 	uigen.SrvSet(o.open, false)
 }
 
-//line orders.vuka.html:52
+//line orders.vuka.html:59
 func (o *Orders) Render() ui.Node {
 	buttons := ui.Guard(0x617730c3de66d770, func() []ui.Node {
 		var buttons []ui.Node
-//line orders.vuka.html:54
+//line orders.vuka.html:61
 		for _, r := range o.rows.Get() {
-			buttons = append(buttons, ui.HTML(`<button onClick={func() { o.Show(0) }}>{r.Name}</button>`, func() { o.Show(0) }, r.Name))
+			buttons = append(buttons, ui.HTML(`<button onClick={func() { o.Show(0) }}>{r.Name} <span>{o.tab}</span></button>`, func() { o.Show(0) }, r.Name, o.tab))
 		}
 		return buttons
-	}, o.rows.Version())
-//line orders.vuka.html:52
+	}, o.rows.Version(), uigen.Ver(o.tab))
+//line orders.vuka.html:59
 	return ui.HTML(`
 <section>
   <p>{o.selected.Get().Name}</p>
@@ -95,7 +102,7 @@ func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 
 // Synced states (one state, §12): their browser writes ride each event,
 // applied before the handler; a server write rides the next render.
-// open: read in (o *Orders).Confirm; tab: read in (o *Orders).mount.
+// draft: passed to stash in (o *Orders).Park; open: read in (o *Orders).Confirm; tab: read in (o *Orders).mount.
 func init() {
-	uigen.SyncFields[Orders]("open", "tab")
+	uigen.SyncFields[Orders]("draft", "open", "tab")
 }
