@@ -163,10 +163,10 @@ func TestSession(t *testing.T) {
 		t.Errorf("after the dependency is mended: %+v", s.ran)
 	}
 
-	// A Go package of the module that doesn't compile: Transpile does the
-	// run (go build reports it).
+	// A Go package of the module that doesn't compile: the session's run
+	// is Transpile's (go build reports it).
 	edit(t, filepath.Join(root, "plain", "plain.go"), "K = 3", "K = missing")
-	if sessionRun(t, s, root); !s.ran.fellBack {
+	if sessionRun(t, s, root); s.ran.fellBack {
 		t.Errorf("a Go package that doesn't compile: %+v", s.ran)
 	}
 	edit(t, filepath.Join(root, "plain", "plain.go"), "K = missing", "K = 3")
@@ -468,5 +468,77 @@ func TestSessionLocalSources(t *testing.T) {
 	s.LocalSources = "two"
 	if _, errs := sessionRun(t, s, root); len(errs) > 0 {
 		t.Errorf("dep.M, after the dependency gained it: %v", errs)
+	}
+}
+
+// TestSessionGoPackageErrors: Go packages of the module that don't compile,
+// imported by a Vuka package directly and through another Go package, are
+// reported as Transpile reports them, with no run done again; the session
+// has every one of their errors.
+func TestSessionGoPackageErrors(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := sessionModule(t)
+	plain := filepath.Join(root, "plain", "plain.go")
+	write(t, plain, "package plain\n\nconst K = missing\n\nfunc F() (int, error) { return undefinedF(), nil }\n")
+	write(t, filepath.Join(root, "user", "user.go"), "package user\n\nimport \"example.com/app/plain\"\n\nfunc U() (int, error) { return plain.F() }\n")
+	mainFile := filepath.Join(root, "main.vuka")
+	edit(t, mainFile, "n := lib.Count()?", "n := lib.Count()?\n\tu := user.U()?\n\tn += u")
+	edit(t, mainFile, `"example.com/app/plain"`, "\"example.com/app/plain\"\n\t\"example.com/app/user\"")
+	s, err := NewSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for run := range 2 {
+		_, errs := sessionRun(t, s, root)
+		if s.ran.fellBack || s.Transpiled() == -1 {
+			t.Fatalf("run %d was done again: %+v", run+1, s.ran)
+		}
+		got := strings.Join(errs, "\n")
+		for _, want := range []string{
+			"main.vuka:7:2: example.com/app/plain doesn't compile: " + filepath.Join(s.Root(), "plain", "plain.go") + ":3:11: undefined: missing (and 1 more)",
+			"main.vuka:8:2: example.com/app/user depends on example.com/app/plain, which doesn't compile",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("run %d: no %q in\n%s", run+1, want, got)
+			}
+		}
+	}
+	// As a run imports user, which needs plain.
+	s.gen, s.now, s.broken, s.walking, s.errNow = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, map[string]bool{}, map[string]error{}
+	_, err = s.Import("example.com/app/user")
+	if s.failed != nil {
+		t.Errorf("the session gave up: %v", s.failed)
+	}
+	s.gen, s.now, s.broken, s.walking, s.errNow = nil, nil, nil, nil, nil
+	var ce *compileError
+	if !errors.As(err, &ce) || ce.culprit != "example.com/app/plain" {
+		t.Fatalf("importing user: %v", err)
+	}
+	var diags []string
+	for _, d := range ce.diags {
+		diags = append(diags, fmt.Sprintf("%s:%d:%d: %s", filepath.Base(d.pos.Filename), d.pos.Line, d.pos.Column, d.msg))
+	}
+	if want := "plain.go:3:11: undefined: missing\nplain.go:5:32: undefined: undefinedF"; strings.Join(diags, "\n") != want {
+		t.Errorf("plain's errors:\n%s\nwant\n%s", strings.Join(diags, "\n"), want)
+	}
+
+	// A syntax error is the package's too, though go/parser words it as
+	// the compiler doesn't (the build's report says it as go/parser does).
+	write(t, plain, "package plain\n\nconst K = \n\nfunc F() (int, error) { return 1, nil }\n")
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list transpile.ErrorList
+	if _, _, err := s.Transpile(pkgs, t.TempDir(), Options{}); s.ran.fellBack || !errors.As(err, &list) ||
+		!strings.Contains(err.Error(), filepath.Join(s.Root(), "plain", "plain.go")+":5:6: ") {
+		t.Errorf("a syntax error: %+v %v", s.ran, err)
+	}
+	// Mended, the module transpiles without errors.
+	write(t, plain, "package plain\n\nconst K = 2\n\nfunc F() (int, error) { return 1, nil }\n")
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) != 0 {
+		t.Errorf("mended: %+v %v", s.ran, errs)
 	}
 }

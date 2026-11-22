@@ -339,6 +339,7 @@ TestBuildReportImports
 TestBuildReportTypedFields
 TestDepOrder
 TestWatchFailureOnTerminal
+TestWatchGoPackageErrors
 # embedstub_test.go
 TestFrontendEmbeds
 # enums_e2e_test.go
