@@ -2,7 +2,7 @@
 
 Status: draft, 2026-11-22. Everything here is additive or a deprecation with
 a vet warning; no existing template changes meaning silently. Each numbered
-section ships on its own (§12 sequences them).
+section ships on its own (§13 sequences them).
 
 ## 1. Motivation
 
@@ -45,8 +45,8 @@ And five things components can't say at all:
 - a keyed list item appears and leaves abruptly — `transition` only
   animates `show`.
 
-Part I (§2–§6) smooths what exists. Part II (§7–§11) adds the missing
-tissue. §13 is a worked example using most of it.
+Part I (§2–§6) smooths what exists. Part II (§7–§12) adds the missing
+tissue. §14 is a worked example using most of it.
 
 ---
 
@@ -73,7 +73,7 @@ spelling, so this is one rule in place of today's four:
   "declare it ui.Action") on the declaration, and `ui.On(x)` becomes
   unnecessary once the field is typed. The kit and registry drop their
   `On any`/`OnClick` doubles for one `On ui.Action` per component
-  (§12 migrates them).
+  (§13 migrates them).
 - Payload-taking handlers get a typed form: `ui.ActionOf[T]` accepts a
   method or closure whose payload is `T`, checked at the tag like any
   prop — `OnSelect ui.ActionOf[Order]` ends the render-time
@@ -505,7 +505,89 @@ unkeyed elements morph as today.
 
 ---
 
-## 12. Sequencing and the kits
+## 12. One state — merging `ui.State` and `ui.Assign`
+
+Vuka has two state types because it started from the server: `ui.State[T]`
+is a browser-owned signal (writes apply without a round trip, the browser's
+copy wins on morphs), `ui.Assign[T]` is server-owned tracked state (`Set`
+marks it changed, unchanged fields skip their spots) — and a plain
+unexported field compiles to an Assign. Client frameworks have one state
+concept and distinguish *usage*; the split is why a dialog costs a triplet
+today: the payload wants server ownership, the open flag wants browser
+ownership, and nothing joins them.
+
+The two merge into one `ui.State[T]`: **one logical value, two replicas,
+every write versioned** (Assign's counter, extended to both sides). The
+type is the sync contract:
+
+- **A server write** (`s.open = true` in a method, `Set`/`Update`) dirties
+  it and rides the next render. The browser adopts it iff the server's
+  version advanced past the browser's base — the rule form fields already
+  follow ("keeps what the user typed until the server's value changes").
+  Change tracking is untouched: guards compare versions, unchanged states
+  skip their spots.
+- **A browser write** (`onClick={open = !open}`, `ui.JS.Set`) applies
+  instantly — today's signal feel — and marks the browser copy dirty.
+  **Every event send carries the dirty states first**, so a handler reading
+  the field sees the truth as of the event; the machinery is the one that
+  already sends pending form changes before a page's other events.
+- **Conflicts** resolve by version: a server write after the browser's base
+  supersedes; a browser write in flight arrives with the event, so the
+  handler reads it before writing over it.
+
+No annotations pick a mode. What the code does decides, and the compiler
+sees all of it — the same move as reads deciding reactivity:
+
+1. **Never read by Go code** (rendered and written only in the browser):
+   browser writes are never sent. The bare signal, inferred — a
+   keystroke-hot draft costs no wire because no server code consumes it.
+2. **Read by any live method**: synced. The sync set is minimal by
+   construction — wire cost is paid exactly for the states the server
+   consumes.
+3. **A plain unexported field** stays a server-only tracked value, never
+   browser-writable; it is not a signal.
+4. **Derived values are expressions** — a template expression over states
+   is browser-evaluated and tracked already; a Go method over synced
+   states is the server form. The `Derived` option deprecates with
+   `Assign`.
+
+Two rules keep the inference honest:
+
+- **Escape means synced.** A state passed where the compiler cannot follow
+  — an unknown function, an interface, an unanalyzed package — is
+  classified synced. Over-syncing costs bytes; under-syncing is a
+  correctness bug, so the conservative direction is fixed.
+- **The classification is visible.** Hover and `vuka explain` say what a
+  state is and why ("synced: read in `(s *Index).toggle`"); inference
+  without that is archaeology.
+
+`Notify` survives as pacing on the now-universal flow (run a handler on
+sync, debounced or throttled). `ui.Assign[T]` becomes an alias of
+`ui.State[T]` with a deprecation note and a W-series vet nudge; plain
+fields compile as before, so apps change nothing to keep working.
+
+Costs, stated plainly:
+
+- **Event payloads grow** by the dirty synced states. Rule 1 keeps the
+  chatty ones off the wire.
+- **A behavior change**: server code that read a signal used to see the
+  initial value; now it sees browser truth at event boundaries. Almost
+  always the bug being fixed, but observable — it ships behind a release
+  note, not silently.
+- **Security**: a synced state is browser-writable by definition. Nothing
+  authorization-relevant may trust one without a server-side check — true
+  of form fields today, now true of every synced state, and the docs say
+  it loudly.
+
+What the build must pin with tests: a state read only inside another
+state's event handler (ordering within one event); a state whose only Go
+read is `Mount` (a read is a read: synced); the wire regression proving
+rule 1 fires for a keystroke-bound field; and the dialog triplet rewritten
+on merged state as the conformance example — with §2's `ui.ActionOf` and a
+fresh-per-open overlay over two unified states, the ten-field page drops
+to two.
+
+## 13. Sequencing and the kits
 
 Order, cheapest and highest-leverage first:
 
@@ -520,6 +602,8 @@ Order, cheapest and highest-leverage first:
 7. §10 boundaries (runtime + live patch scoping).
 8. §9 `ui.Bound` (ui + transpiler).
 9. §8 give/take (render context + registry diagnostics).
+10. §12 one state (runtime + wire protocol + the `Assign` deprecation) —
+   last: it changes observed semantics, so it rides a release note.
 
 Then the two component sets converge on the new vocabulary — one
 `On ui.Action` per component, `ui.AutoID` ids, `vuka:"class"` merging,
@@ -532,7 +616,7 @@ copies belong to the app and are never rewritten behind its back; a
 Each step lands with its errors, editor diagnostics, docs section and
 conformance tests; nothing removes or silently changes an existing surface.
 
-## 13. Worked example — the pieces together
+## 14. Worked example — the pieces together
 
 A billing page: tabs that wire themselves, a bound money input with a
 default, a row markup func, fading alerts, and a fenced chart.
@@ -595,7 +679,7 @@ No page-side tab plumbing, no change handler on the money input, no
 button whose `on` means the same as `onClick`, and a chart whose failure
 is a sentence instead of a dead page.
 
-## 14. What was considered and set aside
+## 15. What was considered and set aside
 
 - **Dynamic tags** (`<X is={…}>`): a hole renders any `ui.Node`, so a func
   choosing a component covers it; sugar waits for evidence.
