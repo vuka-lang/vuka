@@ -1,0 +1,8 @@
+package pages
+
+// Order is an order under review.
+type Order struct {
+	ID       int
+	Number   string
+	Approved bool
+}

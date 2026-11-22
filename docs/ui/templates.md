@@ -647,6 +647,115 @@ names and one of standard-library calls only (`n := len(xs)`). A deferred
 method's binding is its element's part: see
 [Parts of a Page](/web/parts#bindings).
 
+### Markup Funcs {#markup-funcs}
+
+Markup a file renders in several places can be written once, as a func whose
+body is markup. A template statement binds it, and its body takes the
+file's whole template grammar: tags, holes, statements, components and
+events. A call in a hole renders it:
+
+<!-- vuka:context
+type Order struct {
+	ID     int
+	Number string
+	Total  string
+}
+-->
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Review struct {
+	ui.Live
+	Submitted []Order
+	Flagged   []Order
+}
+
+func (p *Review) Approve(id int) error { return nil }
+</script>
+
+row := func(o Order) {
+  <li>
+    <b>{o.Number}</b> {o.Total}
+    <button onClick={Approve(o.ID)}>Approve</button>
+  </li>
+}
+
+<section>
+  <h2>Submitted</h2>
+  <ul>
+    for _, o := range Submitted { {row(o)} }
+  </ul>
+  <h2>Flagged</h2>
+  <ul>
+    for _, o := range Flagged { {row(o)} }
+  </ul>
+</section>
+```
+
+```go [Generated Go]
+func (p *Review) Render() ui.Node {
+	row := func(o Order) ui.Node {
+		return ui.HTML(`
+<li>
+  <b>{o.Number}</b> {o.Total}
+  <button onClick={ui.JS.Push(p.Approve, o.ID)}>Approve</button>
+</li>`, o.Number, o.Total, ui.JS.Push(p.Approve, o.ID))
+	}
+	// …
+}
+```
+
+:::
+
+The binding is an ordinary Go value of type `func(o Order) ui.Node`.
+Writing the result type, `func(o Order) ui.Node { … }`, means the same; a
+func literal with any other result is Go, its body Go statements. A
+statement binding a markup func may come before the file's first element,
+as above.
+
+The body is markup like the rest of the file's: it reads the shape's
+fields, states and methods by their bare names, and its events are checked
+and pushed as the main markup's are. Each call renders the body again, so a
+`key` in it keys the element each call renders, and a keyed live component
+in it keeps its state across renders as it would written inline in a loop.
+
+The binding follows Go's rules for names. It is declared before it is
+used; binding the same name twice in one block is Go's error, as is a
+binding nothing uses. A markup func calling itself is declared first with
+`var`, inside the markup:
+
+```html
+<ul>
+  var tree func(c Category) ui.Node
+  tree = func(c Category) {
+    <li>
+      {c.Name}
+      if len(c.Children) > 0 {
+        <ul>
+          for _, sub := range c.Children { {tree(sub)} }
+        </ul>
+      }
+    </li>
+  }
+  for _, c := range Categories { {tree(c)} }
+</ul>
+```
+
+A func literal takes markup for its body when a template statement binds
+it, or when it is set on a component's prop of a func type returning
+`ui.Node` ([Passing Values to a Slot](#scoped-slots)). Markup in a func
+literal anywhere else is [E0197](/errors/E0197); its parameters are a Go
+parameter list, each with its type ([E0198](/errors/E0198)). An event
+calling a markup func, `onClick={row(o)}`, is
+[E0199](/errors/E0199): the call renders markup, and an event pushes one of
+the shape's methods.
+
 ## Components and Slots {#components-and-slots}
 
 ### Using Component Tags
@@ -808,6 +917,21 @@ function takes (`let={t}`), not more.
 > [!NOTE]
 > `let` goes only on a slot whose field is a func. On a `ui.Node` slot it is
 > an error, as is a `let` naming more values than the function passes.
+
+A [markup func](#markup-funcs) fills a scoped slot too: it is a value of
+the field's func type, set as the prop. A func literal set on the prop
+takes markup for its body, for a slot used once:
+
+```html
+cell := func(t components.Task, i int) { <b>{i + 1}.</b> {t.Title} }
+
+<components.List items={Open} row={cell} />
+<components.List items={Done} row={func(t components.Task, i int) { <s>{t.Title}</s> }} />
+```
+
+The literal is checked against the field's type as `let` is: a prop of
+another func type takes a Go func, and markup in one set on it is
+[E0197](/errors/E0197).
 
 ### Repeating a Slot {#repeated-slots}
 

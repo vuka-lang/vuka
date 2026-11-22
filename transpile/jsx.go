@@ -57,6 +57,9 @@ type jsxTree struct {
 	events     []*jsxEvent
 	fallbacks  []*jsxElem // a component's own <slot:x>fallback</slot:x>
 	done       bool       // its edits are in fixed
+	fn         bool       // a markup func literal's body, from after its parameters (its result, when typed) to its }
+	typed      bool       // that literal writes its result type
+	lit        int        // where that literal's func is
 }
 
 // jsxEvent is an on… attribute with an expression on an element, whose type is
@@ -133,6 +136,7 @@ type jsxAttr struct {
 	scope *jsxAttr // the <fieldset for={…}> a field reference is relative to: model={Street} (forms.go)
 	of    bool     // form={Form} on a control outside its form: the form's element id
 	some  string   // a T given to an Option[T] prop: the vuka import's name, to wrap it in Some (wrapSome)
+	mfn   bool     // a component's attribute set to a markup func literal (markupfn.go)
 }
 
 // attrPart is a piece of an attribute's text: text, or a hole's expression.
@@ -426,6 +430,12 @@ func (p *jsxParser) element(off int) *jsxElem {
 				case '{':
 					var ok bool
 					a.kind = 'e'
+					if comp && p.f.html != nil && !isEvent(a.name) && a.name != "on" {
+						if sp, end, ok := p.attrMarkupFunc(i); ok {
+							a.expr, i, a.mfn = sp, end, true
+							break
+						}
+					}
 					a.expr, i, ok = p.expr(i)
 					if !ok {
 						p.fail(a.off, "attribute %s has an empty expression", a.name)
@@ -738,6 +748,9 @@ func (p *jsxParser) goUntil(g *goScan, first tok, prev token.Token, open int, st
 		case isClose(t.tok):
 			d--
 		case t.tok == token.LSS && jsxStarts(prev) && jsxTagAt(p.src, t.off):
+			if prev == token.LBRACE && p.f.html != nil && opensFuncBody(toks) {
+				p.misplacedMarkupFunc(t.off)
+			}
 			end := p.tree(t.off)
 			t = tok{t.off, token.IDENT, string(p.src[t.off:end])}
 			g.resume(end)
@@ -1029,9 +1042,20 @@ func (w *jsxWriter) copy(s span) { w.out.p = append(w.out.p, jsxPiece{keep: s, c
 // place, the statements building its blocks before the return whose value
 // it is, or with it in a function literal called in its place.
 func (f *fileState) jsxEdits(t *jsxTree, final bool) edits {
-	w := &jsxWriter{q: f.target.q, f: f, t: t, final: final, out: &stream{}, sink: &stream{}}
+	w := &jsxWriter{q: f.target.q, f: f, t: t, final: final, out: &stream{}, sink: &stream{}, inBlock: t.fn, inLoop: t.fn}
 	w.piece([]jsxNode{t.root})
 	expr, stmts := w.out.p, w.sink.p
+	if t.fn {
+		head := " " + w.q + "Node {\n"
+		if t.typed {
+			head = "{\n"
+		}
+		lit := []jsxPiece{{text: head, keep: span{-1, -1}}}
+		lit = append(lit, stmts...)
+		lit = append(lit, jsxPiece{text: "return ", keep: span{-1, -1}})
+		lit = append(lit, expr...)
+		expr, stmts = append(lit, jsxPiece{text: "\n}", keep: span{-1, -1}}), nil
+	}
 	ret := -1
 	if len(stmts) > 0 && t.returned {
 		ret = returnAt(f.src, t.start)
@@ -1228,6 +1252,9 @@ func (p *jsxParser) lineStmt(i int) bool {
 	if !isLetter(p.at(i)) && p.at(i) != '_' {
 		return false
 	}
+	if p.funcVar(i) {
+		return true
+	}
 	g := newGoScan(p.src, i)
 	for {
 		switch t := g.next(); t.tok {
@@ -1244,6 +1271,9 @@ func (p *jsxParser) lineStmt(i int) bool {
 
 // stmt reads a template's simple statement, up to its line's end.
 func (p *jsxParser) stmt(g *goScan, first tok) (jsxNode, int) {
+	if end, ok := p.markupFuncStmt(first); ok {
+		return &jsxBlock{stmt: true, heads: []span{{first.off, end}}}, end
+	}
 	depth, end := 0, first.end()
 	for t := g.next(); ; t = g.next() {
 		switch {

@@ -103,6 +103,9 @@ same page in the terminal.
 | [E0191](./E0191) | A Call of a component that cannot be sent |
 | [E0195](./E0195) | A widget whose Value or Choices don't fit its field |
 | [E0196](./E0196) | A quoted value that is none of its prop type's constants |
+| [E0197](./E0197) | Markup in a func literal that is Go |
+| [E0198](./E0198) | A markup func's parameters don't fit |
+| [E0199](./E0199) | An event calling a markup func |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |

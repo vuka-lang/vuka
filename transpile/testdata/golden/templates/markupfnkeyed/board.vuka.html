@@ -1,0 +1,48 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Board lists its items twice, inline and through a markup func, each row
+// keyed and holding a keyed counter.
+type Board struct {
+	ui.Live
+	items []Item
+}
+
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error {
+	b.items = []Item{{1, "a"}, {2, "b"}, {3, "c"}}
+	return nil
+}
+
+// Drop removes the first item.
+func (b *Board) Drop() { b.items = b.items[1:] }
+</script>
+
+row := func(it Item) {
+  <li key={it.ID} id="fn-{strconv.Itoa(it.ID)}">
+    <Counter key={it.ID} label={it.Name}/>
+  </li>
+}
+
+<main>
+  <button id="drop" onClick={Drop}>drop</button>
+  <ul>
+    for _, it := range items {
+      <li key={it.ID} id="in-{strconv.Itoa(it.ID)}">
+        <Counter key={it.ID} label={it.Name}/>
+      </li>
+    }
+  </ul>
+  <ol>
+    for _, it := range items {
+      {row(it)}
+    }
+  </ol>
+</main>

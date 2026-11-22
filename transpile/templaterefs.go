@@ -30,7 +30,7 @@ func TemplateRefs(markup string) (refs []TemplateRef) {
 	if len(errs) > 0 {
 		return nil
 	}
-	root := p.trees[0].root
+	root := p.trees[len(p.trees)-1].root
 	var walk func([]jsxNode, bool, bool)
 	walk = func(ns []jsxNode, conditional, loop bool) {
 		for _, n := range ns {
@@ -64,5 +64,11 @@ func TemplateRefs(markup string) (refs []TemplateRef) {
 		}
 	}
 	walk([]jsxNode{root}, false, false)
+	for _, t := range p.trees {
+		if t.fn {
+			// A markup func's body renders wherever, and however often, it is called.
+			walk([]jsxNode{t.root}, true, true)
+		}
+	}
 	return refs
 }

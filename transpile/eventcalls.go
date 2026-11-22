@@ -312,7 +312,7 @@ func (e *engine) checkEventCalls() {
 
 func (e *engine) checkEventCall(f *fileState, a *jsxAttr) {
 	x := e.attrExpr(f, a)
-	if x == nil {
+	if x == nil || e.markupFuncCall(f, a, x) {
 		return
 	}
 	recv := e.markupReceiver(f, x)

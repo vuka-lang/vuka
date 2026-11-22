@@ -653,6 +653,9 @@ func (e *engine) checkEvents(f *fileState) {
 			if _, call := ast.Unparen(x).(*ast.CallExpr); call && isHandlerCall(tv) {
 				continue // the call is the handler
 			}
+			if e.markupFuncCall(f, ev.attr, x) {
+				continue
+			}
 			if msg := e.handlerProblem(f, tv.Type); msg != "" {
 				e.errs.add("E0107", f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}
