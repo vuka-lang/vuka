@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
@@ -686,6 +687,18 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 		}
 	case "value":
 		if isComponentTag(spot.tag.name) {
+			if vs := p.tagEnumValues(vf.source, src, spot.tag.name, spot.attr); len(vs) > 0 {
+				for i, v := range vs {
+					label := v.value
+					if label == "" {
+						label = strconv.Quote(label)
+					}
+					item(label, 20, or(v.doc, v.name), v.value, 1, fmt.Sprintf("%03d", i))
+					last["filterText"] = v.value
+					last["labelDetails"] = map[string]any{"description": v.name}
+				}
+				break
+			}
 			for i, v := range p.tagVariantValues(vf.source, src, spot.tag.name, spot.attr) {
 				item(v, 12, "variant "+spot.attr, v, 1, fmt.Sprintf("%03d", i))
 			}

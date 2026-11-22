@@ -77,6 +77,32 @@ A prop declared `Option[T]` takes a plain `T` too, and the tag wraps it:
 `Option` given as it is stays as it is, and a tag that leaves the prop out
 leaves it `None`.
 
+## Props Taking a Type's Constants {#constants}
+
+A quoted value on a prop of a defined string type is checked against the
+constants the type's package declares: `<design.Button variant="outline">`
+compiles because `ButtonOutline ButtonVariant = "outline"` exists, and
+`variant="outlien"` is [E0196](/errors/E0196), with the closest value
+suggested. The value is what you write, never the constant's Go name, and
+the editor completes the values inside the quotes. A number on a prop of a
+defined integer type, `cols={3}`, is checked the same way. A hole is never
+checked: `variant={design.ButtonVariant(name)}` passes any value.
+
+A type with no exported constants takes any value. For a type whose
+constants are only presets, mark its doc comment `//vuka:open` and quoted
+values outside them compile too:
+
+```go
+package design
+
+// Accent is a colour: a preset or any CSS colour.
+//
+//vuka:open
+type Accent string
+
+const AccentBrand Accent = "brand"
+```
+
 ## Required Props {#required}
 
 Tag any field `vuka:"required"` and every tag must set it, whatever its

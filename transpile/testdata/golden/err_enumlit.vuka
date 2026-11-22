@@ -1,0 +1,42 @@
+package main
+
+import (
+	"github.com/vuka-lang/ui/v2"
+	design "golden/enumdesign"
+)
+
+// Variant is a Button's look.
+type Variant string
+
+const (
+	VariantDefault Variant = ""
+	VariantOutline Variant = "outline"
+	VariantGhost   Variant = "ghost"
+)
+
+type Cols int
+
+const (
+	ColsOne Cols = 1
+	ColsTwo Cols = 2
+)
+
+type ButtonProps struct {
+	Variant  Variant
+	Cols     Cols
+	Tone     design.Tone
+	Children ui.Node
+}
+
+func Button(p ButtonProps) ui.Node { return <button>{p.Children}</button> }
+
+func Page() ui.Node {
+	return <div>
+		<Button variant="outlien">Cancel</Button>
+		<Button variant="VariantGhost">Close</Button>
+		<Button cols={3}>Wide</Button>
+		<Button tone="warn">Careful</Button>
+	</div>
+}
+
+func main() {}

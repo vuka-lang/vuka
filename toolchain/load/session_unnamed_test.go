@@ -168,6 +168,7 @@ engine.go model
 enum.go name + "Values"
 enum.go parseName(name)
 enum.go s
+enumlit.go n
 fields.go kind
 fields.go n.Obj().Name() + "Columns"
 fields.go n.Obj().Name() + suffix
@@ -317,5 +318,27 @@ func main() { fmt.Println(mid.Get(), dot.Twice(), gen.One(), emb.Of(), mid.Shape
 		if s.ran.fellBack || s.ran.transpiled != c.transpiled {
 			t.Errorf("%s: %+v, want %d transpiled", c.name, s.ran, c.transpiled)
 		}
+	}
+}
+
+// TestSessionOpenDirective: a //vuka:open line on a type changes what its
+// package's importers may set (E0196), so it is part of the package's API.
+func TestSessionOpenDirective(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := sessionModule(t)
+	plain := filepath.Join(root, "plain", "plain.go")
+	write(t, plain, "package plain\n\nconst K = 2\n\n// T is a tone.\ntype T string\n\nconst TA T = \"a\"\n")
+	s, err := NewSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionRun(t, s, root)
+	before := s.checked["example.com/app/plain"].api
+	edit(t, plain, "// T is a tone.\n", "// T is a tone.\n//\n//vuka:open\n")
+	sessionRun(t, s, root)
+	if after := s.checked["example.com/app/plain"].api; after == before {
+		t.Error("the API is the same with the type open")
 	}
 }

@@ -102,6 +102,7 @@ same page in the terminal.
 | [E0190](./E0190) | A ui.Meta that describes no field |
 | [E0191](./E0191) | A Call of a component that cannot be sent |
 | [E0195](./E0195) | A widget whose Value or Choices don't fit its field |
+| [E0196](./E0196) | A quoted value that is none of its prop type's constants |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |
