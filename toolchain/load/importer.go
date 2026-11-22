@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -42,10 +43,14 @@ type Importer struct {
 	exports map[string]string
 	errs    map[string]string
 	mods    map[string]*goModule // import path → its module, as go list reported it
-	stale   map[string]bool      // main-module packages that failed: listed again once the overlay changes
+	stale   map[string]bool      // main-module packages that failed or compiled before a Vuka package they need: listed again once the overlay changes
 	root    string               // the main module's directory
 	modPath string               // the main module's path; "" when Dir is in none
 	broken  map[string]bool      // Vuka packages that didn't transpile
+	// pending, when set, reports whether path is a Vuka package the run
+	// hasn't transpiled yet: what the go command compiles of it now, its
+	// hand-written Go alone, isn't its API.
+	pending func(path string) bool
 	gc      types.ImporterFrom
 	fset    *token.FileSet // gc's
 	cache   *exportCache   // packages outside the main module, across runs; nil for none
@@ -301,7 +306,7 @@ type goError struct {
 // -e, packages that compile get their export data even when others don't.
 func (im *Importer) list(paths ...string) error {
 	goLists.Add(1)
-	args := []string{"list", "-e", "-export", "-deps", "-json=ImportPath,Export,Error,DepsErrors,Standard,Module"}
+	args := []string{"list", "-e", "-export", "-deps", "-json=ImportPath,Imports,Export,Error,DepsErrors,Standard,Module"}
 	if im.Overlay != "" {
 		args = append(args, "-overlay="+im.Overlay)
 	}
@@ -320,17 +325,26 @@ func (im *Importer) list(paths ...string) error {
 	compile := compileErrors(stderr.String())
 	type pkg struct {
 		ImportPath, Export string
+		Imports            []string
 		Standard           bool
 		Module             *goModule
 		Error              *goError
 		DepsErrors         []*goError
 	}
 	var failed []*pkg
+	early := map[string]bool{} // the module's packages compiled without a pending Vuka package's Go
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for dec.More() {
 		p := new(pkg)
 		if err := dec.Decode(p); err != nil {
 			return err
+		}
+		if im.pending != nil && im.inMain(p.ImportPath) {
+			// -deps lists a package after what it imports.
+			early[p.ImportPath] = im.pending(p.ImportPath) || slices.ContainsFunc(p.Imports, func(i string) bool { return early[i] })
+			if early[p.ImportPath] {
+				im.stale[p.ImportPath] = true
+			}
 		}
 		im.exports[p.ImportPath] = p.Export
 		im.mods[p.ImportPath] = p.Module

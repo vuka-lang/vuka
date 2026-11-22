@@ -131,3 +131,44 @@ func TestFailureMessages(t *testing.T) {
 		}
 	}
 }
+
+// TestImportBeforeTranspiled: a Go package of the module listed before a
+// Vuka package it imports has transpiled compiles against that package's
+// hand-written Go alone; what imports the Vuka package afterwards sees all
+// of it, its .vuka files' names too.
+func TestImportBeforeTranspiled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv("GOWORK", "off")
+	repo, _ := filepath.Abs("../..")
+	root := t.TempDir()
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => "+repo+"\n")
+	write(t, filepath.Join(root, "orders", "total.go"), "package orders\n\nfunc Total(ns ...int) int { return len(ns) }\n")
+	write(t, filepath.Join(root, "orders", "orders.vuka"), "package orders\n\nfunc Label() Result[string] { return Ok(\"orders\") }\n")
+	write(t, filepath.Join(root, "reports", "reports.go"), "package reports\n\nimport \"example.com/app/orders\"\n\nfunc Sum() int { return orders.Total(1, 2) }\n")
+	write(t, filepath.Join(root, "main.vuka"), `package main
+
+import (
+	"fmt"
+
+	"example.com/app/orders"
+	"example.com/app/reports"
+)
+
+func run() Result[string] {
+	l := orders.Label()?
+	return Ok(fmt.Sprint(l, reports.Sum()))
+}
+
+func main() { fmt.Println(run()) }
+`)
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Transpile(pkgs, t.TempDir(), Options{}); err != nil {
+		t.Errorf("transpile: %v", err)
+	}
+}

@@ -839,6 +839,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	imports = append(imports, moduleImports(mod, modPath, roots, seen)...)
 	more := generatedImports(modPath, seen)
 	var imp pkgImporter
+	current := 0 // the package being transpiled; those after it have no Go in the overlay yet
 	switch {
 	case sess != nil:
 		imp = sess
@@ -850,6 +851,11 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		}
 		im := newCachedImporter(root, overlay)
 		defer im.cache.save()
+		at := map[string]int{}
+		for i, p := range pkgs {
+			at[p.ImportPath] = i
+		}
+		im.pending = func(path string) bool { i, ok := at[path]; return ok && i >= current }
 		_ = im.prefetch(imports, more) // a failure shows up where the import is used
 		imp = im
 	}
@@ -872,6 +878,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	}
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
+		current = i
 		if opts.Stop != nil && opts.Stop() {
 			return nil, "", ErrStopped
 		}
