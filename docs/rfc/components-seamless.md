@@ -266,6 +266,17 @@ tag. `ui.Variants` is untouched — it's the variant table, not the merge.
   open ui.State[bool] `@ui.Start(true)`
   ```
 
+- **Kept instances (a `keep` attribute).** An embedded live component
+  leaving the markup drops its instance today. `keep` on its tag parks the
+  instance instead — state, subscriptions — and re-renders it when the tag
+  returns (tab panels, wizards): Vue's KeepAlive, scoped to the tag rather
+  than matched by name, so nothing is silently unmatched. Parked instances
+  are capped per page (least-recently-shown evicted, the live idle trim
+  applying as usual) and dropped with the page. A kept component that must
+  know (pause a ticker, re-check what it shows) takes the ordinary
+  lifecycle: `@ui.OnChange` on return reports the away time; §12's states
+  version as always, so a stale parked render reconciles like any other.
+
 - **Method-value sameness is documented behavior, not folklore**: an
   inline closure prop re-renders the child every time; the docs and a vet
   hint (prefer `onCancel={p.Cancel}` over `onCancel={func(){ p.Cancel() }}`)
@@ -500,8 +511,31 @@ awaited before the node is taken out.
 ```
 
 `ui.Fade`, `ui.Slide`, `ui.Scale`, `ui.Animate(…)` are the existing values.
-A key reorder is a move, not remove-and-insert, so it fires nothing;
-unkeyed elements morph as today.
+Unkeyed elements morph as today.
+
+The class timing is a contract, not an implementation detail — CSS
+libraries depend on it (Vue's six-class lifecycle is the convention apps
+know): the *from* classes go on before the node is live and come off one
+frame after; the *active* classes hold from the start until the
+transition's end event; the *to* classes hold from frame one to the end.
+`ui.Animate(during, from, to)` names the same three moments, so the keyed
+form and the JS-command form share one vocabulary. The end is the node's
+own transition/animation end event; a transition on a nested element
+instead needs an explicit duration on the value (`.For(d)`), since the
+runtime listens on the keyed node only.
+
+**Moves animate too.** A key reorder is a move, not remove-and-insert: the
+runtime knows which keyed nodes were displaced by an insert, remove or
+reorder, so it applies a *move* class and lets a CSS transition carry the
+node from its old box to its new one (the FLIP pattern). The documented
+rule rides along: a leaving node is taken out of layout flow for the move
+math, so neighbors glide instead of snapping.
+
+**No modes in the first pass.** Enter and leave run simultaneously; an
+out-in sequence means the runtime holding a patch's apply until a leave
+finishes, which v1 does not do — stated as a limit, revisited with
+evidence. `appear` (animating the first render) is a value option
+(`ui.Fade(d).Appear()`), not a default.
 
 ---
 
