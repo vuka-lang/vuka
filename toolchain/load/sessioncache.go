@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 var CompilerVersion = "dev"
 
 // cacheVersion is the format of the entries.
-const cacheVersion = "3"
+const cacheVersion = "4"
 
 // CacheDir is the directory vuka keeps its caches in: VUKA_CACHE when it
 // names a directory, else vuka in the user's cache directory. ok is false
@@ -77,9 +78,53 @@ func (s *Session) diskDir() string {
 	return filepath.Join(s.cacheBase, hex.EncodeToString(h[:12]))
 }
 
-func entryName(kind, path string) string {
-	h := sha256.Sum256([]byte(path))
-	return filepath.Join(kind, hex.EncodeToString(h[:16]))
+// entryFile is the file holding kind's entry for package path and key.
+// Each key has its own, keepOuts of them a package: an edit undone, or a
+// branch checked out again, finds the output and API it had before, as a
+// session's memory does. Otherwise the packages importing one whose API an
+// edit changed are transpiled and type-checked again when it is undone.
+func entryFile(dir, kind, path, key string) string {
+	p, k := sha256.Sum256([]byte(path)), sha256.Sum256([]byte(key))
+	return filepath.Join(dir, kind, hex.EncodeToString(p[:16]), hex.EncodeToString(k[:16]))
+}
+
+// readEntry reads an entry, marking it used for trimEntries.
+func readEntry(file string) ([]byte, error) {
+	data, err := os.ReadFile(file)
+	if err == nil {
+		now := time.Now()
+		os.Chtimes(file, now, now)
+	}
+	return data, err
+}
+
+// saveEntry writes an entry, then keeps the keepOuts last used of its
+// package's.
+func saveEntry(file string, data []byte) {
+	writeEntry(file, data)
+	trimEntries(filepath.Dir(file), keepOuts)
+}
+
+// trimEntries removes the entries of dir but the n used last.
+func trimEntries(dir string, n int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) <= n {
+		return
+	}
+	type entry struct {
+		name string
+		used time.Time
+	}
+	var es []entry
+	for _, e := range entries {
+		if fi, err := e.Info(); err == nil && fi.Mode().IsRegular() && !strings.HasPrefix(e.Name(), ".tmp-") {
+			es = append(es, entry{e.Name(), fi.ModTime()})
+		}
+	}
+	slices.SortFunc(es, func(a, b entry) int { return b.used.Compare(a.used) })
+	for _, e := range es[min(n, len(es)):] {
+		os.Remove(filepath.Join(dir, e.name))
+	}
 }
 
 // diskOut is a package's generated files as the cache keeps them.
@@ -105,17 +150,19 @@ type diskGen struct {
 	Matches        []transpile.Match
 }
 
-func (s *Session) loadOut(path string) *pkgOut {
+// loadOut is what a run generated for package path from the inputs key
+// names; nil when the cache has none.
+func (s *Session) loadOut(path, key string) *pkgOut {
 	dir := s.diskDir()
 	if dir == "" {
 		return nil
 	}
-	data, err := os.ReadFile(filepath.Join(dir, entryName("out", path)))
+	data, err := readEntry(entryFile(dir, "out", path, key))
 	if err != nil {
 		return nil
 	}
 	var d diskOut
-	if gob.NewDecoder(bytes.NewReader(data)).Decode(&d) != nil || d.Path != path {
+	if gob.NewDecoder(bytes.NewReader(data)).Decode(&d) != nil || d.Path != path || d.Key != key {
 		return nil
 	}
 	o := &pkgOut{key: d.Key, stats: d.Stats}
@@ -143,7 +190,7 @@ func (s *Session) saveOut(path string, o *pkgOut) {
 	if gob.NewEncoder(&buf).Encode(d) != nil {
 		return
 	}
-	writeEntry(filepath.Join(dir, entryName("out", path)), buf.Bytes())
+	saveEntry(entryFile(dir, "out", path, o.key), buf.Bytes())
 }
 
 // diskAPI is a package's API as the cache keeps it: checkedPkg's api, core
@@ -153,14 +200,14 @@ type diskAPI struct {
 	Unnamed              map[string]string
 }
 
-// loadAPI is the API a package whose files and imports make key has, as a
-// run checked it before; nil when the cache has none.
+// loadAPI is the API a package whose files and imports' APIs make key
+// has, as a run checked it before; nil when the cache has none.
 func (s *Session) loadAPI(path, key string) *checkedPkg {
 	dir := s.diskDir()
 	if dir == "" {
 		return nil
 	}
-	data, err := os.ReadFile(filepath.Join(dir, entryName("api", path)))
+	data, err := readEntry(entryFile(dir, "api", path, key))
 	if err != nil {
 		return nil
 	}
@@ -178,7 +225,7 @@ func (s *Session) saveAPI(path, key string, c *checkedPkg) {
 	}
 	var buf bytes.Buffer
 	if gob.NewEncoder(&buf).Encode(diskAPI{path, key, c.api, c.core, c.unnamed}) == nil {
-		writeEntry(filepath.Join(dir, entryName("api", path)), buf.Bytes())
+		saveEntry(entryFile(dir, "api", path, key), buf.Bytes())
 	}
 }
 

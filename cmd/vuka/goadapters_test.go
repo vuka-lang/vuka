@@ -8,8 +8,9 @@ import (
 
 // TestGoCallAdapters: a package written in Go gets an adapter for each
 // signature its vuka.Wrap calls wrap — a function, a method expression, a
-// function literal — once each, as a .vuka file's call decorators do; a
-// package with .vuka files is left to the compiler.
+// function literal — once each, as a .vuka file's call decorators do, and
+// the method tables of its types; a package with .vuka files is left to
+// the compiler.
 func TestGoCallAdapters(t *testing.T) {
 	t.Parallel()
 	root := tempModule(t, map[string]string{
@@ -28,6 +29,10 @@ type Store struct{}
 
 func (s *Store) save(ctx context.Context, n int) error { return nil }
 
+func (s *Store) CleanName(ctx context.Context) error { return nil }
+
+func (s *Store) Save() {}
+
 func add(a, b int) int { return a + b }
 
 var (
@@ -39,8 +44,10 @@ var (
 
 func main() {}
 `,
-		"mixed/a.go":   "package mixed\n\nimport \"github.com/vuka-lang/vuka/v2\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
-		"mixed/b.vuka": "package mixed\n",
+		"mixed/a.go":                   "package mixed\n\nimport \"github.com/vuka-lang/vuka/v2\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
+		"mixed/b.vuka":                 "package mixed\n",
+		"pages/[code]/forms.go":        "package code\n\nimport \"github.com/vuka-lang/vuka/v2\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
+		"pages/[code]/index.vuka.html": "<main></main>\n",
 	})
 	gens := goCallAdapters(root)
 	if len(gens) != 1 || gens[0].Target != filepath.Join(root, "vuka_calls_gen.go") {
@@ -56,6 +63,9 @@ func main() {}
 		if !strings.Contains(src, want) {
 			t.Errorf("lacks %s:\n%s", want, src)
 		}
+	}
+	if want := "vuka.RegisterMethods[Store]((*Store).CleanName)"; !strings.Contains(src, want) {
+		t.Errorf("lacks %s:\n%s", want, src)
 	}
 	if n := strings.Count(src, "RegisterAdapter("); n != 3 {
 		t.Errorf("%d adapters, want 3:\n%s", n, src)

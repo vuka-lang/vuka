@@ -25,3 +25,8 @@ func init() {
 		}
 	})
 }
+
+// The methods the runtime finds by name, for vuka.Methods.
+func init() {
+	vuka.RegisterMethods[Store](Store.Count, (*Store).Save)
+}

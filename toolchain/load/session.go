@@ -305,16 +305,23 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	if len(bp.CgoFiles) > 0 {
 		return nil, errors.New(path + " uses cgo")
 	}
-	h := sha256.New()
+	// key names the package as type-checked: its files and its imports'
+	// keys. apiKey names its API, for the disk cache: its files and its
+	// imports' APIs, so an import edited without changing its API — a
+	// comment, moved code, a body — leaves it as it was.
+	h, ah := sha256.New(), sha256.New()
 	fmt.Fprintf(h, "%s %s\n", path, s.goVersion)
+	fmt.Fprintf(ah, "%s %s\n", path, s.goVersion)
 	srcs := make([][]byte, len(bp.GoFiles))
 	for i, name := range bp.GoFiles {
 		if srcs[i], err = s.read(filepath.Join(dir, name)); err != nil {
 			return nil, err
 		}
 		writeFile(h, name, srcs[i])
+		writeFile(ah, name, srcs[i])
 	}
 	var imports []*checkedPkg
+	apiKnown := true
 	for _, imp := range bp.Imports { // sorted
 		if s.inModule(imp) {
 			c, err := s.check(imp)
@@ -323,9 +330,15 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 			}
 			imports = append(imports, c)
 			fmt.Fprintf(h, "import %s %s\n", imp, c.key)
+			fmt.Fprintf(ah, "import %s %s\n", imp, c.api)
+			apiKnown = apiKnown && c.api != "" && !c.partial
 		}
 	}
 	key := hex.EncodeToString(h.Sum(nil))
+	apiKey := ""
+	if apiKnown {
+		apiKey = hex.EncodeToString(ah.Sum(nil))
+	}
 	if c := s.checked[path]; c != nil && c.key == key {
 		s.now[path] = c
 		return c, nil
@@ -334,7 +347,7 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	for _, imp := range imports {
 		c.imports = append(c.imports, imp.path)
 	}
-	if d := s.loadAPI(path, key); d != nil {
+	if d := s.loadAPI(path, apiKey); apiKey != "" && d != nil {
 		c.api, c.core, c.unnamed = d.api, d.core, d.unnamed // its pkg once something imports it
 		s.checked[path], s.now[path] = c, c
 		return c, nil
@@ -360,7 +373,9 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	}
 	c.api = hex.EncodeToString(api.Sum(nil))
 	c.core = hex.EncodeToString(core.Sum(nil))
-	s.saveAPI(path, key, c)
+	if apiKey != "" {
+		s.saveAPI(path, apiKey, c)
+	}
 	s.checked[path], s.now[path] = c, c
 	return c, nil
 }
@@ -578,7 +593,7 @@ func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
 		}
 	}
 	if o == nil {
-		if d := s.loadOut(p.ImportPath); d != nil && d.key == key {
+		if d := s.loadOut(p.ImportPath, key); d != nil {
 			o = d
 			s.keep(p.ImportPath, d)
 		}

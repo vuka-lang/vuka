@@ -371,6 +371,8 @@ TestPush252Errors
 TestPush252Warnings
 # pushhooks_test.go
 TestPushHooks
+# releaselink_e2e_test.go
+TestReleaseLink
 # reload_test.go
 TestReloadStep
 # calls_test.go

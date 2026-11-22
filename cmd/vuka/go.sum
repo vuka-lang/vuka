@@ -250,6 +250,14 @@ github.com/vuka-lang/vuka/v2 v2.23.1-0.20261120021808-f874507aea22 h1:o6RdzJXIml
 github.com/vuka-lang/vuka/v2 v2.23.1-0.20261120021808-f874507aea22/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.24.0 h1:3+d51MM5TZBOYXLaF/lTSy283bSZARKEJCn+gQQyQnU=
 github.com/vuka-lang/vuka/v2 v2.24.0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121081553-5d3e08f67211 h1:hL4nruNgs7YTE2YiN6tcNtpAxcdCAPasW/WUrB6ZfPw=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121081553-5d3e08f67211/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121191402-389a763e5508 h1:VKjNohRxjqpjCl0dgy0hSnR5B9eFxPftWeFDl2LR3MM=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121191402-389a763e5508/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121192654-901c44b43d64 h1:xzHtVF1S0khihKEENjQ8OcFSJnWnnjHAVqFESboNwDA=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121192654-901c44b43d64/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121193906-3d211f061ff8 h1:ue2Wzb2c3s9qxzBBfYM1H9YHoV9XkjiqqWIX0koQAVM=
+github.com/vuka-lang/vuka/v2 v2.24.1-0.20261121193906-3d211f061ff8/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55 h1:tL10drZNfzP/oE8Ee8cDBJ99aq8QP9ef4pvsMbwQqg0=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55/go.mod h1:owktz7Dp3M9s+VTFrfYRnbIetlQ051Lm8KRtsn1m2LI=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261105112256-a7ee386c7090 h1:FtuhSkKQt5AnmXsO+TWAqfe3WvwafrKwmZH/w9P2VyQ=

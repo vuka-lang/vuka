@@ -1,7 +1,8 @@
 # RFC: flow, approval workflows over your records
 
-Status: approved design (2026-11-20). No code accompanies this document; each
-phase of §13 lands on its own.
+Status: approved design (2026-11-20), declaration layer revised 2026-11-21
+(outcome structs, fall-through edges, decisions as Actions: see §3, §4, §5 and
+"Earlier drafts"). Each phase of §13 lands on its own.
 
 ## 1. Goal
 
@@ -48,8 +49,12 @@ saving, searching), which belongs in the engine.
 ## 3. Declaring a flow
 
 A flow is one struct per process, over one record type R. Its nodes are its
-methods, marked by attributes. Edges are fields of those attributes, so they
-sit on the node they leave. There is no wiring method and no code generation.
+methods, marked by attributes, and they are written in the order the process
+goes. A `Start` or an `Action` with no `To` goes on to the next node below it;
+`To` is written only where the route leaves that order. A View's decisions are
+structs of their own, each carrying `@flow.Outcome`. The attributes are the
+whole declaration: there is no wiring method, no registration call and no code
+generation.
 
 ```vuka
 package orders
@@ -62,22 +67,33 @@ type OrderProcess struct {
 	Mail    *MailService
 }
 
-@flow.Start{To: (*OrderProcess).Review}
+@flow.Start{Can: "orders.submit"}
 func (p *OrderProcess) Submitted() {}
 
-@flow.Start{To: (*OrderProcess).Review} // a second entry, started from code
+@flow.Start // a second entry, started from code
 func (p *OrderProcess) Imported() {}
 
 @flow.View{Can: "orders.review", Sets: StatusReview, NoUndo: true}
-@flow.On{Name: "approve", To: (*OrderProcess).Charge, Can: "orders.approve",
+func (p *OrderProcess) Review() {}
+
+@flow.Outcome{Of: (*OrderProcess).Review, To: (*OrderProcess).Charge, Can: "orders.approve",
 	Title: "Approve order", Done: "Order approved", Guard: inStock}
-@flow.On{Name: "reject", To: (*OrderProcess).Rejected, Can: "orders.reject",
-	Title: "Reject order", Done: "Order rejected", Undo: flow.CanUndo}
-func (p *OrderProcess) Review(ctx context.Context, in ReviewInput) error {
-	return p.Billing.SaveReview(ctx, p.Record(), in)
+type Approve struct {
+	Note string `form:"note"`
 }
 
-@flow.Action{To: (*OrderProcess).Done}
+func (a Approve) Apply(ctx context.Context, p *OrderProcess) error {
+	p.Record().Note = a.Note
+	return p.Save(ctx)
+}
+
+@flow.Outcome{Of: (*OrderProcess).Review, To: (*OrderProcess).Rejected, Can: "orders.reject",
+	Title: "Reject order", Done: "Order rejected", Undo: flow.CanUndo}
+type Reject struct {
+	Note string `form:"note" validate:"required"`
+}
+
+@flow.Action
 func (p *OrderProcess) Charge(ctx context.Context) error {
 	return p.Billing.Charge(ctx, p.Record().ID)
 }
@@ -87,45 +103,76 @@ func (p *OrderProcess) Done() {}
 
 @flow.End{Sets: StatusRejected}
 func (p *OrderProcess) Rejected() {}
-
-var F = flow.Register(&OrderProcess{})
 ```
 
-- **A node's name is its method name.** Tasks store `order.Review`; renaming a
-  method is a data migration (§8.5).
+- **Flows are found, not registered.** `@flow.Meta` marks the flow's type, and
+  the flow is found through vuka's registry, which lists the types that carry
+  an attribute (`vuka.TypesWith[flow.Meta]()`). It is resolved and checked when
+  it is first used or when `flow.Validate()` runs (§12).
+- **A node's name is its method name**, unless the attribute's `Name` pins
+  another: `@flow.View{Name: "Review"}` on a method renamed to `Inspect` keeps
+  the tasks stored as `order.Review` working. Without `Name`, renaming a method
+  is a data migration (§8.5).
 - **Edges are method expressions** (`(*OrderProcess).Review`), so the compiler
   checks them, the editor jumps to them and renames them. A cycle is an edge
   like any other.
-- **A node with several outcomes repeats `@flow.On`**, one attribute per
-  outcome, each carrying its own target, permission, title and guard. The
-  outcomes read top to bottom beside the code that handles them.
+- **Source order is the default route.** Nodes are ordered by file name, then
+  line. `Start` and `Action` with no `To` go on to the next node that is not a
+  `Start`, so stacked entries all lead to the first step. A `Start` or `Action`
+  that is last and has no `To` is an error ("falls off the end"). `End`
+  never has a `To`; `Split`, `Join`, `Timer`, `Sub` and decisions name their
+  targets. Moving a method moves where its predecessor goes, so a test can pin the
+  resolved graph with `flowtest.Graph(Orders)` (§12).
+- **An outcome is a struct.** `@flow.Outcome` goes on a struct type; `Of` names
+  its View by method expression. The struct is the outcome's form: bound and
+  validated like a View's form (§5). Its name, as tasks store it, is the type's
+  lowercased (`Approve` is `"approve"`), so a database written by an earlier
+  declaration keeps working; `Name` overrides. The optional `Apply` method is
+  the outcome's code (§5).
+- **Outcome structs are found by their attribute** (`vuka.TypesWith[flow.Outcome]()`)
+  and filed under the View their `Of` names, so they may be in any file or
+  package. The buttons are in declaration order, which is the registry's
+  registration order: in a package, files by name and then source order;
+  across packages, Go's init order. An outcome with no `Of`, or with an `Of` of
+  another flow, is reported by the flow its `To` names.
 - **A View with one outcome** uses the sugar fields on `@flow.View` itself
-  (`To`, `Label`, `Title`, `Confirm`, `Done`, `Guard`, `Undo`).
+  (`To`, `Label`, `Title`, `Confirm`, `Done`, `Guard`, `Form`, `View`, `Undo`)
+  and needs no struct: a lone "Request approval" button is one line. A View is
+  sugar or structs, not both.
+- **A View with no code of its own** is written `func (p *T) M() {}`.
 - **Functions in attributes** (`inStock`) are ordinary Go functions; their
-  signatures are checked at boot (§11).
+  signatures are checked at boot (§12).
 - A flow over a record with no table of its own uses a plain struct for R: the
   record is kept as JSON on the process.
 
 ## 4. Attributes
 
-All attributes go on methods, except `@flow.Meta`, which goes on the type.
+`@flow.Meta` goes on the flow's type and `@flow.Outcome` on an outcome struct;
+the others go on methods.
 
 | Attribute | Fields | Meaning |
 |---|---|---|
 | `@flow.Meta` (type) | Name, Title, Version | the flow's identity; Version is recorded on each process |
-| `@flow.Start` | To, Can | an entry node; startable from the UI when `Can` is set, always from code |
-| `@flow.View` | Can, Sets, Assign, Due, Page, Template, NoUndo; single-outcome sugar: To, Label, Title, Confirm, Done, Guard, Undo | a human task |
-| `@flow.On` (repeated, on a View) | Name, To, Can, Label, Title, Confirm, Done, Guard, Page, Template, Undo | one outcome of the View |
-| `@flow.Action` | To, Sets | a code node; its body runs in the transition's transaction, and an error rolls the move back |
-| `@flow.Decide` | To []any (the possible targets) | a code branch; the body returns `flow.Next` through `p.Go(target)`, which must be one of `To` |
+| `@flow.Start` | To, Can | an entry node; startable from the UI when `Can` is set, always from code; with no `To` it falls through |
+| `@flow.View` | Can, Sets, Assign, Due, Page, Template, NoUndo; single-outcome sugar: To, Label, Title, Confirm, Done, Guard, Form, View, Undo | a human task |
+| `@flow.Outcome` (struct) | Of, To, Can, Label, Title, Confirm, Done, Guard, View, Page, Template, Undo, Name | one decision of the View `Of` names; the struct is its form |
+| `@flow.Action` | To, Sets | a code node; its body runs in the transition's transaction, and an error rolls the move back; with no `To` it falls through. If its method returns `(flow.Next, error)` it is a decision and `To` is `[]any` of the possible targets |
 | `@flow.Split` | To []any | parallel fan-out, one token per target |
 | `@flow.Join` | To | continues once every token that left the split has arrived |
 | `@flow.Timer` | After, To | continues after a delay |
 | `@flow.Sub` | Flow, To | starts a child flow; continues when the child ends |
 | `@flow.End` | Sets | finishes the process; any task still open is cancelled |
 
+Every node attribute (`Start`, `View`, `Action`, `Split`, `Join`, `Timer`,
+`Sub`, `End`) also takes **Name**, the node's stored name, which defaults to
+the method's.
+
 Field types:
 
+- **Of** and **To** are method expressions of the flow's struct. `Of` is
+  required on an outcome and must be a View of this flow.
+- **Name** (outcome) is the stored name; the default is the type name
+  lowercased. **Label** is the button's text, the humanised type name by default.
 - **Undo** is `flow.CanUndo | flow.NoUndo | zero`; zero means the node's
   default.
 - **Guard** is `func(ctx, *flow.Activation[R]) error`. Returning
@@ -142,56 +189,86 @@ Field types:
 
 | Node | Signature |
 |---|---|
-| View | `func (p *T) M(ctx context.Context[, in FormStruct]) error` |
+| View | `func (p *T) M(ctx context.Context[, in FormStruct]) error`, or `func (p *T) M()` |
 | Action | `func (p *T) M(ctx context.Context) error` |
-| Decide | `func (p *T) M(ctx context.Context) (flow.Next, error)` |
+| Decision (an Action) | `func (p *T) M(ctx context.Context) (flow.Next, error)` |
+| Outcome's code | `func (a Outcome) Apply(ctx context.Context, p *T) error` (value or pointer receiver) |
 | Start, End, Split, Join, Timer, Sub | empty body |
 
-- **The View's trailing struct is the task's form.** It is bound and validated
-  with web's binder, from the struct's own field attributes. There is
-  no `Form:` field on the View.
-- **An outcome can have its own form.** `@flow.On{…, Form: RejectForm{}}` (the
-  zero value of a struct; `Form` is also a field of `@flow.View` for its single
-  outcome) makes completing with that outcome bind and validate that struct
-  instead. A View whose outcomes all have a `Form` omits the struct parameter;
-  with a parameter, an outcome's `Form` must be the same type. Register refuses
-  a `Form` that is not a struct, naming the method and the outcome.
-- **A View's body runs on completion**, after `Can` and `Guard` and before the
-  token moves. `p.Outcome()` says which `@flow.On` fired. Returning an error,
-  or `flow.Refuse`, vetoes the move.
-- **An Action's body runs in the same transaction** as the move that reached
-  it.
+- **An outcome struct is the form.** The values a person typed are bound to its
+  fields (by field name, `form:` or `json:` tag, any case, trimmed, converted to
+  the field's type) and checked by web's binder, the app's validator and the
+  struct's own `Validate` method. A struct with no fields to ask for is a plain
+  button. Fields two outcomes share live in a struct both embed.
+- **`Apply` is the outcome's own code.** `a` is the bound struct and `p` the
+  flow's struct for this step, with `p.Record()`, `p.Save` and the injected
+  services. It runs after `Can`, `Guard` and the form's checks, inside the
+  transition's transaction, before `Sets`, `Moved` and the token move. Returning
+  an error, or `flow.Refuse`, vetoes the move and rolls it back.
+- **A View's body is the code common to its outcomes**, and with `Apply` it is
+  often nothing. When both exist **the body runs first and `Apply` second**, on
+  the same copy of the struct: the body is the shared step, whose error stops
+  the move before anything specific to the decision is done, and `Apply`, the
+  closest to the transition, writes last before `Sets`. `p.Outcome()` names the
+  outcome in both.
+- **With outcome structs the View's method takes no form parameter**: each
+  outcome has its own struct, and a parameter would be a third type. A
+  single-outcome View (sugar) may take one, and `Form` on it must then be that
+  type. An outcome struct that is not the method's parameter type, when the
+  method has one, is an error.
+- **A decision is an Action** whose method returns `(flow.Next, error)`. Its
+  `To` is the list of nodes the body may choose from with `p.Go(target)`; the
+  kind is read from the signature, so there is no separate attribute. Whether
+  `p.Go` named one of them is checked when the step runs.
 - **Later nodes read the submitted form** with `p.Form() any` (a pointer to the
-  outcome's struct) and `flow.FormAs[F](p) (F, bool)`. In the View's body and in
-  an Action in the same transition it is the bound form in memory; in a node
-  reached in a later transition it is decoded from the stored task data into
-  the outcome's struct. It is the form of the last completed View, nil when that
-  had none.
+  outcome's struct) and `flow.FormAs[F](p) (F, bool)`. In the View's body, in
+  `Apply` and in an Action in the same transition it is the bound form in memory;
+  in a node reached in a later transition it is decoded from the stored task data
+  into the outcome's struct. It is the form of the last completed View, nil when
+  that had none.
 
-## 6. flow.Workflow[R]: the embedded base
+## 6. flow.Workflow[R]: the embedded base, and the instance
 
-- `flow.Register(&T{})` keeps the value as a **template**. Injected fields are
-  filled once from the app container.
-- Attributes are read through vuka's registry, which records method and type
-  attributes at program start. A package-level `var F = flow.Register(...)` is
-  therefore safe: no init-order problem and no separate registration file.
+- **The process struct is the only noun.** `flow.Workflow[R]` carries the
+  flow's commands (§10), and they promote, so they are called on the struct.
+- **`flow.Of[*T]() *T`** returns the flow's one shared instance, memoized. It
+  is made at once and resolved on first use, so a package-level
+  `var Orders = flow.Of[*OrderProcess]()` is safe even though Go initialises it
+  before the `init` that records the attributes. The instance is the zero value
+  of the struct. Its pointer and interface fields are services, filled once
+  (only those still nil) from `flow.Provide` or the app container.
+- **Injection.** A web app with `flowui.Use()` has every flow's instance in its
+  container (`flow.Instances()`), so a hook or handler parameter of type
+  `*OrderProcess` is injected. `flowui.Use()` also runs `flow.Validate()` at
+  app start, so `main` needs no flow line.
+- **`flow.Template(&T{…})` is the one escape hatch**, for a struct that must be
+  built by hand. It is called before the flow is first used or validated, and
+  it makes that value the instance (or copies it into the instance `Of`
+  already made). Fields it sets are kept rather than injected. After the flow
+  has resolved, it panics.
+- **A bare `&OrderProcess{}` is no flow.** Its commands return an error naming
+  `flow.Of` and injection. They never panic and never silently do nothing.
+- Attributes are read through vuka's registry, which records them at program
+  start, so there is no init-order problem and no separate registration file.
 - On every activation the template is **cloned**, and the clone's
-  `Workflow[R]` holds the live activation. A clone belongs to one transition;
-  state written on it does not leak into another process.
+  `Workflow[R]` holds the live activation along with the engine. A clone
+  belongs to one transition, and state written on it does not leak into
+  another process. The commands work on the clone too, and there they join
+  the transition's transaction (§9).
 - Methods on the clone:
 
 | Method | Returns |
 |---|---|
 | `p.Record() *R` | the record the process is about |
-| `p.Outcome() string` | the outcome that fired, in a View body or `Moved` |
+| `p.Outcome() string` | the outcome that fired, in a View body, an outcome's `Apply` or `Moved` |
 | `p.Say(msg)` | a message shown to the acting user after the move |
-| `p.Go(method) flow.Next` | the chosen target, from a Decide |
+| `p.Go(method) flow.Next` | the chosen target, from a decision |
 | `p.Actor() int64` | the acting user |
 | `p.ProcessID()` | the process id |
 
 ## 7. Convention methods
 
-Looked up by name at `Register`; each is optional.
+Looked up by name when the flow resolves; each is optional.
 
 ```vuka
 func (p *T) Status(r *R) int64                      // record → status value: adoption, display, Sets consistency
@@ -228,7 +305,7 @@ Indexes serve the lists: `(status, owner)`, `(flow, node, status)`,
 
 Every node runs through one lifecycle: a task is created, optionally assigned,
 started, completed, and its successors are activated, all in the transaction of
-the step that reached it. Action, Decide, Split and Start complete at once and
+the step that reached it. Action (decisions too), Split and Start complete at once and
 the engine continues; a View waits for a person, a Timer for the scheduler
 (`web/cron`), a Join for its tokens, a Sub for its child's end.
 
@@ -274,31 +351,51 @@ acts, cannot both win.
 Every transition is one database transaction, and the `ctx` handed to user code
 carries it. The order is:
 
-`Can` + `Guard` → View or Action body → `Sets` → `Moved` → token moves.
+`Can` + `Guard` → form checks → View body → outcome `Apply` (or Action body) → `Sets` → `Moved` → token moves.
 
 - An error at any step rolls everything back.
 - Writes to other tables made with that `ctx` join the transaction, so a body
   can update the order, insert an invoice and move the process atomically.
 - `OtherFlow.Start` or `Advance(ctx, …)` called from a body joins it too, so a
-  cross-flow move is atomic: either both processes moved or neither did.
+  cross-flow move is atomic: either both processes moved or neither did. The
+  same holds for the clone's own commands: `p.Advance(ctx, &other, "approve")`
+  in an Action rolls back with the step.
 - External side effects (HTTP calls, SMS, mail) cannot roll back. Put them last
   in the body, or in their own Action node, and make them safe to repeat.
   `orm.OnCommit` runs work only after the transaction commits.
 
-## 10. The handle
+## 10. The commands
 
-`flow.Register` returns the handle `F`:
+The instance is the API:
 
 ```vuka
-F.Start(ctx, rec)                       // the first Start node
-F.StartAt(ctx, rec, (*T).Imported)      // a named Start node
-F.Advance(ctx, rec, "approve")          // move a record from code
-F.Complete(ctx, task, "approve", form)  // complete a task
-F.Claim(ctx, task) / Assign(ctx, task, user) / Unassign(ctx, task)
-F.Process(ctx, recID) / Active(ctx, recID) / History(ctx, recID)
-F.Undo(ctx, task) / Cancel(ctx, process)
-F.Inbox(ctx) / Queue(ctx) / Archive(ctx)
+Orders := flow.Of[*OrderProcess]()            // or injected
+
+Orders.Start(ctx, rec)                        // the first Start node
+Orders.StartAt(ctx, rec, (*T).Imported)       // a named Start node
+Orders.StartProcess(ctx, rec, node)           // either, giving the process
+Orders.Adopt(ctx, rec)                        // a record already in a state
+Orders.Advance(ctx, rec, "approve")           // move a record from code
+Orders.Complete(ctx, task, "approve", form)   // complete a task
+Orders.Claim / Assign / Unassign / BeginTask(ctx, task, …)
+Orders.Task(ctx, task, form) / Tasks(ctx, "queue", opts…) / Steps(ctx, recID)
+Orders.Process / Active / History(ctx, recID)
+Orders.Undo / CancelTask / Revive(ctx, task) / Cancel(ctx, process)
+Orders.Name() / Err() / FlowView()
 ```
+
+### Reserved names
+
+Because the commands are methods of the struct, a node method, another method
+or a field named like one would shadow it. That is an error with a
+suggestion: "node Start shadows the Start command; rename the method and pin
+its stored name with Name". The reserved names are the commands above and the
+step-scoped methods of §6: `Active`, `Actor`, `Adopt`, `Advance`, `Assign`,
+`BeginTask`, `Cancel`, `CancelTask`, `Claim`, `Complete`, `Err`, `FlowView`,
+`Form`, `Go`, `History`, `Name`, `Outcome`, `Process`, `ProcessID`, `Record`,
+`Revive`, `Save`, `Say`, `Start`, `StartAt`, `StartProcess`, `Steps`, `Task`,
+`Tasks`, `Unassign`, `Undo`. The command that marks a task started is
+`BeginTask`, so that a Start node may be called `Begin`.
 
 `flow.Inbox(ctx)` and its siblings list across flows. The lists:
 
@@ -325,7 +422,7 @@ type Hooks struct {
 ## 11. Task UI and lists: the project's own
 
 The flow module ships no task UI and never imports the ui kit. A View, or one
-`@flow.On`, says where its task UI lives in one of two ways:
+`@flow.Outcome`, says where its task UI lives in one of two ways:
 
 - **`Page: "/orders/view"`** reuses a page the app already has. The link to the
   task carries it (`?task=<id>`). On that page, `flow.TaskFrom(ctx)` returns
@@ -333,17 +430,17 @@ The flow module ships no task UI and never imports the ui kit. A View, or one
   the page can show the outcome buttons and hide what the task does not allow.
 - **`Template: "review.vuka.html"`** is a `.vuka.html` file in the flow's
   package, rendered with a typed context `*flow.Task[R]`: the record, the form
-  (the View's struct parameter, and each outcome's own form), the allowed outcomes with their labels,
+  (each outcome's own struct), the allowed outcomes with their labels,
   confirmations and guard refusals, the actor, the process id, and helpers to
   complete an outcome. The template uses any of the project's own components.
   The file is checked at compile time where vuka allows a file-typed attribute
-  field, and at `Register` otherwise (§12).
+  field, and when the flow resolves otherwise (§12).
 
-With neither set, the task completes from code (`F.Complete`) or through a
+With neither set, the task completes from code (`Orders.Complete`) or through a
 minimal plain form, with no ui kit.
 
 Inboxes, dashboard tabs and record lists are built by the project on the
-handle's list and task APIs (§10): `F.Inbox`, `F.Queue` and `F.Archive` return
+instance's list and task APIs (§10): `Orders.Tasks(ctx, "inbox" | "queue" | "archive")` returns
 paged, searchable, sortable rows, so a project's own `DataTable` or page shows
 them with its own columns and filters. A ready-made dashboard (`flowui`) may
 ship as a separate, optional module; core never depends on it.
@@ -351,25 +448,58 @@ ship as a separate, optional module; core never depends on it.
 Row security is `Scope` (§7), enforced inside these APIs; a project's filters
 only narrow what it shows.
 
-## 12. Register-time validation
+## 12. Validation
 
-`flow.Register` fails the boot, naming the method and suggesting the likely
-intended name, on any of:
+A flow is checked when it resolves, at first use or `flow.Validate()`.
+`Validate` finds every flow by `@flow.Meta` and fails the boot (through
+`flowui.Use` at app start, or `main`), naming the method and suggesting the
+likely intended name, on any of:
 
 - no Start node (at least one is required);
 - a `To` that is not a node method of this type;
 - an unreachable node;
-- duplicate `On` names on one node;
-- a View with no outcome;
+- a `Start` or `Action` with no `To` that is the last node ("falls off the
+  end");
+- a type with `@flow.Meta` that does not embed `flow.Workflow[R]`;
+- a node, method or field named like a command (§10, reserved names), or two
+  nodes stored under one name;
+- a View with no outcome (neither sugar nor an outcome struct naming it);
+- an outcome type that is not a struct, carries `@flow.Outcome` twice, has no
+  `Of` or `To`, whose `Of` is not a
+  View of this flow (a method of another struct, a method that is no node, a
+  node of another kind), whose name another outcome of the View has, that is not
+  the View's form parameter type when the View has one, or whose `Apply` is not
+  `func(ctx context.Context, p *T) error` (a near miss such as `Aply` is
+  reported as a probable `Apply`);
+- a View's sugar fields together with outcome structs;
 - an End with outgoing edges;
-- a Guard, Assign, Decide or form whose signature does not fit R;
-- a `p.Go` target that is not in the Decide's `To`;
+- a Guard, Assign or form whose signature does not fit R;
+- an `Action` with a list in `To` whose method does not return `flow.Next`, a
+  method that returns `flow.Next` with no list in `To`;
+- a `p.Go` target that is not in the decision's `To` (when the step runs);
 - a Join not reachable from its Split;
-- a `Sub.Flow` that is not registered;
+- a `Sub.Flow` that is not declared (a name or an instance), or two flows of one name;
 - a `Template` file that does not exist or does not parse against `*flow.Task[R]`.
 
 `flowtest` runs the same checks in a test, so a broken graph fails `go test`
-before it fails a boot.
+before it fails a boot. `flowtest.Graph(Orders)` returns the resolved graph as stable
+text, nodes in source order with their kind and where each leads, so an app can
+pin it in a golden test and an accidental rewiring (moving a method changes
+what falls through to what) fails loudly:
+
+```
+order
+  Submitted  Start   -> Review
+  Imported   Start   -> Review
+  Review     View    approve -> Charge, reject -> Rejected
+  Charge     Action  -> Done
+  Done       End
+  Rejected   End
+```
+
+A View lists its outcomes by name, a decision its choices joined by `|`, a
+Split its branches joined by `&`. A node with a pinned `Name` reads as its
+method followed by the stored name, `Inspect(Review)`.
 
 ## 13. Packaging and phases
 
@@ -384,7 +514,7 @@ Phases:
    Acceptance: every node's semantics tested in a transaction against SQLite,
    Postgres and MySQL; the lists one query each.
 2. **Declaration**: attribute reading, the clone model, convention methods,
-   the handle, the checks of §12. Acceptance: each rule of §12 has a failing
+   the instance and its commands, the checks of §12. Acceptance: each rule of §12 has a failing
    and a passing case.
 3. **Task UI**: `Page` links and `flow.TaskFrom`, `Template` rendering with
    `*flow.Task[R]`, live updates of open task pages. Acceptance: browser tests
@@ -411,26 +541,47 @@ the method name, so stored node names keep working where a method keeps the
 name its node had. What goes:
 
 - the public `StartN`/`ViewN`/… node field types, and `Next(&f.X)`;
-- the `Button`/`Confirm`/`On(...)` outcome chains, now `@flow.On`;
+- the `Button`/`Confirm`/`On(...)` outcome chains, now `@flow.Outcome` structs;
 - `Col`/`ColOf`, `Filter`/`ListFilter`/`Status`/`Newest` and every other
-  presentation setter on the flow: lists are the project's, on the handle's
+  presentation setter on the flow: lists are the project's, on the instance's
   APIs (§11), and `Status`/`Scope` move to the type (§7);
+- `flow.Register` and the `Handle` type: flows are found by `@flow.Meta`, and
+  the commands are on the struct (§6, §10);
 - `Render` and any task UI inside the library;
 - `Graph()`.
 
 ## 16. Compatibility
 
 flow is new. Under the [compatibility promise](/project/compatibility) from
-its first release: its attributes, the handle's methods, the hooks, the table
+its first release: its attributes, the commands and their reserved names, the hooks, the table
 layout (changed only through shipped migrations), and the validation errors.
 
 ## Earlier drafts
 
-Two earlier shapes were dropped. Spec structs and, after them, node fields with
-a `Graph()` method put the outcomes far from the node that handles them, so a
-reader jumped between two places to follow one step. Type-level `@flow.Route`
+Several earlier shapes were dropped. Spec structs and, after them, node fields
+with a `Graph()` method put the outcomes far from the node that handles them, so
+a reader jumped between two places to follow one step. Type-level `@flow.Route`
 headers had the same distance and gave nothing to hang per-outcome
 configuration on (permission, title, guard, undo). A nested `@flow.Switch{Cases}`
 literal was hard to read and hard to check, and a transition hook that replaced
 `Sets` made the status column depend on code instead of a declaration; both
-gave way to `@flow.Decide` with `p.Go`, and `Sets` plus an optional `Moved`.
+gave way to a decision with `p.Go`, and `Sets` plus an optional `Moved`.
+
+The next draft repeated `@flow.On` on the View, one attribute per outcome. It
+read well for two buttons and badly for the rest: the attributes pile up above
+a method whose body is a `switch p.Outcome()`, the outcome's form is a separate
+struct named by a `Form` field, and the code of a decision lives away from the
+decision. The current shape puts each decision in one place, a struct that is
+its declaration, its form and (through `Apply`) its code, which is the unit a
+reader and a validator already treat as one. It brings back some of the distance
+of `@flow.Route`, and pays for it in two ways: the outcome names its View with
+`Of` (a method expression, so the compiler and the editor follow it), and
+the registry now lists the types carrying an attribute, so the structs are
+found rather than passed to a `Register` call. That registry call also removed
+`Register` itself, and with it the separate handle: the struct the flow is
+declared on is the value its commands run on. The
+other two changes of that revision are small. Fall-through makes the common
+straight line of `Start` and `Action` nodes need no `To`, and `flowtest.Graph`
+is the guard that moving a method does not rewire a flow unnoticed. `@flow.Decide`
+folded into `@flow.Action` because a decision is an action whose body picks the
+target, which its signature already says.

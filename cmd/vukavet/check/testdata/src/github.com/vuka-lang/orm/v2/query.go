@@ -93,3 +93,7 @@ func SQLOf[T any](template string, args ...any) SQLExpr[T] { return SQLExpr[T]{}
 func SQLFor[T any](per Dialects, args ...any) SQLExpr[T]   { return SQLExpr[T]{} }
 
 func Today() q { return q{} }
+
+// Core is a query of a model without its Go type, which the sets orm
+// generate writes embed.
+type Core struct{}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // folderRoute is one route of the table: a page, one of its method
@@ -110,7 +111,7 @@ type carrier struct {
 // route table into res.
 func (t *routeTree) check(ov map[string]string, overlay string, res *routesResult) {
 	r := &routeImporter{t: t, ctx: overlayContext(ov), done: map[string]*types.Package{}, walking: map[string]bool{},
-		byPath: map[string]*routeDir{}, goVersion: goVersionOf(t.root), typed: map[string]*typedDir{}}
+		byPath: map[string]*routeDir{}, goVersion: goVersionOf(t.root), typed: map[string]*typedDir{}, mods: map[string]*modPkg{}}
 	shape := shapes.module(t.root, overlay, false, func(string) shapeKind { return shapeDecls })
 	if shape != "" {
 		shape = fmt.Sprintf("%s %s %q", shape, r.goVersion, compileFlags)
@@ -118,7 +119,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 	if m := takeRouteTypes(t.pages); m != nil && shape != "" && m.shape == shape {
 		// The module's declarations are as they were: what the importer
 		// read stays true, and a page package whose files are too is typed.
-		r.im, r.fset, r.prev = m.im, m.fset, m.typed
+		r.im, r.fset, r.prev, r.prevMods = m.im, m.fset, m.typed, m.mods
 		r.im.OverlayChanged() // a package of the module that failed may compile now: a body changed
 	} else {
 		r.im, r.fset = load.NewModuleImporter(t.root), token.NewFileSet()
@@ -129,23 +130,13 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 	defer func() {
 		traceStep("route check: %d of %d page packages typed %v", r.checked, len(t.dirs), time.Since(t0))
 		if shape != "" {
-			putRouteTypes(t.pages, &routeTypes{shape: shape, im: r.im, fset: r.fset, typed: r.typed})
+			putRouteTypes(t.pages, &routeTypes{shape: shape, im: r.im, fset: r.fset, typed: r.typed, mods: r.compiled()})
 		}
 	}()
-	var imports []string
 	for _, d := range t.dirs {
 		r.byPath[d.importPath] = d
 	}
-	for _, d := range t.dirs {
-		if bp, err := r.ctx.ImportDir(d.goDir, 0); err == nil {
-			for _, p := range bp.Imports {
-				if r.byPath[p] == nil && !slices.Contains(imports, p) {
-					imports = append(imports, p)
-				}
-			}
-		}
-	}
-	_ = r.im.Prefetch(append(imports, load.UIPath))
+	_ = r.im.Prefetch(append(r.depImports(), load.UIPath))
 	c := &routeChecker{t: t, r: r, res: res, info: map[*routeDir]*dirInfo{}, params: map[string]*pathParam{}}
 	if ui, err := r.Import(load.UIPath); err == nil {
 		c.node = lookupType(ui, "Node")
@@ -182,6 +173,8 @@ type routeImporter struct {
 	syntax    map[string]checked   // a page package's files and uses, by import path
 	typed     map[string]*typedDir // each page package typed, by import path
 	prev      map[string]*typedDir // the last check's, when what it imported is as it was
+	mods      map[string]*modPkg   // the module's other packages, typed from source; nil while being typed
+	prevMods  map[string]*modPkg   // the last check's that compiled, when the declarations are as they were
 	checked   int                  // page packages type-checked, not taken from prev
 }
 
@@ -203,6 +196,7 @@ type routeTypes struct {
 	im    *load.Importer
 	fset  *token.FileSet
 	typed map[string]*typedDir
+	mods  map[string]*modPkg // the module's other packages that compiled
 }
 
 var (
@@ -240,7 +234,141 @@ func (r *routeImporter) ImportFrom(path, dir string, mode types.ImportMode) (*ty
 	if d := r.byPath[path]; d != nil {
 		return r.checkDir(d)
 	}
+	if pkg, err, ok := r.checkMod(path); ok {
+		return pkg, err
+	}
 	return r.im.ImportFrom(path, dir, mode)
+}
+
+// modPkg is a package of the module outside the page tree, typed from
+// source as the overlay has it: what the go command would compile for its
+// export data, but from the same files the session read, so the route
+// check compiles nothing of the module a second time against the stubs.
+type modPkg struct {
+	pkg  *types.Package
+	err  error // it doesn't compile; pkg is nil
+	prev bool  // taken from the last check's
+}
+
+// modDir is the directory of path when it names a package of the module
+// (not of one nested in it) outside the page tree.
+func (r *routeImporter) modDir(path string) (string, bool) {
+	rel, ok := strings.CutPrefix(path, r.t.modPath)
+	if !ok || rel != "" && rel[0] != '/' || strings.HasSuffix(path, "_test") {
+		return "", false
+	}
+	dir := filepath.Join(r.t.root, filepath.FromSlash(strings.TrimPrefix(rel, "/")))
+	for d := dir; d != r.t.root && len(d) > len(r.t.root); d = filepath.Dir(d) {
+		if hasGoModFile(d) {
+			return "", false
+		}
+	}
+	return dir, true
+}
+
+// checkMod types the module's package path from source; ok is false for
+// one it leaves to the go command: no Go files in the overlay, or cgo. A
+// package with a type error fails to import, as its missing export data
+// did. While the module's declarations keep their shape, a package that
+// compiled for the last check is taken as it was, as its export data was.
+func (r *routeImporter) checkMod(path string) (pkg *types.Package, err error, ok bool) {
+	if m, seen := r.mods[path]; seen {
+		if m == nil {
+			return nil, errors.New("import cycle through " + path), true
+		}
+		return m.pkg, m.err, true
+	}
+	if m := r.prevMods[path]; m != nil {
+		r.mods[path] = &modPkg{pkg: m.pkg, prev: true}
+		return m.pkg, nil, true
+	}
+	dir, in := r.modDir(path)
+	if !in {
+		return nil, nil, false
+	}
+	bp, err := r.ctx.ImportDir(dir, 0)
+	if err != nil || len(bp.GoFiles) == 0 || len(bp.CgoFiles) > 0 {
+		return nil, nil, false
+	}
+	r.mods[path] = nil
+	var files []*ast.File
+	for _, name := range bp.GoFiles {
+		file := filepath.Join(dir, name)
+		rc, err := r.ctx.OpenFile(file)
+		if err != nil {
+			return r.modFailed(path, err)
+		}
+		src, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return r.modFailed(path, err)
+		}
+		f, err := parser.ParseFile(r.fset, file, src, parser.SkipObjectResolution)
+		if err != nil {
+			return r.modFailed(path, err)
+		}
+		files = append(files, f)
+	}
+	var typeErr error
+	conf := types.Config{Importer: r, GoVersion: r.goVersion, Error: func(err error) {
+		if typeErr == nil {
+			typeErr = err
+		}
+	}}
+	pkg, _ = conf.Check(path, r.fset, files, nil)
+	if typeErr != nil {
+		return r.modFailed(path, typeErr)
+	}
+	r.mods[path] = &modPkg{pkg: pkg}
+	return pkg, nil, true
+}
+
+func (r *routeImporter) modFailed(path string, err error) (*types.Package, error, bool) {
+	err = fmt.Errorf("%s doesn't compile: %w", path, err)
+	r.mods[path] = &modPkg{err: err}
+	return nil, err, true
+}
+
+// compiled are the module's packages this check typed without an error.
+func (r *routeImporter) compiled() map[string]*modPkg {
+	out := map[string]*modPkg{}
+	for path, m := range r.mods {
+		if m != nil && m.err == nil {
+			out[path] = m
+		}
+	}
+	return out
+}
+
+// depImports are the packages outside the module the page packages
+// import, directly or through the module's other packages: those the go
+// command is asked about, once.
+func (r *routeImporter) depImports() []string {
+	var deps []string
+	seen := map[string]bool{}
+	var walk func(dir string)
+	walk = func(dir string) {
+		bp, err := r.ctx.ImportDir(dir, 0)
+		if err != nil && bp == nil {
+			return
+		}
+		for _, p := range bp.Imports {
+			if seen[p] || r.byPath[p] != nil {
+				continue
+			}
+			seen[p] = true
+			if d, ok := r.modDir(p); ok && r.prevMods[p] == nil {
+				walk(d)
+			}
+			if _, ok := r.modDir(p); !ok {
+				deps = append(deps, p)
+			}
+		}
+	}
+	for _, d := range r.t.dirs {
+		walk(d.goDir)
+	}
+	return deps
 }
 
 func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
@@ -297,6 +425,8 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 			deps = append(deps, p)
 			r.checkDir(dep)
 			same = same && r.typed[p] != nil && r.prev[p] == r.typed[p]
+		} else if _, err, ok := r.checkMod(p); ok {
+			same = same && err == nil && r.mods[p].prev
 		}
 	}
 	if prev := r.prev[d.importPath]; prev != nil && same && prev.sum == sum && slices.Equal(prev.deps, deps) {
@@ -1039,10 +1169,11 @@ func buildsPtr(ctor *types.Func, t *types.Named) bool {
 	return ok && types.Identical(p.Elem(), t)
 }
 
-// called reports whether code in d's package uses obj.
+// called reports whether code in d's package uses obj: its method table
+// (vuka_calls_gen.go) names methods without calling them.
 func (c *routeChecker) called(d *routeDir, obj types.Object) bool {
-	for _, used := range c.r.syntax[d.importPath].uses {
-		if used == obj {
+	for id, used := range c.r.syntax[d.importPath].uses {
+		if used == obj && filepath.Base(c.r.fset.Position(id.Pos()).Filename) != transpile.CallsGoName {
 			return true
 		}
 	}

@@ -72,9 +72,13 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 		return nil, nil
 	}
 	slot := fmt.Sprintf("%s %s %v %v", root, dir, tests, all)
-	shape := shapes.module(root, overlay, tests, ormReads)
+	shape := ormShapes().module(root, overlay, tests, ormReads)
 	if m, ok := ormMemo.Load(slot); ok && shape != "" && m.(*ormResultMemo).shape == shape {
 		return m.(*ormResultMemo).missing, nil
+	}
+	if missing, ok := loadORMAnswer(slot, shape); ok {
+		ormMemo.Store(slot, &ormResultMemo{shape, missing})
+		return missing, nil
 	}
 	name, args := ormCommand(root, mod)
 	args = append(args, "generate", "--missing")
@@ -110,6 +114,7 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	}
 	if shape != "" {
 		ormMemo.Store(slot, &ormResultMemo{shape, missing})
+		saveORMAnswer(slot, shape, missing)
 	}
 	return missing, nil
 }

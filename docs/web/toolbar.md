@@ -287,8 +287,12 @@ The toolbar is on in development and off everywhere else:
 | `web.Dev()`, `VUKA_ENV=development` | on |
 | `web.NoToolbar()` | off |
 | a test binary | off, so tests see the pages the app serves |
-| any other app — `vuka build` for production | off |
+| `vuka build`, `vuka install` | not in the binary, `VUKA_ENV=development` or not |
+| `vuka build -debug`, any other app | off, unless `VUKA_ENV=development` |
 
+`vuka build` builds with the `vuka_release` tag, which leaves the toolbar's
+panels, assets and routes out of the binary; a `go build` of your own can
+pass `-tags=vuka_release` too.
 When it is off nothing is recorded, no route or header is added, and
 nothing hooks into the program; a request costs what it did without it.
 When it is on, recording adds a few microseconds to a request, and keeping

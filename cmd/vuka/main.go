@@ -47,6 +47,9 @@ Usage:
 	        (or written to --out), with the app's stylesheet (--css) over it
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
+	        build and install link without debug information (-ldflags=-w) and
+	        without web's development toolbar (-tags=vuka_release), each added
+	        to your own flag; -debug keeps both;
 	        vet runs vukavet's checks too (the app's go tool vukavet, else one
 	        beside vuka or on PATH, else one it builds; -vettool=… overrides,
 	        VUKA_VUKAVET=off for go vet's own);
@@ -240,13 +243,19 @@ func goCmdUsage(cmd string) string {
 	if cmd == "run" {
 		return runUsage
 	}
+	debug := ""
+	if cmd == "build" || cmd == "install" {
+		cmd += " [-debug]"
+		debug = "\nThe binary has no debug information (-ldflags=-w) and no development\ntoolbar (-tags=vuka_release), each added to your own flag. -debug keeps\nboth, for delve or VUKA_ENV=development.\n"
+	}
+	name, _, _ := strings.Cut(cmd, " ")
 	return fmt.Sprintf(`usage: vuka %[1]s [go flags] [packages]
 
-Transpiles the module's Vuka sources into an overlay and runs go %[1]s with
-it. The flags and packages are the go command's: go help %[1]s.
-
+Transpiles the module's Vuka sources into an overlay and runs go %[2]s with
+it. The flags and packages are the go command's: go help %[2]s.
+%[3]s
 vuka -h lists what vuka adds to it.
-`, cmd)
+`, cmd, name, debug)
 }
 
 // runGo transpiles every Vuka package in the current module and runs
@@ -270,7 +279,8 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dev := devFlags(cmd, args, modPath)
+	args, release := releaseFlags(cmd, args)
+	dev := append(devFlags(cmd, args, modPath), release...)
 	compileFlags = compilerFlags(dev)
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
