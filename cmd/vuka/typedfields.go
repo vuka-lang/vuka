@@ -72,6 +72,9 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 		return nil, nil
 	}
 	slot := fmt.Sprintf("%s %s %v %v", root, dir, tests, all)
+	if dir == "." && !tests {
+		return moduleORMMissing(root, slot, mod, overlay)
+	}
 	shape := ormShapes().module(root, overlay, tests, ormReads)
 	if m, ok := ormMemo.Load(slot); ok && shape != "" && m.(*ormResultMemo).shape == shape {
 		return m.(*ormResultMemo).missing, nil
@@ -79,6 +82,81 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	if missing, ok := loadORMAnswer(slot, shape); ok {
 		ormMemo.Store(slot, &ormResultMemo{shape, missing})
 		return missing, nil
+	}
+	missing, err := runORM(root, mod, dir, overlay, tests)
+	if err != nil {
+		return nil, err
+	}
+	if shape != "" {
+		ormMemo.Store(slot, &ormResultMemo{shape, missing})
+		saveORMAnswer(slot, shape, missing)
+	}
+	return missing, nil
+}
+
+// moduleORMMissing is ormMissingIn for the whole module, without tests:
+// after an edit, only the directories it can reach are asked again
+// (planORM), and the module's last answer is kept for the others.
+func moduleORMMissing(root, slot string, mod []byte, overlay string) ([]load.Generated, error) {
+	_, modPath, _ := load.ModuleRoot(root)
+	now := ormShapes().ormModuleState(root, overlay)
+	if now == nil || modPath == "" {
+		return runORM(root, mod, ".", overlay, false)
+	}
+	var base *ormBase
+	if b, ok := ormBases.Load(slot); ok {
+		base = b.(*ormBase)
+		if base.state.Full == now.Full {
+			return base.missing, nil
+		}
+	}
+	keep := func(missing []load.Generated) {
+		ormBases.Store(slot, &ormBase{now, missing})
+		saveORMAnswer(slot, now.Full, missing)
+	}
+	if missing, ok := loadORMAnswer(slot, now.Full); ok {
+		ormBases.Store(slot, &ormBase{now, missing})
+		return missing, nil
+	}
+	why := "no earlier answer this session"
+	if base != nil {
+		plan := planORM(root, modPath, base.state, now)
+		switch {
+		case plan.Why != "":
+			why = plan.Why
+		case len(plan.Affected) == 0:
+			traceStep("orm: no models directory reached")
+			keep(base.missing)
+			return base.missing, nil
+		default:
+			rel, _ := filepath.Rel(root, plan.Unit)
+			traceStep("orm: %d models directories reached, generate in %s", len(plan.Affected), rel)
+			fresh, err := runORM(root, mod, plan.Unit, overlay, false)
+			if err == nil {
+				missing := mergeORM(base.missing, fresh, plan.Affected)
+				keep(missing)
+				return missing, nil
+			}
+			why = "generating in " + rel + " failed"
+		}
+	}
+	traceStep("orm: generate in the whole module: %s", why)
+	missing, err := runORM(root, mod, ".", overlay, false)
+	if err != nil {
+		return nil, err
+	}
+	keep(missing)
+	return missing, nil
+}
+
+// ormRunHook, when set, hears the directory of each run of the orm tool.
+var ormRunHook func(dir string)
+
+// runORM is what the module's orm tool says orm generate would write for
+// the models under dir that the tree lacks.
+func runORM(root string, mod []byte, dir, overlay string, tests bool) ([]load.Generated, error) {
+	if ormRunHook != nil {
+		ormRunHook(dir)
 	}
 	name, args := ormCommand(root, mod)
 	args = append(args, "generate", "--missing")
@@ -111,10 +189,6 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	var missing []load.Generated
 	for _, p := range paths {
 		missing = append(missing, load.Generated{Target: p, Src: []byte(files[p])})
-	}
-	if shape != "" {
-		ormMemo.Store(slot, &ormResultMemo{shape, missing})
-		saveORMAnswer(slot, shape, missing)
 	}
 	return missing, nil
 }

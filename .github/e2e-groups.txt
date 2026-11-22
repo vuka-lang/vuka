@@ -370,6 +370,8 @@ TestOptions248Errors
 TestPush252
 TestPush252Errors
 TestPush252Warnings
+# ormscope_e2e_test.go
+TestScopedORMPass
 # pushhooks_test.go
 TestPushHooks
 # releaselink_e2e_test.go
