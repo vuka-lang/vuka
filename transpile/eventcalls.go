@@ -31,32 +31,47 @@ import (
 // attribute, or one a component's tag passes on to its element or gives a
 // prop taking browser commands.
 func (e *engine) eventCallAttr(f *fileState, el *jsxElem, a *jsxAttr) bool {
-	if a.kind != 'e' || a.stmts || !isEvent(a.name) {
+	if a.kind != 'e' || a.stmts {
 		return false
 	}
 	c := el.comp
 	if c == nil {
-		return a.event
+		return a.event && isEvent(a.name)
 	}
 	if !c.resolved || c.dead {
 		return false
 	}
-	if a.event {
+	if a.event && isEvent(a.name) {
 		return true
 	}
-	var typ types.Type
-	eachArg(c.args, func(x *compArg) {
-		if x.attr == a {
-			typ = x.typ
-		}
-	})
+	typ := argType(c, a)
 	if typ == nil {
+		return false
+	}
+	if takesEvents(f, typ) {
+		return true // a typed handler prop, whatever the attribute's spelling
+	}
+	if !isEvent(a.name) {
+		return false
+	}
+	if k, _ := actionType(f, typ); k == "ActionOf" {
 		return false
 	}
 	if _, fn := typ.Underlying().(*types.Signature); fn {
 		return false
 	}
 	return f.target.pkg != nil && e.takesCommands(typ, f.target.pkg)
+}
+
+// argType is the type of the prop a component's attribute sets, or nil.
+func argType(c *jsxComp, a *jsxAttr) types.Type {
+	var typ types.Type
+	eachArg(c.args, func(x *compArg) {
+		if x.attr == a {
+			typ = x.typ
+		}
+	})
+	return typ
 }
 
 // lowerEventCalls lowers each event's call of a method of the markup's
@@ -72,6 +87,13 @@ func (e *engine) lowerEventCalls(f *fileState, t *jsxTree) {
 		}
 		for _, a := range el.attrs {
 			if a.push != nil || !e.eventCallAttr(f, el, a) {
+				continue
+			}
+			if p, ok := e.actionPush(f, a); ok {
+				if p != nil {
+					a.push = p
+					f.dropEdits(a.expr, p.pieces)
+				}
 				continue
 			}
 			if p := e.eventPush(f, a); p != nil {
@@ -300,7 +322,7 @@ func (e *engine) checkEventCalls() {
 							help("declare the prop as ui.JSChain, or put the modifiers on the element the component renders")
 						continue
 					}
-					if a.push != nil || a.kind != 'e' || a.stmts || !isEvent(a.name) {
+					if a.push != nil || a.kind != 'e' || a.stmts || !isEvent(a.name) && !e.eventCallAttr(f, el, a) {
 						continue
 					}
 					e.checkEventCall(f, a)

@@ -57,6 +57,19 @@ func (e *engine) registerPushes() bool {
 			}
 		}
 		ast.Inspect(f.ast, func(n ast.Node) bool {
+			if kv, ok := n.(*ast.KeyValueExpr); ok && f.off(kv.Pos()) < f.body {
+				// a method given an Action or ActionOf prop: pushed by the component
+				if h := e.actionMethod(f, kv); h != nil {
+					if r, ok := e.pushMethod(f, &ast.CallExpr{Fun: h, Lparen: h.End(), Rparen: h.End()}, false, h, nil, nil); ok && r != "" && !seen[r] && f.target.has("RegisterPush") {
+						seen[r] = true
+						regs = append(regs, r)
+						if first < 0 {
+							first = f.orig(kv.Pos())
+						}
+					}
+				}
+				return true
+			}
 			call, ok := n.(*ast.CallExpr)
 			if !ok || f.off(call.Pos()) >= f.body {
 				return true

@@ -262,6 +262,12 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 					continue
 				}
 				pkg := stepsPackage(e, steps)
+				if k, payload := actionType(f, prop); k == "ActionOf" {
+					f.writeDone[a.expr.start] = true
+					e.errs.add("E0193", f.at(a.off), "<%s>'s %s is %s, a handler taking %s: the statements of %s={…} are browser commands, which it can't hold", el.tag, exportName(a.name), e.actionDisplay(f, prop), article(e.display(payload)), a.name).
+						help("pass a method taking %s, or declare the prop as %sAction", article(e.display(payload)), f.target.q)
+					continue
+				}
 				if prop != nil && !e.takesCommands(prop, pkg) {
 					f.writeDone[a.expr.start] = true
 					e.errs.add("E0101", f.at(a.off), "<%s>'s %s is %s: the statements of %s={…} are browser commands, which it can't hold", el.tag, a.name, e.display(prop), a.name).

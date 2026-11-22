@@ -667,8 +667,8 @@ func (e *engine) handlerProblem(f *fileState, t types.Type) string {
 	if b, ok := t.(*types.Basic); ok && b.Kind() == types.UntypedNil {
 		return ""
 	}
-	if h, ok := e.targetObj(f.target, "Action").(*types.TypeName); ok && types.Identical(t, h.Type()) {
-		return "" // the target's Action holds any form an event takes
+	if k, _ := actionType(f, t); k == "Action" || k == "ActionOf" {
+		return "" // the target's actions hold a handler
 	}
 	if _, ok := t.Underlying().(*types.Signature); ok {
 		return ""
