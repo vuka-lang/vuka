@@ -59,7 +59,7 @@ everything an element's `on…` attribute takes, with the same meaning.**
 The event-call sugar follows the *field's type*, not the attribute's
 spelling, so this is one rule in place of today's four:
 
-```html
+```vuka
 <design.Button on={Remove(o.ID)}>Remove</design.Button>      <!-- a push, as on <button onClick=…> -->
 <design.Button on={open = !open}>Toggle</design.Button>       <!-- browser commands -->
 <design.Button on={Save}>Save</design.Button>                 <!-- the method as handler -->
@@ -128,7 +128,7 @@ Three guarantees lock that in:
    and HTML attribute names can't carry case. `on:` takes the name
    literally:
 
-   ```html
+   ```vuka
    <sl-input on:sl-change={Choose(this.value)} />
    <my-widget on:stateChanged.self={Sync()} />
    ```
@@ -146,7 +146,7 @@ Two additions end the `[]ui.Attr{{Name: …, Value: …}}` ceremony:
 1. **`attr:` sets any pass-through attribute by name**, on components and
    elements alike:
 
-   ```html
+   ```vuka
    <design.Button type="submit" attr:form={"rule-" + r.Target}>Save changes</design.Button>
    <design.Button attr:data-tester-open={tester("handoff")} attr:data-payload={samplePayload(r)}>
    ```
@@ -159,7 +159,7 @@ Two additions end the `[]ui.Attr{{Name: …, Value: …}}` ceremony:
 2. **An attribute value may be omitted by its zeroness**: `?=` writes the
    attribute only when the value isn't the type's zero value:
 
-   ```html
+   ```vuka
    <input id?={ID} placeholder?={Hint} />
    <Card id?={ID}>…</Card>
    ```
@@ -211,7 +211,7 @@ type Dialog struct {
 }
 ```
 
-```html
+```vuka
 <dialog id={ID} aria-labelledby={ID.Suffix("title")}>…
 ```
 
@@ -232,7 +232,7 @@ type Card struct {
 }
 ```
 
-```html
+```vuka
 <div class={"rounded-xl border bg-card shadow-xs " + Class}>{Children}</div>
 ```
 
@@ -281,7 +281,7 @@ body is the template-block grammar the file already uses. The binding is an
 ordinary Go value of type `func(params) ui.Node` — callable in a hole,
 passable to any func prop or scoped slot.
 
-```html
+```vuka
 <script lang="go">
 package pages
 
@@ -310,7 +310,7 @@ Passed to a scoped slot, it replaces a `<slot:… let={…}>` block when the
 caller wants to reuse one body — and the anonymous form serves a one-use
 slot without naming anything:
 
-```html
+```vuka
 cell := func(p Person, i int) { <b>{i + 1}.</b> {p.Name} }
 
 <components.List items={Open} row={cell} />
@@ -347,7 +347,7 @@ slots and markup funcs — takes it by declaring a field of the same type tagged
 `vuka:"take"`. Matching is by Go type; the nearest giver wins, so nested
 `<Form>`s scope each field to its own form.
 
-```html
+```vuka
 <script lang="go">
 // tabs.vuka.html
 package design
@@ -368,7 +368,7 @@ func (t *Tabs) Rendering() { t.shared = TabState{Active: t.Value} }
 <div class="tabs" role="tablist">{Children}</div>
 ```
 
-```html
+```vuka
 <script lang="go">
 // tab.vuka.html
 package design
@@ -387,7 +387,7 @@ type Tab struct {
 
 The page writes what it means and nothing else:
 
-```html
+```vuka
 <design.Tabs value={tab}>
   <design.Tab name="pending">Pending</design.Tab>
   <design.Tab name="done">Done</design.Tab>
@@ -419,7 +419,7 @@ element's `bind:value` does — a server field, a `ui.State[T]`, the
 `.debounce`/`.throttle` modifiers. Inside, the prop spreads onto the element
 that carries the value, or reads and writes like state:
 
-```html
+```vuka
 <script lang="go">
 // money.vuka.html — an input that formats cents on blur
 package components
@@ -438,7 +438,7 @@ type Money struct {
 </div>
 ```
 
-```html
+```vuka
 <components.Money bind:value.debounce.300ms={Amount} />
 ```
 
@@ -465,7 +465,7 @@ on first render or a live patch — the boundary renders its `failed` slot in
 place, logs the error with page and node, and the rest of the page keeps
 serving and patching. `retry` re-renders the children.
 
-```html
+```vuka
 <ui.Boundary>
   <components.UsageChart points={Points} />
   <slot:failed let={err, retry}>
@@ -489,7 +489,7 @@ serving and patching. `retry` re-renders the children.
 animate its insertion and removal: enter when the key first appears, leave
 awaited before the node is taken out.
 
-```html
+```vuka
 <ul>
   for _, n := range Notices {
     <li key={n.ID} transition={ui.Slide(200 * time.Millisecond)}>{n.Text}</li>
@@ -535,7 +535,7 @@ conformance tests; nothing removes or silently changes an existing surface.
 A billing page: tabs that wire themselves, a bound money input with a
 default, a row markup func, fading alerts, and a fenced chart.
 
-```html
+```vuka
 <script lang="go">
 package pages
 
