@@ -444,10 +444,11 @@ func (p *proxy) propCompletion(path string, src []byte, off int) ([]any, bool) {
 			continue
 		}
 		text, format := pr.attr+"={$1}", 2
-		switch pr.typ {
-		case "bool":
+		enum := len(p.propEnumValues(info, pr)) > 0
+		switch {
+		case pr.typ == "bool":
 			text, format = pr.attr, 1
-		case "string":
+		case pr.typ == "string" || enum:
 			text = pr.attr + `="$1"`
 		}
 		sortText := fmt.Sprintf("1%02d", i)
@@ -460,6 +461,9 @@ func (p *proxy) propCompletion(path string, src []byte, off int) ([]any, bool) {
 			"textEdit":     map[string]any{"range": typed, "newText": text}, "insertTextFormat": format}
 		if pr.doc != "" {
 			it["documentation"] = map[string]any{"kind": "markdown", "value": pr.doc}
+		}
+		if enum {
+			it["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}
 		}
 		items = append(items, it)
 	}

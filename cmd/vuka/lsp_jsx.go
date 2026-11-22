@@ -657,19 +657,23 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			break
 		}
 		html := false
+		enums := p.tagEnumAttrs(vf.source, src, spot.tag.name)
 		for i, a := range p.componentAttrs(genPath, spot.tag.name) {
 			html = html || a.name == "attributes" && a.typ == "templ.Attributes"
 			if used[strings.ToLower(a.name)] {
 				continue
 			}
 			text := a.name + "={$1}"
-			switch a.typ {
-			case "bool":
+			switch {
+			case a.typ == "bool":
 				text = a.name
-			case "string":
+			case a.typ == "string" || enums[strings.ToLower(a.name)]:
 				text = a.name + `="$1"`
 			}
 			item(a.name, 5, a.typ, text, 2, fmt.Sprintf("%02d", i))
+			if enums[strings.ToLower(a.name)] {
+				last["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}
+			}
 		}
 		if html {
 			// props with an Attributes field take the other HTML attributes too
