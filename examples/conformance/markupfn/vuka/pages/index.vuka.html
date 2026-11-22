@@ -1,0 +1,65 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+	"strconv"
+
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index lists its orders through one row markup func: GET /.
+type Index struct {
+	ui.Live
+	orders []Order
+}
+
+@ui.Mount
+func (r *Index) mount(ctx context.Context) error {
+	r.orders = []Order{{1, "A-1", false}, {2, "B-2", false}, {3, "C-3", false}}
+	return nil
+}
+
+// Drop removes the first order, keeping the others' counters.
+func (r *Index) Drop() {
+	if len(r.orders) > 0 {
+		r.orders = r.orders[1:]
+	}
+}
+
+// Approve approves an order.
+func (r *Index) Approve(id int) {
+	for i := range r.orders {
+		if r.orders[i].ID == id {
+			r.orders[i].Approved = true
+		}
+	}
+}
+
+func (r *Index) ids() []int {
+	var out []int
+	for _, o := range r.orders {
+		out = append(out, o.ID)
+	}
+	return out
+}
+</script>
+
+row := func(o Order) {
+  <li key={o.ID} id="order-{strconv.Itoa(o.ID)}" class:approved={o.Approved}>
+    <b>{o.Number}</b>
+    <button onClick={Approve(o.ID)}>approve</button>
+    <components.Counter key={o.ID} label={o.Number} />
+  </li>
+}
+
+<main>
+  <button onClick={Drop}>drop</button>
+  <ul>
+    for _, o := range orders {
+      {row(o)}
+    }
+  </ul>
+  <components.List items={ids()} row={func(id int) { <i>#{id}</i> }} />
+</main>

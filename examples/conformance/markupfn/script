@@ -1,0 +1,12 @@
+# markupfn: a row markup func bound in the markup, its rows keyed, each
+# holding a keyed stateful component that keeps its count when the list
+# changes, its event pushing the page's method; and an anonymous markup
+# func set on a component's scoped slot.
+LIVE /
+  {"type":"event","target":"c3:0","event":"click"}
+  {"type":"event","target":"c3:0","event":"click"}
+  {"type":"event","target":"c1:2:0","event":"push","data":2}
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c3:0","event":"click"}
+  {"type":"event","target":"c4:0","event":"click"}
+GET /

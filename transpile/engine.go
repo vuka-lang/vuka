@@ -250,6 +250,7 @@ func (e *engine) run() {
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.checkEventCalls()
+		e.checkMarkupFuncs()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.checkTargets()

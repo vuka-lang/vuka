@@ -65,6 +65,29 @@ type Members struct { People []models.Person }
 </ui.Card>
 ```
 
+A func field is also set as a prop, to a value of its type. A func literal
+set on it takes markup for its body, so a slot used once needs no
+`<slot:…>` tag, and a [markup func](/ui/templates#markup-funcs) bound once
+fills the same slot of several tags:
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "example.com/app/components"
+    "example.com/app/models"
+)
+
+type Members struct { Active, Invited []models.Person }
+</script>
+
+card := func(p models.Person) { <b>{p.Name}</b> <small>{p.Email}</small> }
+
+<components.List items={Active} row={card} />
+<components.List items={Invited} row={func(p models.Person) { <i>{p.Email}</i> }} />
+```
+
 Inside the component, `<slot:actions>fallback</slot:actions>` renders the
 slot, or the fallback when the caller left it out; `ui.Has(Actions)` reports
 whether it was filled; `vuka:"required"` on the field makes every tag fill

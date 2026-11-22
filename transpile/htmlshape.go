@@ -736,7 +736,8 @@ func closeParen(s string, i int) string {
 }
 
 // goHeader reads the header's Go, starting at the offset from, up to the
-// first line starting with < outside any brace, paren or bracket. It
+// first line starting with < outside any brace, paren or bracket, or with a
+// name a template statement binds, x := …. It
 // returns the header as a skeleton Go parses — the same length, its lines
 // kept, with what is .vuka and not Go written as spaces (attributes and
 // decorators, function bodies with their ?s and matches, enums, decorator
@@ -784,6 +785,15 @@ func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int
 			break
 		}
 		o := file.Offset(p)
+		if depth == 0 && t == token.IDENT && lineStart(o) && (len(toks) == 0 || lineEnd[len(toks)-1] || toks[len(toks)-1].t == token.SEMICOLON) {
+			// A template statement binding a name, row := func(…) { … }: no
+			// declaration of Go's, and the markup's.
+			save := sc
+			if _, next, _ := sc.Scan(); next == token.DEFINE || next == token.ASSIGN {
+				t = token.LSS
+			}
+			sc = save
+		}
 		if depth == 0 && (t == token.LSS || t == token.SHL || t == token.LEQ) && lineStart(o) {
 			markup = from + o
 			// Everything from the markup's line on is not the header.

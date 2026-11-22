@@ -1,0 +1,33 @@
+<script lang="go">
+package main
+
+// Review lists orders through one row markup func.
+type Review struct {
+	Title     string
+	Submitted []Order
+	Flagged   []Order
+}
+
+func (r Review) total(o Order) int { return o.Total * 100 }
+</script>
+
+row := func(o Order) {
+  <li class:flagged={o.Flagged}>
+    <b>{o.Number}</b> {Title}: {total(o)}
+  </li>
+}
+badge := func(n int) ui.Node { <i>{n}</i> }
+
+<section>
+  <ul>
+    for _, o := range Submitted { {row(o)} }
+  </ul>
+  <ul>
+    for _, o := range Flagged {
+      {row(o)}
+    }
+  </ul>
+  {badge(len(Flagged))}
+  <List items={Flagged} row={row}/>
+  <List items={Submitted} row={func(o Order) { <em>{o.Number}</em> }}/>
+</section>

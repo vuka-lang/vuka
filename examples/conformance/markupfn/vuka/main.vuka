@@ -1,0 +1,16 @@
+// Command markupfn is a review page in Vuka: markup funcs bound in the
+// markup and set on a scoped slot, their rows keyed and holding keyed
+// stateful components, their events pushing the page's methods.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(pages.Routes())
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

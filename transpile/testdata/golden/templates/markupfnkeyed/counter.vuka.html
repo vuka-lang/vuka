@@ -1,0 +1,17 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Counter is a live component: its count is its own.
+type Counter struct {
+	ui.Live
+	Label string
+	n     int
+}
+
+// Inc counts one.
+func (c *Counter) Inc() { c.n++ }
+</script>
+
+<span class="count">{Label}: {n} <button class="inc" onClick={Inc}>+</button></span>

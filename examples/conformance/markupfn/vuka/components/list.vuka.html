@@ -1,0 +1,17 @@
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// List renders its numbers through its caller's Row.
+type List struct {
+	Items []int
+	Row   func(int) ui.Node
+}
+</script>
+
+<ol class="list">
+  for _, n := range Items {
+    <li>{Row(n)}</li>
+  }
+</ol>
