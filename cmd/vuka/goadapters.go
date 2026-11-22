@@ -18,15 +18,17 @@ import (
 // written in Go: a typed adapter for each signature their vuka.Wrap calls
 // wrap, what the compiler writes for a .vuka file's call decorators, and
 // the method tables of their types (transpile.MethodTables) when they
-// import one of Vuka's packages. A package with .vuka files gets its file
-// from the compiler.
+// import one of Vuka's packages. A package with .vuka or .vuka.html files
+// gets its file from the compiler — writing one here would resurrect a
+// folder the compiler relocates (a route folder like [code]) as a Go
+// package, whose bracketed import path breaks ./... patterns.
 func goCallAdapters(root string) []load.Generated {
 	dirs := map[string][]string{}
 	vuka := map[string]bool{}
 	walkSources(root, func(p, name string) error {
 		dir := filepath.Dir(p)
 		switch {
-		case strings.HasSuffix(name, ".vuka"):
+		case strings.HasSuffix(name, ".vuka"), strings.HasSuffix(name, ".vuka.html"):
 			vuka[dir] = true
 		case strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") && !strings.HasSuffix(name, "_gen.go"):
 			dirs[dir] = append(dirs[dir], p)
