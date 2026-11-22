@@ -148,7 +148,7 @@ Two additions end the `[]ui.Attr{{Name: …, Value: …}}` ceremony:
 
    ```vuka
    <design.Button type="submit" attr:form={"rule-" + r.Target}>Save changes</design.Button>
-   <design.Button attr:data-tester-open={tester("handoff")} attr:data-payload={samplePayload(r)}>
+   <design.Button attr:data-tester-open={tester("handoff")} attr:data-payload={samplePayload(r)}>Open tester</design.Button>
    ```
 
    On a component it appends to `Attrs` (E0106 as today when there is no
@@ -212,7 +212,9 @@ type Dialog struct {
 ```
 
 ```vuka
-<dialog id={ID} aria-labelledby={ID.Suffix("title")}>…
+<dialog id={ID} aria-labelledby={ID.Suffix("title")}>
+  <h2 id={ID.Suffix("title")}>Confirm</h2>
+</dialog>
 ```
 
 Kit and registry components move their colliding fixed defaults
