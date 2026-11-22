@@ -1,0 +1,35 @@
+error[E0196]: <Button variant="outlien">: "outlien" is no Variant
+  --> err_enumlit.vuka:35:19
+   |
+35 |         <Button variant="outlien">Cancel</Button>
+   |                         ^^^^^^^^^
+   |
+   = help: Variant takes the value of one of its constants: "", "outline", "ghost", or {Variant(x)} for any other
+   = help: did you mean "outline"?
+
+error[E0196]: <Button variant="VariantGhost">: "VariantGhost" is no Variant
+  --> err_enumlit.vuka:36:19
+   |
+36 |         <Button variant="VariantGhost">Close</Button>
+   |                         ^^^^^^^^^^^^^^
+   |
+   = help: Variant takes the value of one of its constants: "", "outline", "ghost", or {Variant(x)} for any other
+   = help: did you mean "ghost"?
+
+error[E0196]: <Button cols={3}>: 3 is no Cols
+  --> err_enumlit.vuka:37:17
+   |
+37 |         <Button cols={3}>Wide</Button>
+   |                       ^
+   |
+   = help: Cols takes the value of one of its constants: 1, 2, or {Cols(x)} for any other
+
+error[E0196]: <Button tone="warn">: "warn" is no design.Tone
+  --> err_enumlit.vuka:38:16
+   |
+38 |         <Button tone="warn">Careful</Button>
+   |                      ^^^^^^
+   |
+   = help: design.Tone takes the value of one of its constants: "", "info", "danger", or {design.Tone(x)} for any other
+
+For more information about this error, try `vuka explain E0196`.

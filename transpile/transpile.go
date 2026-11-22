@@ -645,7 +645,8 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	var errs ErrorList
 	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx, wrapErrors: opts.WrapErrors}
 	if e.imp == nil {
-		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
+		e.impFset = token.NewFileSet()
+		e.imp = importer.ForCompiler(e.impFset, "source", nil)
 	}
 	e.loadContexts(opts.Contexts)
 	files = e.headerViews(files, opts.Path, len(files))

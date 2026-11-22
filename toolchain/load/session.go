@@ -99,9 +99,10 @@ type runStats struct {
 
 // checkedPkg is a package of the module, type-checked from source.
 type checkedPkg struct {
-	key string // its files' names and contents, and its module imports' keys
-	pkg *types.Package
-	api string // its API, and its module imports' APIs
+	key  string // its files' names and contents, and its module imports' keys
+	pkg  *types.Package
+	fset *token.FileSet // pkg's
+	api  string         // its API, and its module imports' APIs
 
 	// For KeepUnnamed: its API but the unnamed declarations, and its module
 	// imports' (core); those declarations, each name's own hash (unnamed);
@@ -292,6 +293,19 @@ func (s *Session) ImportFrom(path, dir string, mode types.ImportMode) (*types.Pa
 	return s.imp.ImportFrom(path, dir, mode)
 }
 
+// Position is where obj, of a package the session imported, is declared.
+func (s *Session) Position(obj types.Object) token.Position {
+	if obj.Pkg() != nil {
+		if c := s.now[obj.Pkg().Path()]; c != nil && c.pkg == obj.Pkg() && c.fset != nil {
+			return c.fset.Position(obj.Pos())
+		}
+		if c := s.checked[obj.Pkg().Path()]; c != nil && c.pkg == obj.Pkg() && c.fset != nil {
+			return c.fset.Position(obj.Pos())
+		}
+	}
+	return s.imp.Position(obj)
+}
+
 func (s *Session) Broken(path string) { s.broken[path] = true }
 
 func (s *Session) OverlayChanged() {}
@@ -391,6 +405,8 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	writeAPI(api, c.pkg)
 	c.unnamed = map[string]string{}
 	writeAPIParts(core, c.unnamed, c.pkg)
+	writeOpen(api, c.srcs)
+	writeOpen(core, c.srcs)
 	for _, c := range imports {
 		api.Write([]byte(c.api))
 		core.Write([]byte(c.core))
@@ -452,7 +468,7 @@ func (s *Session) typeCheck(c *checkedPkg) error {
 		// error itself is the package's own diagnostic.
 		c.partial = true
 	}
-	c.pkg = pkg
+	c.pkg, c.fset = pkg, fset
 	return nil
 }
 
@@ -689,6 +705,25 @@ func fileStats(gens []Generated) string {
 // importer can name; unexported types are kept, as an exported declaration
 // can hand one out.
 func writeAPI(h hash.Hash, pkg *types.Package) { writeAPIParts(h, nil, pkg) }
+
+// writeOpen writes the declarations a //vuka:open line marks: a type's doc
+// comment that changes what a quoted prop value of the type may be (E0196),
+// which its type doesn't show.
+func writeOpen(h hash.Hash, srcs [][]byte) {
+	for _, src := range srcs {
+		lines := strings.Split(string(src), "\n")
+		for i, l := range lines {
+			if strings.HasPrefix(strings.TrimSpace(l), "//vuka:open") {
+				for _, d := range lines[i+1:] {
+					if !strings.HasPrefix(strings.TrimSpace(d), "//") {
+						fmt.Fprintf(h, "open %s\n", strings.TrimSpace(d))
+						break
+					}
+				}
+			}
+		}
+	}
+}
 
 // writeAPIParts is writeAPI, but with unnamed not nil it writes the
 // declarations unnamedAPI picks there, each name's own hash, instead.

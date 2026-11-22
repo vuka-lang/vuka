@@ -47,7 +47,8 @@ type Importer struct {
 	modPath string               // the main module's path; "" when Dir is in none
 	broken  map[string]bool      // Vuka packages that didn't transpile
 	gc      types.ImporterFrom
-	cache   *exportCache // packages outside the main module, across runs; nil for none
+	fset    *token.FileSet // gc's
+	cache   *exportCache   // packages outside the main module, across runs; nil for none
 	// volatile, when not nil, records the export data file of each listed
 	// package the cache doesn't hold: those that may change (refresh).
 	volatile map[string]string
@@ -59,7 +60,8 @@ type Importer struct {
 func NewImporter(dir, overlay string) *Importer {
 	im := &Importer{Dir: dir, Overlay: overlay, exports: map[string]string{}, errs: map[string]string{},
 		mods: map[string]*goModule{}, stale: map[string]bool{}, broken: map[string]bool{}}
-	im.gc = importer.ForCompiler(token.NewFileSet(), "gc", im.lookup).(types.ImporterFrom)
+	im.fset = token.NewFileSet()
+	im.gc = importer.ForCompiler(im.fset, "gc", im.lookup).(types.ImporterFrom)
 	if root, mp, err := ModuleRoot(dir); err == nil {
 		im.root, im.modPath = root, mp
 	}
@@ -141,6 +143,14 @@ func (im *Importer) ImportFrom(path, dir string, mode types.ImportMode) (pkg *ty
 		}
 	}()
 	return im.gc.ImportFrom(path, dir, mode)
+}
+
+// Position is where obj, of a package the importer imported, is declared.
+func (im *Importer) Position(obj types.Object) token.Position {
+	if im.fset.File(obj.Pos()) == nil {
+		return token.Position{}
+	}
+	return im.fset.Position(obj.Pos())
 }
 
 // Unreadable is the export data the importer couldn't read because the

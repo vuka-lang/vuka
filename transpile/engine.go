@@ -27,6 +27,8 @@ const completionPlaceholder = "__vuka_complete"
 type engine struct {
 	files, vuka     []*fileState
 	imp             types.Importer
+	impFset         *token.FileSet // the default importer's, where its objects are declared
+	openEnums       map[*types.TypeName]bool
 	errs            *ErrorList
 	bare            bool
 	incompleteCalls bool

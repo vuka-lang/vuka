@@ -882,6 +882,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 		return
 	}
 	eachArg(c.args, func(a *compArg) { e.wrapSome(f, a) })
+	eachArg(c.args, func(a *compArg) { e.checkEnumLit(f, c, a) })
 	if c.target.has("VukaState") {
 		eachArg(c.args, func(a *compArg) { e.bindArg(f, c, a) })
 	}

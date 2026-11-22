@@ -116,6 +116,7 @@ type jsxAttr struct {
 	off   int
 	kind  byte   // 's' a string, 'e' an expression, 'b' bare (true)
 	val   string // the decoded string
+	quote span   // a quoted value as written, its quotes included
 	expr  span
 	event bool       // an element's event handler: onClick={…}
 	unfit bool       // a component's attribute whose read of states was reported (bindArg)
@@ -409,6 +410,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 						p.fail(i, "unterminated attribute value")
 					}
 					a.kind, a.val = 's', html.UnescapeString(string(p.src[i+1:i+1+end]))
+					a.quote = span{i, i + end + 2}
 					if p.f.html != nil {
 						a.parts = p.attrParts(i+1, i+1+end)
 						if len(a.parts) == 1 && a.parts[0].expr.end == 0 {

@@ -1,0 +1,4 @@
+err_enumlit.vuka:35:19: <Button variant="outlien">: "outlien" is no Variant; Variant takes the value of one of its constants: "", "outline", "ghost", or {Variant(x)} for any other; did you mean "outline"?
+err_enumlit.vuka:36:19: <Button variant="VariantGhost">: "VariantGhost" is no Variant; Variant takes the value of one of its constants: "", "outline", "ghost", or {Variant(x)} for any other; did you mean "ghost"?
+err_enumlit.vuka:37:17: <Button cols={3}>: 3 is no Cols; Cols takes the value of one of its constants: 1, 2, or {Cols(x)} for any other
+err_enumlit.vuka:38:16: <Button tone="warn">: "warn" is no design.Tone; design.Tone takes the value of one of its constants: "", "info", "danger", or {design.Tone(x)} for any other
