@@ -447,7 +447,19 @@ func (g *guardScan) field(sel *ast.SelectorExpr) bool {
 			g.deps[name] = g.name + "." + name
 			return true
 		}
-		return g.browserState(name)
+		if !g.browserState(name) {
+			return false
+		}
+		if g.e.syncedState(g.f.html.shape.Type, name) {
+			// A synced state's reference carries its server replica: the
+			// block renders again when a write moved its version.
+			gen := stateGenPathOf(g.e, g.f)
+			if gen == "" {
+				return false
+			}
+			g.deps[name] = g.f.genQual(gen) + "Ver(" + g.name + "." + name + ")"
+		}
+		return true
 	}
 	return false
 }

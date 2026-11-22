@@ -183,6 +183,17 @@ func (e *engine) lowerDerived(f *fileState) {
 		e.underived(f, nil)
 		return
 	}
+	if !f.derivedWarned {
+		f.derivedWarned = true
+		for _, fa := range froms {
+			if fa.option != "" {
+				continue
+			}
+			f.derivedWarns.add("W0117", f.at(fa.a.start), "ui.Derived deprecates with the one-state merge: a template expression is derived where it is read, and a Go method over synced states is the server form; Derived keeps working").
+				help("write the expression in the markup that reads it")
+			break
+		}
+	}
 	pending := false
 	for _, fa := range froms {
 		if fa.failed || fa.lowered {

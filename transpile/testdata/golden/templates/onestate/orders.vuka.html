@@ -1,0 +1,70 @@
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+// Orders is the dialog pair on merged state (one state, §12): the payload
+// (selected) is a tracked server value, the visibility (open) one state —
+// written by a method, so synced. tab's only Go read is the mount hook: a
+// read is a read, so it is synced too. note is never read by Go code:
+// browser-local, its writes are never sent.
+type Orders struct {
+	ui.Live
+	rows     []Order
+	selected Order
+	open     ui.State[bool]
+	tab      ui.State[string]
+	note     ui.State[string]
+	draft    ui.State[string]
+}
+
+type Order struct {
+	ID   int
+	Name string
+}
+
+@ui.Mount
+func (o *Orders) mount(ctx context.Context) error {
+	if o.tab == "" {
+		o.tab = "all"
+	}
+	return nil
+}
+
+func (o *Orders) Add(name string) {
+	o.rows = append(o.rows, Order{ID: len(o.rows) + 1, Name: name})
+}
+
+func (o *Orders) Show(i int) {
+	o.selected = o.rows[i]
+	o.open = true
+}
+
+// Park passes draft where the compiler can't follow its reads: escape
+// means synced.
+func (o *Orders) Park() {
+	stash(o.draft)
+}
+
+func (o *Orders) Confirm() {
+	if !o.open {
+		return
+	}
+	o.selected = Order{}
+	o.open = false
+}
+<section>
+  <p>{selected.Name}</p>
+  for _, r := range rows {
+    <button onClick={Show(0)}>{r.Name}</button>
+  }
+  <dialog open={open}>
+    <p>{tab}</p>
+    <button onClick={Confirm}>confirm</button>
+  </dialog>
+  <input value={note} />
+  <button onClick={note = "draft"}>note</button>
+</section>

@@ -180,6 +180,9 @@ func holeEnd(s string, i int) int {
 type cell struct {
 	site string
 	v    any
+	cur  any  // a synced state's server replica, after a write
+	has  bool // a write landed
+	ver  int
 }
 
 // State is a state: its cell, the field path in it, the value it renders
@@ -222,7 +225,7 @@ func GenState[T any](site_ string, page bool, initial T) State[T] {
 	if page {
 		site_ = "g:" + site_
 	}
-	return State[T]{c: &cell{site_, initial}, v: initial}
+	return State[T]{c: &cell{site: site_, v: initial}, v: initial}
 }
 
 func GenDerived[T any](value T) State[T] { return State[T]{v: value, x: &expr{"", []any{value}}} }
@@ -267,11 +270,27 @@ func (s State[T]) GenMul(o any) State[T] {
 	r := reflect.ValueOf(num(reflect.ValueOf(s.v)) * num(reflect.ValueOf(val(o)))).Convert(reflect.TypeFor[T]())
 	return derive(s, r.Interface().(T), "*", o)
 }
-func (s State[T]) Get() T                        { return s.v }
+func (s State[T]) Get() T {
+	if s.c != nil && s.c.has && len(s.path) == 0 {
+		if v, ok := s.c.cur.(T); ok {
+			return v
+		}
+	}
+	return s.v
+}
 func (s State[T]) Set(v T) Commands              { return JS.Set(s, v) }
 func (s State[T]) GenToggle(c Commands) Commands { return c.add("toggle " + s.String()) }
 func (s State[T]) GenInc(c Commands) Commands    { return c.add("inc " + s.String()) }
 func (s State[T]) GenDec(c Commands) Commands    { return c.add("dec " + s.String()) }
+
+// GenSrvSet is a server write of a synced state: the replica takes v.
+func (s State[T]) GenSrvSet(v T) {
+	s.c.cur, s.c.has = v, true
+	s.c.ver++
+}
+
+// GenVer is the replica's write version.
+func (s State[T]) GenVer() uint64 { return uint64(s.c.ver) }
 
 // Zero reports whether s was never declared: a field uigen.States names.
 func (s State[T]) Zero() bool { return s.c == nil && s.x == nil }
@@ -279,7 +298,7 @@ func (s State[T]) Zero() bool { return s.c == nil && s.x == nil }
 // Named is a state of s's type declared as the field name.
 func (s State[T]) Named(name string) any {
 	var v T
-	return State[T]{c: &cell{"field " + name, v}, v: v}
+	return State[T]{c: &cell{site: "field " + name, v: v}, v: v}
 }
 
 func (s State[T]) anyState() string               { return s.String() }
@@ -289,7 +308,7 @@ func (s State[T]) node() (*expr, *cell, []string) { return s.x, s.c, s.path }
 // binding is the state as an expression the page shows: a derived one's
 // own, a state's read.
 func (s State[T]) binding() Binding {
-	b := Binding{Init: s.v}
+	b := Binding{Init: s.Get()}
 	var deps []any
 	var m strings.Builder
 	enc := json.NewEncoder(&m)
@@ -303,7 +322,7 @@ func (s State[T]) String() string {
 	if s.x != nil {
 		return "(" + s.binding().String() + ")"
 	}
-	return s.c.site + strings.Join(append([]string{""}, s.path...), ".") + "=" + fmt.Sprint(s.v)
+	return s.c.site + strings.Join(append([]string{""}, s.path...), ".") + "=" + fmt.Sprint(s.Get())
 }
 
 // cmp orders numbers and strings, and tells other values equal or not.

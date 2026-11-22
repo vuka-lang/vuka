@@ -199,6 +199,7 @@ static.go staticGoName(tn.Name(), member)
 static.go x.Sel.Name
 streams.go f.html.shape.Type
 suspenselive.go f.html.recvType
+syncstate.go f.html.shape.Type
 target.go name
 targets.go a.Name
 targets.go sel

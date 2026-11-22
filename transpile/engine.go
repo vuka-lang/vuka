@@ -82,6 +82,8 @@ type engine struct {
 	gqlWarns    map[*fileState]ErrorList
 	gqlArgs     map[*fileState][]GraphQLArg // the non-null arguments, by the file declaring their function (graphql.go)
 
+	syncRecs map[string]map[string]string // one state: shape type → synced State fields → why (syncstate.go)
+
 	brokenScripts map[string]bool // template files whose script form is reported broken
 	forceCtx      map[string]bool // template files whose markup gets the render's ctx (implicit.go)
 	noImplicit    bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
@@ -274,7 +276,7 @@ func (e *engine) run() {
 		for _, f := range e.vuka {
 			e.droppedHandlers(f)
 			e.implicitLive(f)
-			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 && len(f.hiddenWarns) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 && len(f.hiddenWarns) == 0 && len(f.derivedWarns) == 0 {
 				continue
 			}
 			if e.warns == nil {
@@ -286,6 +288,7 @@ func (e *engine) run() {
 			e.warns[f] = append(e.warns[f], f.attrWarns...)
 			e.warns[f] = append(e.warns[f], f.pushWarns...)
 			e.warns[f] = append(e.warns[f], f.hiddenWarns...)
+			e.warns[f] = append(e.warns[f], f.derivedWarns...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {

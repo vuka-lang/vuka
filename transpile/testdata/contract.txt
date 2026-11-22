@@ -255,6 +255,8 @@ generated github.com/vuka-lang/ui/v2/uigen.Mul
 generated github.com/vuka-lang/ui/v2/uigen.Ne
 generated github.com/vuka-lang/ui/v2/uigen.Neg
 generated github.com/vuka-lang/ui/v2/uigen.Not
+generated github.com/vuka-lang/ui/v2/uigen.SrvSet
+generated github.com/vuka-lang/ui/v2/uigen.SyncFields
 generated github.com/vuka-lang/ui/v2/uigen.Or
 generated github.com/vuka-lang/ui/v2/uigen.Plus
 generated github.com/vuka-lang/ui/v2/uigen.Read

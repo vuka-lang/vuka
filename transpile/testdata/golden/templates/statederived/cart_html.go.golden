@@ -23,7 +23,7 @@ type Cart struct {
 const limit = 100
 
 func (c *Cart) Clear() {
-	c.PushJS(c.count.Set(0))
+	uigen.SrvSet(c.count, 0)
 }
 
 //line cart.vuka.html:18
@@ -51,4 +51,11 @@ func init() {
 //line cart.vuka.html:9
 		c.over = uigen.From(uigen.Gt(uigen.Read(c.total), limit))
 	})
+}
+
+// Synced states (one state, §12): their browser writes ride each event,
+// applied before the handler; a server write rides the next render.
+// count: written in (c *Cart).Clear.
+func init() {
+	uigen.SyncFields[Cart]("count")
 }
