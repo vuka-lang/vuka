@@ -25,6 +25,9 @@ func (l *LiveSchema) Field(ptr any, attrs ...any) {
 	}
 }
 
+// Mount records the component's mount hook.
+func (l *LiveSchema) Mount(fn any) {}
+
 func (l *LiveSchema) Loads(group string, fn func(context.Context) error) {
 	if l.loads == nil {
 		l.loads = map[string]func(context.Context) error{}

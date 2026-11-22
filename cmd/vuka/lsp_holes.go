@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -185,8 +187,32 @@ func (s *shapeScan) refDoc(path string, r shapeRef) string {
 		if len(set) > 0 {
 			doc += "\n\nSet by " + strings.Join(set, ", ") + "."
 		}
+		if used := s.goUses(f.name); len(used) > 0 {
+			doc += "\n\n**Synced** (one state, §12): " + strings.Join(used, ", ") + " reads or writes it, so its browser writes ride each event — applied before the handler — and a server write rides the next render. A synced state is browser-writable: check it on the server before trusting it."
+		} else {
+			doc += "\n\nBrowser-local: no Go code reads it, so its writes are never sent."
+		}
 	}
 	return doc
+}
+
+// goUses names the methods whose Go reads or writes a state field: what
+// classifies it synced (one state, §12). A source-level answer: the
+// compiler's classification is in the generated SyncFields call (`vuka
+// explain` shows it).
+func (s *shapeScan) goUses(field string) []string {
+	if s.shape == nil || s.shape.Recv == "" {
+		return nil
+	}
+	use := regexp.MustCompile(`\b` + regexp.QuoteMeta(s.shape.Recv) + `\.` + regexp.QuoteMeta(field) + `\b`)
+	var names []string
+	for _, m := range s.methods {
+		if m.body[1] > m.body[0] && m.body[1] <= len(s.src) && use.Match(s.src[m.body[0]:m.body[1]]) {
+			names = append(names, "`"+m.name+"`")
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // setterList names the methods setting a field, each hook with its attribute.

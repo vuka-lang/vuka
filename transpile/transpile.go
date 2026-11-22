@@ -241,6 +241,7 @@ type fileState struct {
 	trailer  string         // generated after the source: typed attribute checks, decorator wrappers
 	tsegs    []segment      // where each piece of the trailer comes from
 	deco     genWriter      // the decorator wrappers
+	syncGen  genWriter      // the synced-state registration (syncstate.go)
 	decoBase int            // where they start in the trailer
 	decos    []any          // *funcDeco and *typeDeco, in source order
 	regs     []registration // this render's registry decorators' calls (decorate.go)
@@ -256,35 +257,37 @@ type fileState struct {
 	readsDirect  bool            // and may read one's value directly: auth.Can (contextvet.go)
 	varReads     []VarRead       // the reads lowered
 
-	done        map[int]bool  // src offsets of identifiers already rewritten or reported
-	attached    map[int]bool  // the Load and Save calls of a form type given ui.Attach, by offset (forms.go)
-	partsDone   bool          // its parts are decided (parts.go)
-	unwrapped   map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
-	unwraps     []Unwrap      // the calls unwrapped
-	matchInfos  []Match       // the match statements lowered
-	ctxDone     map[span]bool // the markup's calls given ctx or left as they are (implicit.go)
-	implicit    []ImplicitCtx // the calls given ctx
-	bindDone    map[int]bool  // the markup's statements checked, by offset (bindings.go)
-	lazies      []int         // the names bound lazily, by offset
-	qualified   bool          // this round qualified bare names of its markup (resolveBare)
-	susBindings map[int]*jsxElem
-	partStmts   map[int]bool // statements binding a deferred method inside a <ui.Suspense>, by offset (parts.go)
-	susWarnings ErrorList
-	susGroups   map[*jsxElem][]string // a live component's boundaries: the groups each waits for (suspenselive.go)
-	ambigWarns  ErrorList             // markup calls both fits compile for (W0108, implicit.go)
-	attrWarns   ErrorList             // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
-	pushWarns   ErrorList             // pushes losing their writes, reads that write (W0113, W0114, push.go)
-	hiddenWarns ErrorList             // model on an <input type="hidden"> (W0115, forms.go)
-	hiddenSeen  map[int]bool          // the offsets hiddenWarns holds, so a second parse adds none
-	susChecked  bool                  // its <ui.Suspense>s are checked (suspense.go)
-	awaitDone   bool                  // its <ui.Await>s are checked (await.go)
-	rt          string                // the name the runtime is imported as; "" until needed
-	target      *jsxTarget            // what its JSX lowers to; nil until its first JSX
-	scope       string                // the scope id of the declaration being scanned (Options.Scopes)
-	declOff     int                   // the top-level declaration being scanned: where it starts
-	eng         *engine
-	pkgEnd      int // offset just after the package clause's name
-	dotImps     bool
+	done          map[int]bool  // src offsets of identifiers already rewritten or reported
+	attached      map[int]bool  // the Load and Save calls of a form type given ui.Attach, by offset (forms.go)
+	partsDone     bool          // its parts are decided (parts.go)
+	unwrapped     map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
+	unwraps       []Unwrap      // the calls unwrapped
+	matchInfos    []Match       // the match statements lowered
+	ctxDone       map[span]bool // the markup's calls given ctx or left as they are (implicit.go)
+	implicit      []ImplicitCtx // the calls given ctx
+	bindDone      map[int]bool  // the markup's statements checked, by offset (bindings.go)
+	lazies        []int         // the names bound lazily, by offset
+	qualified     bool          // this round qualified bare names of its markup (resolveBare)
+	susBindings   map[int]*jsxElem
+	partStmts     map[int]bool // statements binding a deferred method inside a <ui.Suspense>, by offset (parts.go)
+	susWarnings   ErrorList
+	susGroups     map[*jsxElem][]string // a live component's boundaries: the groups each waits for (suspenselive.go)
+	ambigWarns    ErrorList             // markup calls both fits compile for (W0108, implicit.go)
+	attrWarns     ErrorList             // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
+	pushWarns     ErrorList             // pushes losing their writes, reads that write (W0113, W0114, push.go)
+	hiddenWarns   ErrorList             // model on an <input type="hidden"> (W0115, forms.go)
+	derivedWarns  ErrorList             // ui.Derived deprecates with one state (W0117, derived.go)
+	derivedWarned bool
+	hiddenSeen    map[int]bool // the offsets hiddenWarns holds, so a second parse adds none
+	susChecked    bool         // its <ui.Suspense>s are checked (suspense.go)
+	awaitDone     bool         // its <ui.Await>s are checked (await.go)
+	rt            string       // the name the runtime is imported as; "" until needed
+	target        *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope         string       // the scope id of the declaration being scanned (Options.Scopes)
+	declOff       int          // the top-level declaration being scanned: where it starts
+	eng           *engine
+	pkgEnd        int // offset just after the package clause's name
+	dotImps       bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
 	wrapped   bool           // an around decorator's wrap of a body changed this round
@@ -443,7 +446,7 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
-	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.islandGen.len() > 0 || f.graphqlGen.len() > 0 || f.loaderGen.len() > 0 || f.optionsGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.islandGen.len() > 0 || f.graphqlGen.len() > 0 || f.loaderGen.len() > 0 || f.optionsGen.len() > 0 || f.fieldsOn || f.syncNeeded()) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
 	w.append(&f.enumGen)
@@ -452,6 +455,9 @@ func (f *fileState) makeTrailer(bare bool) {
 	w.append(&f.loaderGen)
 	f.renderFieldAttrs()
 	w.append(&f.fieldGen)
+	f.syncGen = genWriter{}
+	f.renderSyncFields(&f.syncGen)
+	w.append(&f.syncGen)
 	w.append(&f.graphqlGen)
 	w.append(&f.optionsGen)
 	f.decoBase = w.len()
@@ -462,7 +468,7 @@ func (f *fileState) makeTrailer(bare bool) {
 // build produces this round's text: the decided rewrites, plus a placeholder for
 // every construct not lowered yet that still lets the package type-check.
 func (f *fileState) build() {
-	if len(f.statics) > 0 || f.fieldsOn {
+	if len(f.statics) > 0 || f.fieldsOn || f.syncNeeded() {
 		f.makeTrailer(f.bare)
 	}
 	cur := append(edits(nil), f.bodyEdits()...)

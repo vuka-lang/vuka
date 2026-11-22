@@ -1,0 +1,1 @@
+W0117 cart.vuka.html:9:25: ui.Derived deprecates with the one-state merge: a template expression is derived where it is read, and a Go method over synced states is the server form; Derived keeps working; write the expression in the markup that reads it

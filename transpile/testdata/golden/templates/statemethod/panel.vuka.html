@@ -1,6 +1,7 @@
 package main
 
-// Panel is static: no session to push a write to.
+// Panel is static: a method write is the server's (one state), riding the
+// render; a write to a state parameter still has no home.
 type Panel struct {
 	tab ui.State[string]
 }

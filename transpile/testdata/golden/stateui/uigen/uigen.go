@@ -70,6 +70,23 @@ func Mul[T any](s stateui.State[T], o any) stateui.State[T]    { return s.GenMul
 func From[T any](x stateui.State[T]) stateui.Derived[T]        { return stateui.GenFrom(x) }
 func Read[T any](d stateui.Derived[T]) stateui.State[T]        { return stateui.GenRead(d) }
 
+// SyncedOf records each type's synced State fields, as SyncFields saw them.
+var SyncedOf = map[string][]string{}
+
+// SyncFields records that T's named State fields are synced (one state).
+func SyncFields[T any](names ...string) {
+	SyncedOf[reflect.TypeFor[T]().Name()] = names
+}
+
+// Synced marks a declared state synced and returns it.
+func Synced[T any](s stateui.State[T]) stateui.State[T] { return s }
+
+// SrvSet is a server write of a synced state: the replica takes v.
+func SrvSet[T any](s stateui.State[T], v T) { s.GenSrvSet(v) }
+
+// Ver is the state's write version, a guard dep.
+func Ver[T any](s stateui.State[T]) uint64 { return s.GenVer() }
+
 // Notified are the states whose writes notify a handler, by site.
 var Notified = map[string]bool{}
 

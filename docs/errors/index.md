@@ -126,6 +126,7 @@ same page in the terminal.
 | [W0114](./W0114) | A read naming a method that writes |
 | [W0115](./W0115) | model on a hidden input |
 | [W0116](./W0116) | A step after a Push that runs before its reply |
+| [W0117](./W0117) | A ui.Derived field: derived values are expressions |
 
 ## Decorators and attributes
 

@@ -3,6 +3,11 @@
 //line board.vuka:1
 package main
 
+import (
+	"vukatest.local/stateui/uigen"
+)
+
+//line board.vuka:3
 func (b *Board) push(name string) {
 	b.rows.Set(append(b.rows.Get(), Row{Name: name}))
 	b.n.Set(b.n.Get() + (len(b.rows.Get())))
@@ -18,5 +23,5 @@ func (b *Board) count() int {
 }
 
 func (b *Board) Reset() {
-	b.PushJS(b.tab.Set("env"))
+	uigen.SrvSet(b.tab, "env")
 }

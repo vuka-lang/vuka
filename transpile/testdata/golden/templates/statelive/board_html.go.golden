@@ -35,7 +35,7 @@ func (b *Board) Add(name string) {
 
 func (b *Board) Bump() {
 	b.n.Set(b.n.Get() + 1)
-	b.PushJS(uigen.Inc(ui.JS, b.count))
+	uigen.SrvSet(b.count, b.count.Get()+1)
 }
 
 func (b *Board) Rename(i int, name string) {
@@ -43,9 +43,9 @@ func (b *Board) Rename(i int, name string) {
 }
 
 func (b *Board) Reset() {
-	b.PushJS(b.tab.Set("env"))
-	b.PushJS(uigen.Toggle(ui.JS, b.open))
-	b.PushJS(b.open.Set(false))
+	uigen.SrvSet(b.tab, "env")
+	uigen.SrvSet(b.open, !b.open.Get())
+	uigen.SrvSet(b.open, false)
 }
 
 //line board.vuka.html:40
@@ -75,4 +75,11 @@ func (b *Board) Render() ui.Node {
 		ui.JS.Set(b.open, false).Push(b.Bump),
 		func() { b.Rename(0, "z") },
 	)
+}
+
+// Synced states (one state, §12): their browser writes ride each event,
+// applied before the handler; a server write rides the next render.
+// count: written in (b *Board).Bump; open: written in (b *Board).Reset; tab: written in (b *Board).Reset.
+func init() {
+	uigen.SyncFields[Board]("count", "open", "tab")
 }

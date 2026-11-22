@@ -282,7 +282,7 @@ func handWrittenGen(pass *analysis.Pass) {
 			}
 			help := "write the .vuka.html form — a ui.State field read as a variable and written in an on… attribute (open = !open)"
 			if sel.Sel.Name == "Assign" {
-				help = "declare the field unexported in a .vuka.html file's struct: the compiler tracks it"
+				help = "declare a plain unexported field in a .vuka.html file's struct (the compiler tracks it), or a ui.State the code reads: Assign is the one-state engine's server-only form"
 			}
 			report(pass, sel, "W0105", help, "uigen.%s is what the compiler writes; it is not an API to write by hand", sel.Sel.Name)
 			return false

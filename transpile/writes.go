@@ -203,6 +203,7 @@ func (e *engine) lowerWrites(f *fileState) []span {
 		f.writeDone = map[int]bool{}
 	}
 	attrSpans := e.lowerAttrWrites(f)
+	e.lowerStateReads(f, attrSpans)
 	e.lowerMethodWrites(f, attrSpans)
 	return attrSpans
 }
@@ -409,9 +410,10 @@ func (e *engine) lowerMethodWrites(f *fileState, attrs []span) {
 		}
 		f.writeDone[off] = true
 		recv := e.liveReceiver(f, st)
-		if recv == "" {
+		inMarkup := f.html != nil && off >= f.html.start && off < f.html.end && !e.inFuncLit(f, st)
+		if recv == "" || inMarkup {
 			where := "outside a live component's method"
-			if h := f.html; h != nil && off >= h.start && off < h.end && !e.inFuncLit(f, st) {
+			if inMarkup {
 				where = "while the markup renders"
 			}
 			e.errs.add("E0149", f.at(off), "%s is written %s: write a state in an on… attribute (onClick={%s}), or in a method of a live component, which pushes it to the page",
@@ -428,14 +430,26 @@ func (e *engine) lowerMethodWrites(f *fileState, attrs []span) {
 			return false
 		}
 		pkg := stepsPackage(e, steps)
+		qual := f.genQual(stateGenPath(pkg))
 		var pieces []jsxPiece
 		gen := func(s string) jsxPiece { return jsxPiece{text: s, keep: span{-1, -1}} }
-		if s := steps[0]; s.op == "Set" {
-			pieces = []jsxPiece{gen(recv + ".PushJS("), {keep: span{f.orig(s.lhs.Pos()), f.orig(s.lhs.End())}}, gen(".Set("), {keep: span{f.orig(s.rhs.Pos()), f.orig(s.rhs.End())}}, gen("))")}
-		} else {
+		keepLHS := func(s writeStep) jsxPiece { return jsxPiece{keep: span{f.orig(s.lhs.Pos()), f.orig(s.lhs.End())}} }
+		// One state (§12): a method's write is the server's — versioned, it
+		// rides the next render, and the browser adopts it past its base.
+		switch s := steps[0]; s.op {
+		case "Set":
+			pieces = []jsxPiece{gen(qual + "SrvSet("), keepLHS(s), gen(", "), {keep: span{f.orig(s.rhs.Pos()), f.orig(s.rhs.End())}}, gen(")")}
+		case "Toggle":
+			pieces = []jsxPiece{gen(qual + "SrvSet("), keepLHS(s), gen(", !"), keepLHS(s), gen(".Get())")}
+		case "Inc":
+			pieces = []jsxPiece{gen(qual + "SrvSet("), keepLHS(s), gen(", "), keepLHS(s), gen(".Get()+1)")}
+		case "Dec":
+			pieces = []jsxPiece{gen(qual + "SrvSet("), keepLHS(s), gen(", "), keepLHS(s), gen(".Get()-1)")}
+		default:
 			pieces = append([]jsxPiece{gen(recv + ".PushJS(")}, e.chain(f, e.statePkg(f, pkg), stateGenPath(pkg), steps).pieces...)
 			pieces = append(pieces, gen(")"))
 		}
+		e.recordStateWrite(f, steps[0].lhs, st)
 		f.dropEdits(span{off, f.orig(st.End())}, pieces)
 		f.fixed = append(f.fixed, pieceEdits(off, f.orig(st.End()), pieces)...)
 		e.progress = true
@@ -463,7 +477,7 @@ func (e *engine) liveReceiver(f *fileState, st ast.Node) string {
 		if _, ok := t.(*types.Pointer); !ok {
 			t = types.NewPointer(t)
 		}
-		if sel := types.NewMethodSet(t).Lookup(nil, "PushJS"); sel == nil {
+		if sel := types.NewMethodSet(t).Lookup(nil, "PushJS"); sel == nil && !e.shapeReceiver(t) {
 			return ""
 		}
 		return name.Name
