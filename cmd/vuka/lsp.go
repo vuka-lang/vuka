@@ -1150,8 +1150,21 @@ func (p *proxy) initialize(params json.RawMessage) {
 	if root == "" {
 		root, _ = os.Getwd()
 	}
+	// The module root now, not after the first build settles: a completion
+	// that arrives right after didOpen resolves component tags through
+	// importDir, which answers nothing while p.modRoot is empty — and an
+	// editor caches that empty list for the typed prefix.
+	modRoot, modPath, modErr := load.ModuleRoot(root)
+	if modErr == nil {
+		if r, err := filepath.EvalSymlinks(modRoot); err == nil {
+			modRoot = r
+		}
+	}
 	p.mu.Lock()
 	p.root = root
+	if modErr == nil {
+		p.modRoot, p.modPath = modRoot, modPath
+	}
 	p.noCtxHints = ip.Options.Vuka.ImplicitContextHints != nil && !*ip.Options.Vuka.ImplicitContextHints
 	p.mu.Unlock()
 	p.logf("root %s", root)

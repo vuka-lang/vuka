@@ -28,6 +28,7 @@ var replyGrace = 10 * time.Second
 // inflight is an editor request not answered yet.
 type inflight struct {
 	method  string
+	params  json.RawMessage
 	timer   *time.Timer
 	reached bool // the main loop has taken it
 }
@@ -53,9 +54,38 @@ func (p *proxy) track(m *rpcMsg) {
 	if r.inflight == nil {
 		r.inflight, r.answered = map[string]*inflight{}, map[string]time.Time{}
 	}
-	f := &inflight{method: method}
+	f := &inflight{method: method, params: m.Params}
 	f.timer = time.AfterFunc(goplsDeadline, func() { p.late(id, f) })
 	r.inflight[id] = f
+	if method == "textDocument/completion" {
+		time.AfterFunc(sourceAnswerDelay, func() { p.early(id, f) })
+	}
+}
+
+// sourceAnswerDelay is how long a completion may go unanswered before the
+// proxy answers it from the sources when it can (lateCompletion): a value
+// spot's enum constants are the same answer the settled path gives, and the
+// first build of a large module holds the loop far past any typing pause.
+var sourceAnswerDelay = 2 * time.Second
+
+// early answers a completion from the sources once sourceAnswerDelay has
+// passed and nothing else has answered it.
+func (p *proxy) early(id string, f *inflight) {
+	p.replies.mu.Lock()
+	gone := p.replies.inflight[id] != f
+	p.replies.mu.Unlock()
+	if gone {
+		return
+	}
+	res := p.lateCompletion(f.params)
+	if res == nil {
+		return
+	}
+	if p.settle(id, f) {
+		p.logf("%s: answered from the sources", f.method)
+		b, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "result": res})
+		_ = p.editor.writeChecked(b)
+	}
 }
 
 // reach tells whether the main loop is to handle the editor's request id: it
@@ -97,6 +127,16 @@ func (p *proxy) late(id string, f *inflight) {
 		state = "not answered"
 	}
 	p.replies.mu.Unlock()
+	if f.method == "textDocument/completion" {
+		if res := p.lateCompletion(f.params); res != nil {
+			if p.settle(id, f) {
+				p.logf("%s: %s in time; answered from the sources", f.method, state)
+				b, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "result": res})
+				_ = p.editor.writeChecked(b)
+			}
+			return
+		}
+	}
 	if p.settle(id, f) {
 		p.logf("%s: %s in time; answered without it", f.method, state)
 		p.answerFor(id, f.method, nil)
