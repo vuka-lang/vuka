@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -40,7 +42,8 @@ func forwardingDiags(file string, src []byte) []diag.Diagnostic {
 		case f.Role != transpile.Prop:
 		case f.Name == "Attrs" && strings.Contains(f.Type, "Attr"):
 			attrs = &sh.Fields[i]
-		case f.Name == "Class" && f.Type == "string":
+		case f.Name == "Class" && f.Type == "string" && !slices.Contains(strings.Split(reflect.StructTag(f.Tag).Get("vuka"), ","), "class"):
+			// one tagged vuka:"class" the compiler merges, or reports (E0123)
 			class = &sh.Fields[i]
 		}
 	}

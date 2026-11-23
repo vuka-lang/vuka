@@ -222,3 +222,10 @@ func TestTemplateAttrSugar(t *testing.T) {
 	src := "<script lang=\"go\">\npackage p\n\ntype Card struct{ ID, Hint string }\n</script>\n\n<section>\n  <Button attr:form={\"rule-\" + ID} title?={Hint}>Save</Button>\n  <input id?={ID} attr:data-x=\"lit\" />\n</section>\n"
 	check(t, src, "", src, Options{})
 }
+
+// TestTemplateForward: a bare forward and what a component's tag passes on
+// keep their form.
+func TestTemplateForward(t *testing.T) {
+	src := "<script lang=\"go\">\npackage p\n\ntype Field struct{ Label, Email string }\n</script>\n\n<label>\n  {Label}\n  <input class=\"h-10 rounded-md border\" forward />\n  <Input class=\"mt-4\" bind:value={Email} ref=\"email\" disabled />\n</label>\n"
+	check(t, src, "", src, Options{})
+}

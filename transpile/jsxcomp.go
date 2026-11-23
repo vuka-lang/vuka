@@ -56,6 +56,8 @@ type jsxComp struct {
 	lazyShow   *compArg      // the show attribute it follows
 	lazyLoad   *jsxElem      // a <slot:loading> no field takes: the ui.Lazy's Loading
 
+	failCode diag.Code // the code of the error binding its attributes failed with, when not E0106
+
 	// Defaults (defaults.go).
 	autoID      bool     // a ui.AutoID prop is its ui.NewAutoID(ctx): the call is in ui.Ctx
 	badDefaults []string // the defaults of another package's props that can't be (E0136)
@@ -122,6 +124,8 @@ type compArg struct {
 	orDef *propDefault // name?={v}: the default v stands aside for when zero
 	or    string       // and the call taking v and it: "cmp.Or[T]"
 
+	fall       bool       // the props' Fallthrough: ui.Fallthrough{extra…} (forward.go)
+	bindVal    bool       // a bind:value passed on to the forward element: its ui.BindValue
 	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
 	uiAttrs    bool       // the props' Attrs ([]ui.Attr): its value with extra appended
 	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs or Attrs
@@ -214,6 +218,18 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("}")
 			}
 			w.gen(")")
+		case a.fall:
+			w.gen(q + "Fallthrough{")
+			for _, x := range a.extra {
+				w.gen(q + "Attr{Name: " + strconv.Quote(passName(x.attr)) + ", Value: ")
+				if x.bindVal {
+					w.bindValue(x.attr)
+				} else {
+					w.omitWrap(x.attr, func() { value(x, false) })
+				}
+				w.gen("}, ")
+			}
+			w.gen("}")
 		case a.uiAttrs:
 			if named && a.name != "" || a.attr != nil {
 				w.gen("append(")
@@ -614,7 +630,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		return
 	}
 	if off, msg := e.bindComp(c, sig, attrs, node, e.templChildren(obj)); msg != "" {
-		fail("E0106", off, "%s", msg)
+		fail(c.code("E0106"), off, "%s", msg)
 		return
 	}
 	if fn, ok := obj.(*types.Func); ok && fn.Signature().TypeParams().Len() > 0 {

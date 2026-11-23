@@ -203,6 +203,7 @@ import (
 //
 // Until a tab is picked it shows the Default one; the server renders it so.
 type Tabs struct {
+	Fallthrough ui.Fallthrough `vuka:"forward=div" json:"-"`
 	// Value is the browser state holding the Value of the tab shown: pass
 	// the page's to read or switch it from elsewhere, or leave it to the
 	// tabs' own. Empty shows Default.
@@ -262,10 +263,10 @@ func (t *Tabs) View() ui.Node {
 		divs = append(divs, ui.HTML(`<div key={tab.Value} role="tabpanel" id={t.id(tab, "panel")} aria-labelledby={t.id(tab, "tab")} tabindex="0" show={uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first()))} class="flex-1 outline-none">{tab.Panel}</div>`, tab.Value, t.id(tab, "panel"), t.id(tab, "tab"), uigen.Or(uigen.Eq(t.Value, tab.Value), uigen.And(uigen.Eq(t.Value, ""), tab.Value == t.first())), tab.Panel))
 	}
 	return ui.HTML(`
-<div class={cn("flex flex-col gap-2", t.Class)}>
+<div {t.Fallthrough.Attrs()...} class={cn("flex flex-col gap-2", t.Class)}>
   <div role="tablist" class={tabsList}>{buttons}</div>
   {divs}
-</div>`, cn("flex flex-col gap-2", t.Class), tabsList, buttons, divs)
+</div>`, t.Fallthrough.Attrs(), cn("flex flex-col gap-2", t.Class), tabsList, buttons, divs)
 }
 
 func (t *Tabs) Render(ctx context.Context, w io.Writer) error { return t.View().Render(ctx, w) }

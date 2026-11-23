@@ -43,6 +43,7 @@ same page in the terminal.
 | [E0120](./E0120) | Conflicting overloads |
 | [E0121](./E0121) | Ambiguous or unresolvable overload |
 | [E0122](./E0122) | Can't infer a type argument |
+| [E0123](./E0123) | A Class tagged vuka:"class" that no class attribute uses |
 | [E0124](./E0124) | Code that can't run in the browser |
 | [E0125](./E0125) | ui.State used with the wrong type |
 | [E0126](./E0126) | Bad vuka.File |
@@ -56,6 +57,9 @@ same page in the terminal.
 | [E0134](./E0134) | An innerHTML where it cannot be the content |
 | [E0135](./E0135) | A ?= attribute that can't be left out by its value |
 | [E0136](./E0136) | A prop's default that can't be |
+| [E0137](./E0137) | A forward marker that marks no one element |
+| [E0138](./E0138) | A tag passes an attribute on and the component has no forward element |
+| [E0139](./E0139) | An attribute the component's forward element can't take |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 | [E0142](./E0142) | A template file has no package clause, or another package's |
 | [E0143](./E0143) | An unknown element or template |

@@ -56,7 +56,8 @@ func (p *proxy) tagEnumAttrs(file string, src []byte, tag string) map[string]boo
 }
 
 // tagTakesAttrs reports whether a component tag's props have an Attrs
-// []ui.Attr or Attributes templ.Attributes field: where attr:name goes.
+// []ui.Attr, Attributes templ.Attributes or Fallthrough ui.Fallthrough
+// field: where attr:name goes.
 func (p *proxy) tagTakesAttrs(file string, src []byte, tag string) bool {
 	info := p.resolveComponent(file, src, tag)
 	if info == nil {
@@ -65,11 +66,28 @@ func (p *proxy) tagTakesAttrs(file string, src []byte, tag string) bool {
 	for _, pr := range info.props {
 		switch {
 		case pr.name == "Attrs" && strings.HasPrefix(pr.typ, "[]") && strings.HasSuffix(pr.typ, "Attr"),
-			pr.name == "Attributes" && strings.HasSuffix(pr.typ, "templ.Attributes"):
+			pr.name == "Attributes" && strings.HasSuffix(pr.typ, "templ.Attributes"),
+			pr.name == "Fallthrough" && strings.HasSuffix(pr.typ, "Fallthrough"):
 			return true
 		}
 	}
 	return false
+}
+
+// tagFalls reports whether a component tag passes what no prop takes on
+// to the component's forward element: a .vuka.html component declaring
+// no Attrs or Attributes (RFC components-seamless §5).
+func (p *proxy) tagFalls(file string, src []byte, tag string) bool {
+	info := p.resolveComponent(file, src, tag)
+	if info == nil || !strings.HasSuffix(info.file, ".vuka.html") || info.kind == "function" {
+		return false
+	}
+	for _, pr := range info.props {
+		if pr.name == "Attrs" || pr.name == "Attributes" {
+			return false
+		}
+	}
+	return true
 }
 
 // propEnumValues are the constants of a prop's defined string type, nil for

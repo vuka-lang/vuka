@@ -665,13 +665,22 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				}
 				item("class:", 5, "a class while a condition holds", "class:${1:name}={$2}", 2, "6")
 				item("style:", 5, "a CSS property or variable", "style:${1:--name}={$2}", 2, "7")
+				if template && !used["forward"] {
+					// the element the component's tag passes its attributes on to
+					item("forward", 5, "where the component's tag passes its attributes on", "forward", 1, "8")
+					doc("`forward` marks the element a caller's `class`, HTML attributes, DOM events, `bind:value` and `ref` go to when the component's tag has no prop for them. A component whose markup has one top-level element needs none: that element is its forward element.")
+				}
 			}
 			break
 		}
-		html := false
+		html, fall := false, false
 		enums := p.tagEnumAttrs(vf.source, src, spot.tag.name)
 		for i, a := range p.componentAttrs(genPath, spot.tag.name) {
 			html = html || a.name == "attributes" && a.typ == "templ.Attributes"
+			if strings.EqualFold(a.name, "fallthrough") && strings.HasSuffix(a.typ, "Fallthrough") {
+				fall = true // what no prop takes goes to its forward element: not an attribute itself
+				continue
+			}
 			if used[strings.ToLower(a.name)] {
 				continue
 			}
@@ -687,12 +696,32 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				last["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}
 			}
 		}
-		if html || p.tagTakesAttrs(vf.source, src, spot.tag.name) {
+		fall = fall || !html && p.tagFalls(vf.source, src, spot.tag.name)
+		if html || fall || p.tagTakesAttrs(vf.source, src, spot.tag.name) {
 			// attr:name, an attribute for the element it spreads its Attrs on
 			item("attr:", 5, "an attribute passed on to the element", "attr:${1:name}={$2}", 2, "5")
 			doc("`attr:form={id}` sets the attribute `form` on the element the component spreads its `Attrs` on, whatever its props call `form`.")
 		}
-		if html {
+		if fall {
+			// a component passing its tag's attributes on to its forward
+			// element takes the element's global ones
+			for i, a := range htmlGlobalAttrs {
+				label := map[string]string{"className": "class"}[a]
+				if label == "" {
+					label = a
+				}
+				if a == "key" || used[strings.ToLower(label)] {
+					continue
+				}
+				text := label + `="$1"`
+				if htmlBooleans[a] {
+					text = a
+				}
+				item(label, 5, "passed on to its forward element", text, 2, fmt.Sprintf("1%03d", i))
+				doc(attrDoc("div", a))
+			}
+		}
+		if html || fall {
 			// props with an Attributes field take the other HTML attributes too
 			for i, a := range htmlEventNames {
 				if !used[strings.ToLower(a)] {

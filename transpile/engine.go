@@ -93,6 +93,7 @@ type engine struct {
 	forceCtx      map[string]bool // template files whose markup gets the render's ctx (implicit.go)
 	noImplicit    bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
 	recompile     bool            // one more does: the package compiles again
+	fallTargets   map[string]bool // whether each JSX target declares Fallthrough (forward.go)
 	wrapErrors    bool            // vet a bare ? on a call into another package (Options.WrapErrors)
 }
 

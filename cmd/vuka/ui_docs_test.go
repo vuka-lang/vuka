@@ -328,6 +328,9 @@ func uiDocsProps(fset *token.FileSet, files []*ast.File, title string) string {
 				continue
 			}
 			name, typ := f.Names[0].Name, expr(f.Type)
+			if name == "Fallthrough" && strings.HasSuffix(typ, "Fallthrough") {
+				continue // what the tag passes on, the compiler's field
+			}
 			doc := strings.Join(strings.Fields(f.Doc.Text()+" "+f.Comment.Text()), " ")
 			if cs := consts[typ]; len(cs) > 0 {
 				doc = strings.TrimSpace(doc + " One of " + strings.Join(cs, ", ") + ".")

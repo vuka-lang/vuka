@@ -184,7 +184,7 @@ func (e *engine) template(f *fileState, files []File) bool {
 	if e.selfJSX {
 		q = ""
 	}
-	src, h, _, err := htmlParts(f.name, f.src, files, q, false, e.templateNames(), e.forceCtx[f.name])
+	src, h, _, err := htmlParts(f.name, f.src, files, q, false, e.templateNames(), e.forceCtx[f.name], e.hasFallthrough)
 	if err != nil {
 		line, col := max(err.Pos.Line, 1), max(err.Pos.Column, 1)
 		err.Pos = f.lines.pos(f.path, min(f.lines[min(line, len(f.lines))-1]+col-1, len(f.src)))
@@ -316,7 +316,7 @@ func templateDecl(header string) string {
 // htmlParts is htmlSource, and the markup's scripts and stylesheets;
 // assetsOnly reads only those. withCtx gives the markup the render's ctx
 // though it names none: a call in it takes ctx implicitly (implicit.go).
-func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool, vars map[string]bool, withCtx bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
+func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool, vars map[string]bool, withCtx bool, fall ...func(target string) bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
 	lines := strings.SplitAfter(string(src), "\n")
 	off := make([]int, len(lines)+1)
 	for i, l := range lines {
@@ -485,6 +485,20 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			method = "Render"
 		}
 		markupText := []byte(strings.Join(lines[first:firstEnd], ""))
+		// What the struct's tag passes on goes to its forward element
+		// (forward.go).
+		hasFall := len(fall) > 0 && fall[0] != nil && fall[0](uiTarget(head, others, ui))
+		plan, err := planForward(string(markupText), off[first], shape, shapeForward(shape, hasFall, ui), ui, func(o int) token.Position {
+			i := sort.Search(len(off), func(i int) bool { return off[i] > o }) - 1
+			return token.Position{Line: i + 1, Column: o - off[max(i, 0)] + 1}
+		})
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		for _, b := range plan.blanks {
+			blankSpan(lines, off, b.start, b.end)
+		}
+		ins = append(ins, plan.ins...)
 		h.ownCtx = ownCtx.Match(markupText)
 		// A boundary's body takes a ctx: the markup has one.
 		withCtx = withCtx || strings.Contains(string(markupText), "<"+ui+"Suspense")
@@ -601,6 +615,45 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	b.WriteString(blanked[last:])
 	return []byte(b.String()), h, assets, nil
+}
+
+// uiTarget is the JSX target a template's ui qualifier names: its own
+// import of that name, its package's, or the default; "" for a target
+// that is the package itself.
+func uiTarget(head TemplateHead, others []File, ui string) string {
+	q := strings.TrimSuffix(ui, ".")
+	if q == "" {
+		return ""
+	}
+	for _, imp := range head.Imports {
+		if imp.name() == q {
+			return imp.Path
+		}
+	}
+	for _, imp := range packageImports(others) {
+		if imp.name == q {
+			return imp.path
+		}
+	}
+	return DefaultJSXTarget
+}
+
+// blankSpan blanks src offsets [from, to) of lines, which start at off:
+// their text is spaces, their offsets kept.
+func blankSpan(lines []string, off []int, from, to int) {
+	for i := range lines {
+		a, b := max(from, off[i]), min(to, off[i+1])
+		if a >= b {
+			continue
+		}
+		l := []byte(lines[i])
+		for j := a - off[i]; j < b-off[i]; j++ {
+			if l[j] != '\n' {
+				l[j] = ' '
+			}
+		}
+		lines[i] = string(l)
+	}
 }
 
 // ownCtx matches markup declaring a ctx of its own.

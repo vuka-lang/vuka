@@ -10,6 +10,7 @@ require (
 	github.com/vuka-lang/vuka/v2 v2.3.0
 	github.com/vuka-lang/web/v2 v2.0.0
 	vukatest.local/design v0.0.0
+	vukatest.local/falltarget v0.0.0
 	vukatest.local/islandui v0.0.0
 	vukatest.local/opttarget v0.0.0
 	vukatest.local/orm v0.0.0
@@ -32,6 +33,8 @@ replace vukatest.local/streamui => ./streamui
 replace vukatest.local/webstub => ./webstub
 
 replace vukatest.local/opttarget => ./opttarget
+
+replace vukatest.local/falltarget => ./falltarget
 
 replace vukatest.local/orm => ./orm
 

@@ -153,7 +153,8 @@ func TestProbedNames(t *testing.T) {
 // the tag's source names, and another package's constant is written as a
 // reference, so a change of its value is the build's): by a name the source writes or ends (an identifier, a
 // selector, staticGoName's), one asserted to a kind KeepUnnamed never keeps
-// (a type, a variable), a local scope's, or a probed one.
+// (a type, a variable — forward.go's Fallthrough, a JSX target's type), a
+// local scope's, or a probed one.
 const reviewedLookups = `
 bindings.go f.html.recvType
 bindings.go id.Name
@@ -178,6 +179,7 @@ fields.go kind
 fields.go n.Obj().Name() + "Columns"
 fields.go n.Obj().Name() + suffix
 forms.go key
+forward.go fallField
 graphql.go name
 graphql.go op.name
 graphqlloader.go l.fetch
