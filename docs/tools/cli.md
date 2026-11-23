@@ -426,6 +426,7 @@ editor's test runner or a script that calls `go test` work on `.vuka` files.
 | `go test`, `go vet`, `go run` | `vuka test`, `vet`, `run`: the same output, errors and exit status |
 | `go build` | the overlay and the app's Tailwind stylesheet: the binary plain `go build` makes with the generated code on disk, your `-ldflags` and `-tags` as given; none of `vuka build`'s `-ldflags=-w`, `-tags=vuka_release`, `build/` module or frontend (vite) build |
 | `go build -h`, `-overlay=…`, `-modfile=…`; `go -C dir …` | the real go |
+| a flag only vuka has (`go run -watch`, `go build -islands`, `-debug`, `-fresh`, `-keep-cache`, `-embed`, `-diag`) | refused with one line naming the vuka command: `vuka run -watch …` |
 | any other go command | the real go |
 
 ```sh
