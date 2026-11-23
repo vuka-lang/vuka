@@ -76,6 +76,11 @@ tag's content is the function's body, beside its other slots, as Vue's
 </ui.ModalOf>
 ```
 
+The names a `let` declares follow Go scoping. One named like the
+component's own receiver (`let={t}` in a component whose methods are
+written `func (t *Panel)`) shadows it only for that name: the markup's
+bare fields, forms and handlers still reach the component.
+
 A func field is also set as a prop, to a value of its type. A func literal
 set on it takes markup for its body, so a slot used once needs no
 `<slot:…>` tag, and a [markup func](/ui/templates#markup-funcs) bound once
@@ -550,3 +555,38 @@ a server-owned one following a live field through `open` and `onClose`:
 
 <ui.Modal ref="edit" open={editing} onClose={Close}>…</ui.Modal>
 ```
+
+#### A modal the URL opens {#url-modal}
+
+A dialog someone may share, refresh or leave with the Back button — edit
+this record, review this entry — belongs in the URL rather than in a
+state. The id travels as a query parameter in an
+[`@ui.URL` field](/web/url-state), a patch link opens the dialog, Back
+closes it, and a reload lands with it open:
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Repos struct {
+    ui.Live
+    edit int64 @ui.URL("edit")
+}
+</script>
+
+<ui.Link href="?edit=7" patch>Edit</ui.Link>
+
+<ui.Modal ref="edit" open={edit != 0} title={ui.Text("Edit")}>
+  if edit != 0 {
+    <p>Editing record {edit}</p>
+  }
+</ui.Modal>
+```
+
+Because `edit` is an `@ui.URL` field, the patch keeps the page mounted
+with no `Update` method, and the field re-binds itself from each new URL.
+Close by patching the parameter away. A `ui.ModalOf` fits the dialogs the
+URL shouldn't carry — confirms, row actions, anything ephemeral — and
+this form fits the ones it should; the two compose on one page.
