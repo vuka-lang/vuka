@@ -379,8 +379,9 @@ handler, a page method handler, and a live event handler.
   messages).
 
 Services and models are **logic**, so they live in `.go`/`.vuka` files and
-register with `app.Service(NewTodos)` (or `web.Provide`) — there is no
-`@web.Service` decorator on a struct and no `inject:` tag, because a struct
+register with `app.Service(NewTodos)` (or `web.Provide`) — a struct takes
+its dependencies as its constructor's parameters, with no decorator and no
+field tag ([E0420](/errors/E0420)), because a struct
 with markup is a render struct in a `.vuka.html`, and a struct without
 markup is plain Go with a hand-written constructor whose parameters are its
 dependencies.
@@ -672,7 +673,7 @@ Notes on the example against the rules:
 
 - `models/todo.go` and `services/todos.go` carry no markup, so they are
   logic files; `Todos` registers with `web.Provide(services.NewTodos)` in
-  `main.go` — no `@web.Service`, no `inject:` tag.
+  `main.go`; `NewTodos` takes its dependencies as parameters.
 - `Index` is **live** because it embeds `ui.Live` and has handlers; `store`
   is injected (provided type), `rows` is server state the compiler lowers to
   `ui.Assign[[]models.Todo]`, and `show` is browser state read in markup as

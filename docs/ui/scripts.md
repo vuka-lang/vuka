@@ -93,7 +93,8 @@ A returned `destroy()` keeps working too.
 > [!NOTE]
 > A page's props are its exported data fields, its `@ui.URL` fields among
 > them. Its `update(next)` runs when a patch changes them and keeps the page
-> mounted (the page has an `Update` taking `web.URLParams`); without one, a
+> mounted — a patch changing only its `@ui.URL` fields' parameters does, as
+> does any patch of a page with an `Update` taking `web.URLParams`; any other
 > patch mounts the page again: `destroy`, then the function, with the new
 > props.
 
@@ -466,20 +467,15 @@ state the script follows:
 <script lang="go">
 package pages
 
-import (
-	"github.com/vuka-lang/ui/v2"
-	"github.com/vuka-lang/web/v2"
-)
+import "github.com/vuka-lang/ui/v2"
 
-// Index searches the catalogue.
+// Index searches the catalogue. A patch changing only ?q= keeps it
+// mounted: Q follows the URL.
 type Index struct {
 	ui.Live
 	Q       string @ui.URL("q")
 	compact ui.State[bool]
 }
-
-// Update keeps the page mounted on a patch: Q follows the URL.
-func (p *Index) Update(web.URLParams) {}
 </script>
 
 <main>
@@ -569,8 +565,10 @@ misspelt ref or event ([W0308](/errors/W0308)).
   didn't register it with `listen` or clean it up with `onDestroy` (or `destroy`).
 - **`ctx.emit` is a type error in a page's script**: a page has no
   parent tag to emit to; call its own method instead.
-- **`update` never runs on a page**: the patch mounts the page again;
-  give the page an `Update(web.URLParams)` to keep it mounted.
+- **`update` never runs on a page**: the patch mounts the page again — it
+  changes a parameter no `@ui.URL` field keeps (the development log names
+  it); keep that parameter in a `@ui.URL` field, or give the page an
+  `Update(web.URLParams)`.
 - **No completion in the script in an editor other than VS Code**: `vuka
   lsp` found no TypeScript language server; see
   [Editors](/tools/editors#scripts).

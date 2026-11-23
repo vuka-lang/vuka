@@ -148,14 +148,26 @@ as an ordinary page.
 ### The Server Decides What Stays Mounted
 
 `patch` on a link (and `Patch`, `PushPatch`) only asks. The page stays
-mounted only when its type has an `Update` taking `web.URLParams`. Any other
-page **mounts again**, a fresh instance whose mount hook sees the new URL, even
-on the same route, as a navigate does.
+mounted when
+
+- its type has an `Update` taking `web.URLParams`, which takes every patch;
+  or
+- the patch changes only query parameters the page's components keep in
+  the address — their [`@ui.URL` fields](/web/url-state#fields), a
+  DataTable's page, search and sort — on the same path. They read the new
+  address as they render, so the page needs no `Update` for them.
+
+Any other patch — of the path, of a parameter no `@ui.URL` field keeps, or
+one that changes nothing — **mounts the page again**, a fresh instance whose
+mount hook sees the new URL, as a navigate does. In development the log
+names what kept the page from staying, once for each route.
 
 > [!WARNING]
 > A browser can send any URL as a patch, so this rule is what keeps a check
 > in the mount hook from being skipped. It follows that **`Update` must
-> repeat every check the mount hook makes** of what the URL names.
+> repeat every check the mount hook makes** of what the URL names, and that
+> a component checking in its mount hook what a `@ui.URL` field names
+> checks again where it uses the field.
 
 A page showing one order checks in the mount hook that the visitor may see
 it; its `Update` checks the new id the same way. The update-message DTO, in

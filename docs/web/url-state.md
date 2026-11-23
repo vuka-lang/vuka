@@ -151,6 +151,8 @@ type Index struct {
 	Status string
 }
 
+// Update keeps the page mounted when Filter changes ?status=: Status is
+// the page's own parameter, which no @ui.URL field keeps.
 func (p *Index) Update(web.URLParams) {}
 
 func (p *Index) Filter(ctx context.Context, status string) {
@@ -182,13 +184,23 @@ search the visitor should be able to step back from.
 
 ## Keeping the Page Mounted {#keeping-the-page-mounted}
 
-A patch runs the page's route for the new URL. As for any patch, the page
-stays mounted only when it has an `Update` taking `web.URLParams`
-([the server decides](/web/navigation#the-server-decides-what-stays-mounted)):
-otherwise it, and every component on it, mounts again, filled from the new
-URL. A page whose state is all in its components' URL fields needs no
-parameters of its own: an `Update` taking `web.URLParams` itself, as the
-requests page above declares, keeps it mounted.
+A patch runs the page's route for the new URL
+([the server decides](/web/navigation#the-server-decides-what-stays-mounted)
+what stays mounted). A page whose URL state is all in `@ui.URL` fields —
+its components', its own — needs nothing more: a patch that changes only
+the parameters they keep leaves the page and every component on it mounted,
+and the fields fill from the new URL as they render. The tabs and the pager
+above stay mounted that way, as do the two tables below.
+
+A patch that changes anything else mounts the page again, filled from the
+new URL — unless the page has an `Update` taking `web.URLParams`, which
+keeps it mounted across every patch. The requests page above has one
+because `Filter` changes `?status=`, the page's own `Status` parameter
+rather than a `@ui.URL` field. An `Update` taking `web.URLParams` itself
+takes nothing of the URL; one taking a struct that embeds it re-binds the
+new URL's parameters, and is where a check the mount hook makes of them is
+made again. In development, a patch that mounts a page again because it has
+neither says so in the log, naming the parameter.
 
 > [!WARNING]
 > A component's URL field changes without its mount hook running again,
