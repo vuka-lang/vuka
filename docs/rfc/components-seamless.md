@@ -281,6 +281,28 @@ there:
   element; `disabled` on a wrapper reaches the control, retiring the
   forwarded `Disabled bool` props half a kit declares.
 
+- **`asChild` runs the routing in reverse.** A bare `asChild` on a
+  component tag makes the caller's single element child the component's
+  root: the forward element's tag is discarded and its attributes are
+  donated to the child — `class` through the same merge (child wins per
+  utility group), handlers compose (both fire), anything else the child
+  keeps. A Button that is really a link stops being a prop
+  (`Href`, `Patch`, `Target`, `Download`, …) and becomes an anchor:
+
+  ```vuka
+  <design.Button asChild variant="outline">
+    <a href="/reports/42" target="_blank" download>Report</a>
+  </design.Button>
+  ```
+
+  The component author changes nothing. Checked where Radix fails at
+  runtime: `asChild` with zero, several or text-only children is a
+  compile error at the tag, as is a component with no forward element to
+  donate; a component child is an error in the first pass (chaining onto
+  its forward element can come later). On live pages the substituted
+  root keeps the donated element's identity for the morph — the problem
+  Teleport already solves.
+
 Where the principle does **not** go: data props (declared fields are the
 component's API), semantic events with payloads (`ui.ActionOf[T]` needs
 its type), `key`/`let`/slot syntax (compiler-owned), and §8's give/take
@@ -701,7 +723,8 @@ Order, cheapest and highest-leverage first:
 2. §3 `attr:` and `?=` (transpiler only).
 3. §4 defaults + checked enum literals + `ui.AutoID`; §5 fallthrough in
    slices — class merge first, then attributes and events, then
-   `bind:`/`ref`/`disabled` to the forward element (ui + transpiler).
+   `bind:`/`ref`/`disabled` to the forward element, and `asChild` last —
+   the same routing in reverse (ui + transpiler).
 4. §7 markup func literals (transpiler + lsp; no runtime change).
 5. §11 keyed transitions (runtime morph; attribute already parses).
 6. §6 OnChange-for-props + `@ui.Start` (runtime).
