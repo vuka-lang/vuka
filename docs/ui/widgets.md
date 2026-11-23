@@ -64,7 +64,7 @@ First to last:
 
 `<widget.Field for={Form.X}/>` and a childless `<form for={Form}>` follow the
 same order. A tag or attribute naming a control (`input:"textarea"`,
-`@ui.Widget("password")`) wins over `widget.Use[T]`.
+`@ui.Spec{Widget: "password"}`) wins over `widget.Use[T]`.
 
 <!-- go:context
 type Product struct {
