@@ -16,10 +16,47 @@ import (
 func isShape(vf *vfile) bool { return vf != nil && strings.HasSuffix(vf.source, ".vuka.html") }
 
 // markupRoots are the shape's top-level elements, each with its children,
-// as document symbols.
+// as document symbols — and the markup funcs it binds, row := func(…) { … },
+// each holding its body's elements.
 func markupRoots(src []byte) []map[string]any {
-	elems := scanMarkup(src).elems
-	sort.SliceStable(elems, func(i, j int) bool { return elems[i].open.start < elems[j].open.start })
+	type item struct {
+		start, end int
+		sym        map[string]any
+	}
+	var items []item
+	for _, e := range scanMarkup(src).elems {
+		end := e.open.end
+		if e.closed {
+			end = e.close.end
+		}
+		sym := map[string]any{
+			"name":           elementLabel(src, e.open),
+			"kind":           8, // Field, as HTML outlines show elements
+			"range":          lspRange{positionOf(src, e.open.start), positionOf(src, end)},
+			"selectionRange": lspRange{positionOf(src, e.open.nameStart), positionOf(src, e.open.nameEnd)},
+		}
+		if e.open.name == "" {
+			sym["name"] = "<>"
+		}
+		items = append(items, item{e.open.start, end, sym})
+	}
+	if parts, err := transpile.SplitTemplate(src); err == nil && parts.Markup >= 0 {
+		// From the Go's end: a markup func bound before the first element is
+		// the markup's.
+		at := parts.GoEnd
+		if parts.IsScript() {
+			at = parts.Script.CloseEnd
+		}
+		for _, fn := range transpile.MarkupFuncs(src[at:]) {
+			items = append(items, item{at + fn.NameStart, at + fn.End, map[string]any{
+				"name":           fn.Name,
+				"kind":           12, // Function
+				"range":          lspRange{positionOf(src, at+fn.NameStart), positionOf(src, at+fn.End)},
+				"selectionRange": lspRange{positionOf(src, at+fn.NameStart), positionOf(src, at+fn.NameEnd)},
+			}})
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].start < items[j].start })
 	type node struct {
 		sym      map[string]any
 		end      int
@@ -32,30 +69,17 @@ func markupRoots(src []byte) []map[string]any {
 			n.sym["children"] = n.children
 		}
 	}
-	for _, e := range elems {
-		end := e.open.end
-		if e.closed {
-			end = e.close.end
-		}
-		for len(stack) > 0 && stack[len(stack)-1].end <= e.open.start {
+	for _, it := range items {
+		for len(stack) > 0 && stack[len(stack)-1].end <= it.start {
 			flush(stack[len(stack)-1])
 			stack = stack[:len(stack)-1]
 		}
-		sym := map[string]any{
-			"name":           elementLabel(src, e.open),
-			"kind":           8, // Field, as HTML outlines show elements
-			"range":          lspRange{positionOf(src, e.open.start), positionOf(src, end)},
-			"selectionRange": lspRange{positionOf(src, e.open.nameStart), positionOf(src, e.open.nameEnd)},
-		}
-		if e.open.name == "" {
-			sym["name"] = "<>"
-		}
-		n := &node{sym: sym, end: end}
+		n := &node{sym: it.sym, end: it.end}
 		if len(stack) == 0 {
-			roots = append(roots, sym)
+			roots = append(roots, it.sym)
 		} else {
 			p := stack[len(stack)-1]
-			p.children = append(p.children, sym)
+			p.children = append(p.children, it.sym)
 		}
 		stack = append(stack, n)
 	}
