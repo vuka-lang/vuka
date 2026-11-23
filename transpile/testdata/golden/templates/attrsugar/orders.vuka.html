@@ -1,0 +1,16 @@
+<script lang="go">
+package main
+
+type Orders struct {
+	Rule string
+	Kind string
+	Note string
+}
+</script>
+
+<form>
+  <Button attr:form={"rule-" + Rule} attr:label="html">Save</Button>
+  <Button tone="danger" type?={Kind} size={0}>Drop</Button>
+  <Button type="">Plain</Button>
+  <output attr:for="total">3</output>
+</form>

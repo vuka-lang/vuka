@@ -740,6 +740,21 @@
           "include": "#comments"
         },
         {
+          "comment": "attr:name sets the attribute name as written, whatever it means to the compiler.",
+          "match": "(?<![\\w.:@-])(attr)(:)([A-Za-z][\\w.:-]*)",
+          "captures": {
+            "1": {
+              "name": "entity.other.attribute-name.namespace.jsx.vuka"
+            },
+            "2": {
+              "name": "punctuation.separator.namespace.jsx.vuka"
+            },
+            "3": {
+              "name": "entity.other.attribute-name.jsx.vuka"
+            }
+          }
+        },
+        {
           "match": "(?<![\\w.:@-])key(?![\\w.:-])",
           "name": "variable.language.key.jsx.vuka"
         },
@@ -750,6 +765,11 @@
         {
           "match": "[A-Za-z_@:][\\w.:-]*",
           "name": "entity.other.attribute-name.jsx.vuka"
+        },
+        {
+          "comment": "name?={v}: the attribute is left out when v is zero.",
+          "match": "\\?=",
+          "name": "punctuation.separator.key-value.omit.jsx.vuka"
         },
         {
           "match": "=",

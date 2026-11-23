@@ -54,6 +54,8 @@ same page in the terminal.
 | [E0132](./E0132) | A value isn't written as its label |
 | [E0133](./E0133) | An innerHTML value that is not a ui.RawHTML |
 | [E0134](./E0134) | An innerHTML where it cannot be the content |
+| [E0135](./E0135) | A ?= attribute that can't be left out by its value |
+| [E0136](./E0136) | A prop's default that can't be |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 | [E0142](./E0142) | A template file has no package clause, or another package's |
 | [E0143](./E0143) | An unknown element or template |

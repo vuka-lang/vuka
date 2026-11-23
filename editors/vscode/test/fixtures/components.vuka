@@ -60,3 +60,7 @@ func less(a, b int) bool {
 func recv(ch chan int) int {
 	return <-ch
 }
+
+func sugar(id, hint string) vuka.Node {
+	return <Button attr:form={"rule-" + id} title?={hint}><input id?={id} attr:data-x="lit" /></Button>
+}

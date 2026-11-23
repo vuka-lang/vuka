@@ -205,3 +205,11 @@ func RegisterCall(component any) {
 	}
 	calls[t] = true
 }
+
+// OmitZero is v, or nil when v is zero.
+func OmitZero[T any](v T) any {
+	if reflect.ValueOf(&v).Elem().IsZero() {
+		return nil
+	}
+	return v
+}

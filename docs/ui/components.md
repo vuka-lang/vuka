@@ -150,6 +150,70 @@ type DeleteModal struct {
 </design.Modal>
 ```
 
+## Prop Defaults {#defaults}
+
+A prop declares its default in the tag that carries `required`, and a tag
+that leaves the prop out gets it:
+
+```go
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+type Tone string
+
+const (
+	ToneNeutral Tone = "neutral"
+	ToneDanger  Tone = "danger"
+)
+
+type Button struct {
+	Type     string `vuka:"default=button"`
+	Tone     Tone   `vuka:"default=ToneNeutral"`
+	Size     int    `vuka:"default=2"`
+	Children ui.Node
+}
+```
+
+The value is read as the field's type: a string's text, a number, `true` or
+`false`, or a constant of the field's package by name. `<Button>Save</Button>`
+is a `button` of tone `ToneNeutral`; a tag that sets the prop, even to the
+zero value, sets what it says, so `type=""` stays `""`. A default that
+doesn't parse, names no constant, or sits beside `required` is
+[E0136](/errors/E0136), at the field.
+
+## Ids That Don't Collide {#ids}
+
+A field of type `ui.AutoID` is an id the tag fills when it leaves it out:
+unique on the page, and the same in every render of it, so a patch never
+renames it and two dialogs never share one. `Suffix` names its parts:
+
+```html
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+type Dialog struct {
+	ID    ui.AutoID
+	Title string
+}
+</script>
+
+<dialog id={ID} aria-labelledby={ID.Suffix("title")}>
+  <h2 id={ID.Suffix("title")}>{Title}</h2>
+</dialog>
+```
+
+The id comes from the tag's place: the component instance rendering it, the
+keys around it and how many tags of that place came before, never a count of
+the page's ids, so a branch shown above it or a keyed row removed before it
+leaves it as it was. A caller may still set it, `<Dialog id="confirm">`, and
+that value wins. A live component's own `AutoID` field, one embedding
+`ui.Live`, is its instance's id when its tag leaves it out, the same for the
+instance's life. An `AutoID` built in Go rather than by a tag is empty, and
+an attribute set to it is left out.
+
 ## What a Hole Accepts {#nodes}
 
 Child holes accept nodes, slices of nodes, escaped strings and numbers,
@@ -165,6 +229,30 @@ server methods or browser commands. See [Templates](/ui/templates#holes).
 An `on…` attribute a component doesn't declare goes on to the element it
 spreads its `Attrs` on: `<Combobox onChange={Choose(this.value)}/>`
 ([Events on Components](/ui/events#components)).
+
+`attr:name` sets any attribute by its HTML name. On a component it is an
+entry of its `Attrs`, never a prop, whatever the name, so it needs no
+`[]ui.Attr` literal; a component without an `Attrs` field is
+[E0106](/errors/E0106). On an element it is the attribute as written, for a
+name the compiler would read otherwise:
+
+```vuka
+<design.Button type="submit" attr:form={"rule-" + r.Target}>Save changes</design.Button>
+<design.Button attr:data-tester-open={tester("handoff")}>Open tester</design.Button>
+```
+
+`name?={v}` writes the attribute only when `v` isn't its type's zero value:
+
+```vuka
+<input id?={ID} placeholder?={Hint} />
+<Card id?={ID}>…</Card>
+```
+
+On a component's prop it leaves the prop unset when `v` is zero, so the
+prop keeps its [default](#defaults). A bool needs no `?=` — `disabled={Busy}`
+is left out when false — and `disabled?={Busy}` is
+[E0135](/errors/E0135); `Option[T]` stays the way to pass a zero that is a
+real value.
 
 ## Linking Between Pages {#links}
 

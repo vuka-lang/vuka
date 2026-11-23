@@ -320,6 +320,7 @@ type fileState struct {
 	underivedDone  bool
 	showsChecked   bool // its show={…} and transition={…} are checked (showattr.go)
 	innerChecked   bool // its innerHTML={…} are checked (innerhtml.go)
+	omitChecked    bool // its name?={…} are checked (omitzero.go)
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.

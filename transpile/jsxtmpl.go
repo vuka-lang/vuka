@@ -542,6 +542,9 @@ func lastName(tag string) string {
 // htmlName is an attribute's HTML name: JSX's className is class, htmlFor
 // for.
 func htmlName(name string) string {
+	if n, ok := strings.CutPrefix(name, passPrefix); ok {
+		return n // attr:className is className
+	}
 	switch name {
 	case "className":
 		return "class"
@@ -636,7 +639,7 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			tp.b.WriteString(`="` + escapeAttr(a.val) + `"`)
 		case 'e':
 			tp.b.WriteString("=")
-			w.holeIn(tp, "value", func() { w.attrValue(a) })
+			w.holeIn(tp, "value", func() { w.omitWrap(a, func() { w.attrValue(a) }) })
 		case 'p':
 			tp.b.WriteString(`="`)
 			for _, pt := range a.parts {
@@ -766,7 +769,7 @@ func (w *jsxWriter) rawElement(el *jsxElem, kids []jsxNode) {
 				w.gen(", ")
 			}
 			w.gen("{Name: " + strconv.Quote(htmlName(a.name)) + ", Value: ")
-			w.attrValue(a)
+			w.omitWrap(a, func() { w.attrValue(a) })
 			w.gen("}")
 		}
 		w.gen("}")

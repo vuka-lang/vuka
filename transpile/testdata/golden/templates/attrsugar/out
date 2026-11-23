@@ -1,0 +1,1 @@
+<form><button type="button" data-tone="neutral" data-size="2" form="rule-r1" label="html">Save</button><button type="button" data-tone="danger" data-size="0">Drop</button><button type="" data-tone="neutral" data-size="2">Plain</button><output for="total">3</output></form> <nil>

@@ -201,6 +201,10 @@ func (p *jsxParser) element(off int) *jElem {
 		case isLetter(c) || c == '_':
 			a := &jAttr{kind: 'b'}
 			a.name, i = p.name(i)
+			if j := p.space(i); p.at(j) == '?' && p.at(j+1) == '=' {
+				a.name += "?" // name?={v}: written as it is
+				i = j + 1
+			}
 			if j := p.space(i); p.at(j) == '=' {
 				i = p.space(j + 1)
 				switch q := p.at(i); q {
