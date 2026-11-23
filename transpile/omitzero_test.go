@@ -3,6 +3,9 @@ package transpile_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 const sugarButton = `<script lang="go">
@@ -212,6 +215,7 @@ func TestPropDefaultErrors(t *testing.T) {
 		{"Kind string `vuka:\"required,default=x\"`", "beside required"},
 		{"Kids ui.Node `vuka:\"default=x\"`", "takes no default"},
 		{"Small int8 `vuka:\"default=300\"`", "overflows"},
+		{"Gap string `vuka:\"default=gapDefault\"`", "unexported constant"},
 	} {
 		badge := `<script lang="go">
 package main
@@ -219,6 +223,8 @@ package main
 import ui "vukatest.local/stateui"
 
 var _ ui.Node
+
+const gapDefault = "md"
 
 type Badge struct {
 	` + c.field + `
@@ -232,7 +238,7 @@ type Badge struct {
 			t.Errorf("%s: want E0136 %q, got %v", c.field, c.want, err)
 			continue
 		}
-		if !strings.Contains(err.Error(), "badge.vuka.html:9:") {
+		if !strings.Contains(err.Error(), "badge.vuka.html:11:") {
 			t.Errorf("%s: not at the field: %v", c.field, err)
 		}
 	}
@@ -277,4 +283,23 @@ type Button struct {
 			t.Errorf("%s: want E0135 needs ui.OmitZero, got %v", markup, err)
 		}
 	}
+}
+
+// TestPropDefaultOtherPackage: a default naming another package's
+// constant is written as that constant, so a build sees its value change.
+func TestPropDefaultOtherPackage(t *testing.T) {
+	compile := func(markup string) (string, error) {
+		src := strings.Replace(enumLitSrc, "@@", markup, 1)
+		res, err := transpile.Package([]transpile.File{{Name: "page.vuka", Src: []byte(src)}},
+			transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: "testdata/golden"})
+		if err != nil {
+			return "", err
+		}
+		return string(res.Files[0].Src), nil
+	}
+	src, err := compile(`<design.Badge />`)
+	if err != nil {
+		t.Fatal(codes(err))
+	}
+	wantIn(t, src, `design.BadgeProps{Tone: design.ToneDanger}`)
 }

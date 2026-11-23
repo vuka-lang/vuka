@@ -148,7 +148,10 @@ func TestProbedNames(t *testing.T) {
 }
 
 // reviewedLookups are the transpiler's scope lookups TestProbedNames has
-// seen reviewed: by a name the source writes or ends (an identifier, a
+// seen reviewed (defaults.go's: the constant a prop's vuka:"default=…"
+// names, in the props' package; the tag is part of the props' type, which
+// the tag's source names, and another package's constant is written as a
+// reference, so a change of its value is the build's): by a name the source writes or ends (an identifier, a
 // selector, staticGoName's), one asserted to a kind KeepUnnamed never keeps
 // (a type, a variable), a local scope's, or a probed one.
 const reviewedLookups = `
@@ -163,6 +166,8 @@ decorate.go s.(*ast.TypeSpec).Name.Name
 decorate.go sel
 decorate.go strings.TrimPrefix(d.rtype, "*")
 decorate.go x.Sel.Name
+defaults.go n
+defaults.go name
 derived.go fa.typeName
 engine.go model
 enum.go name + "Values"

@@ -2,6 +2,8 @@
 // the quoted values set on them (enumlit_test.go).
 package design
 
+import "github.com/vuka-lang/ui/v2"
+
 // Tone is a component's colour.
 type Tone string
 
@@ -32,3 +34,10 @@ const (
 	Width1 Width = 1
 	Width2 Width = 2
 )
+
+// BadgeProps' tone defaults to a constant of this package (defaults_test).
+type BadgeProps struct {
+	Tone Tone `vuka:"default=ToneDanger"`
+}
+
+func Badge(p BadgeProps) ui.Node { return ui.Text(string(p.Tone)) }

@@ -118,6 +118,7 @@ type compArg struct {
 	nodeText bool             // a quoted attribute setting a Node: ui.Text("…")
 
 	dflt  bool         // the prop's default, text: the tag leaves it out (defaults.go)
+	def   *propDefault // and that default
 	orDef *propDefault // name?={v}: the default v stands aside for when zero
 	or    string       // and the call taking v and it: "cmp.Or[T]"
 
@@ -919,6 +920,11 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 		}
 	}
 	eachArg(c.args, func(a *compArg) {
+		if a.dflt {
+			e.qualifyDefault(f, a.def)
+			a.text = a.def.text
+		}
+		e.qualifyDefault(f, a.orDef)
 		if a.orDef != nil {
 			a.or = f.importName("cmp") + ".Or[" + e.typeTextAuto(f, a.typ) + "]"
 		}

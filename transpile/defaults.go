@@ -30,8 +30,9 @@ import (
 
 // propDefault is what a prop the tag leaves out is set to.
 type propDefault struct {
-	text string // the value's Go: an untyped constant, or ui.NewAutoID(ctx)
-	auto bool   // a ui.AutoID's id
+	text  string       // the value's Go: an untyped constant, or ui.NewAutoID(ctx)
+	auto  bool         // a ui.AutoID's id
+	konst *types.Const // the constant of another package it names: written as it (qualifyDefault)
 }
 
 // vukaOption is the value of key= in a struct tag's vuka options, and
@@ -54,7 +55,16 @@ func (e *engine) fieldDefault(tg *jsxTarget, fl propField, noAuto bool) (d *prop
 		if problem != "" {
 			return nil, problem
 		}
-		return &propDefault{text: text}, ""
+		d := &propDefault{text: text}
+		if k := sameConst(fl, val); k != nil && fl.pkg != e.pkg {
+			// another package's constant is written as it, so the build
+			// sees a change of its value as it would a hand-written one
+			if !k.Exported() {
+				return nil, "default=" + val + " names an unexported constant of package " + fl.pkg.Name() + ", which a tag in another package can't use: export it, or write its value"
+			}
+			d.konst = k
+		}
+		return d, ""
 	}
 	if !noAuto && tg != nil && tg.has("NewAutoID") && isNamed(fl.typ, tg.path, "AutoID") {
 		return &propDefault{text: tg.q + "NewAutoID(ctx)", auto: true}, ""
@@ -262,7 +272,13 @@ func (e *engine) checkDefaults() {
 				continue
 			}
 			fl := propField{name: fld.Name(), typ: fld.Type(), required: required(st.Tag(i)), pkg: fld.Pkg(), tag: st.Tag(i)}
-			if _, problem := e.parseDefault(fl, val); problem != "" {
+			_, problem := e.parseDefault(fl, val)
+			if k := sameConst(fl, val); problem == "" && k != nil && !k.Exported() && tn.Exported() && fld.Exported() {
+				// a tag in another package reads the default too, and can't
+				// see the constant
+				problem = "default=" + val + " names an unexported constant, which tags in other packages can't read: export it, or write its value"
+			}
+			if problem != "" {
 				e.reportDefault(tn.Name(), fld, problem)
 			}
 		}
@@ -319,6 +335,14 @@ func (e *engine) bindDefaults(c *jsxComp, fields []propField, used map[int]bool,
 			a.orDef = d
 			continue
 		}
-		c.args = append(c.args, &compArg{key: fl.name + ": ", typ: fl.typ, nest: fl.nest, text: d.text, dflt: true})
+		c.args = append(c.args, &compArg{key: fl.name + ": ", typ: fl.typ, nest: fl.nest, text: d.text, dflt: true, def: d})
+	}
+}
+
+// qualifyDefault writes a default naming another package's constant as
+// that constant, for f.
+func (e *engine) qualifyDefault(f *fileState, d *propDefault) {
+	if d != nil && d.konst != nil {
+		d.text = f.importName(d.konst.Pkg().Path()) + "." + d.konst.Name()
 	}
 }
