@@ -48,7 +48,13 @@ func cacheFor(root string) *exportCache {
 func cacheKey(root string) string {
 	h := sha256.New()
 	h.Write([]byte("2\n")) // the cache's format: 2 drops directory replacements
-	if goBin, err := exec.LookPath("go"); err == nil {
+	// The go command: VUKA_REAL_GO when vuka's go shim is first on PATH,
+	// whose file is vuka's, not the Go the module builds with.
+	goBin, err := os.Getenv("VUKA_REAL_GO"), error(nil)
+	if goBin == "" {
+		goBin, err = exec.LookPath("go")
+	}
+	if err == nil {
 		if fi, err := os.Stat(goBin); err == nil {
 			fmt.Fprintf(h, "go %s %d %d\n", goBin, fi.Size(), fi.ModTime().UnixNano())
 		}

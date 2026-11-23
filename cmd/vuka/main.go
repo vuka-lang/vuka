@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -116,6 +117,10 @@ Usage:
 	vuka lsp [-gopls path] [-log file] [-shared=false]
 	        language server for .vuka files (gopls behind a proxy), over stdio;
 	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too
+	vuka shim install|status|remove [-dir dir]
+	        a go on PATH that is vuka's in a vuka app: plain go build, test,
+	        vet and run transpile the .vuka files as vuka's do; every other
+	        go command, and go outside a vuka app, is the real go; vuka shim -h
 	vuka version
 	        print this vuka's toolchain set and, in an app, the set its go.mod
 	        requires (warning when its vuka, ui and web aren't one set)
@@ -135,6 +140,12 @@ Maintainers:
 `
 
 func main() {
+	// Invoked as go (vuka shim install): vuka's build, test, vet and run in
+	// a vuka app, else the real go, which runGoShim runs without returning.
+	if invokedAsGo(runtime.GOOS, os.Args[0]) {
+		runGoShim(os.Args[1:])
+	}
+	shimGuard()
 	// Invoked as gopls (a link named gopls, for VS Code's go.alternateTools):
 	// a drop-in gopls that also knows .vuka files.
 	if strings.HasPrefix(filepath.Base(os.Args[0]), "gopls") {
@@ -209,6 +220,8 @@ func main() {
 		err = upgrade(os.Args[2:], os.Stdout, os.Stderr)
 	case "release":
 		err = release(os.Args[2:], os.Stdout, os.Stderr)
+	case "shim":
+		err = shimCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "help", "-h", "-help", "--help":
 		if len(os.Args) > 2 && os.Args[2] == "mod" {
 			fmt.Print(modUsage)

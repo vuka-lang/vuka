@@ -39,6 +39,7 @@ vuka fix [-n] [fixer…]
 vuka doctor [dir]
 vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [-imports] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
+vuka shim install|status|remove [-dir dir]
 vuka version
 vuka upgrade [-n] [-no-test] [version | main]
 vuka release [-yes] [-no-test] [-security] vX.Y.Z   (maintainers)
@@ -411,6 +412,46 @@ Another package's errors don't fail it; one line counts them (`(1 error in
 packages not asked about, nor imported by them: vuka vet ./... lists it)`).
 `vuka vet ./...`, no packages, or packages named by import path report the
 whole module.
+
+### Plain go Commands {#shim}
+
+The go shim lets you type `go build`, `go test`, `go vet` and `go run` in a
+vuka app and get `vuka build`, `test`, `vet` and `run`: the same output,
+errors and exit status. Every other go command (`go mod`, `go env`,
+`go version`, `go list`, `go tool`…), and every go command outside a vuka
+app, runs the real go untouched. That makes an editor's test runner or a
+script that calls `go test` work on `.vuka` files.
+
+```sh
+vuka shim install
+```
+
+puts `go` (`go.exe` on Windows) in `~/.vuka/shims`, linked to the vuka you
+ran, and prints the line that puts that directory first on PATH. vuka
+doesn't edit your shell's startup file or the registry; add the line
+yourself. On macOS and Linux:
+
+```sh
+export PATH="$HOME/.vuka/shims:$PATH"    # in ~/.zshrc or ~/.bashrc
+```
+
+On Windows, in PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable("Path", "$HOME\.vuka\shims;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
+```
+
+On Windows the shim is a symbolic link when Developer Mode allows one,
+else a hard link, else a copy; a hard link or a copy doesn't follow an
+upgrade of vuka, so run `vuka shim install` again after one.
+`vuka shim status` says what the shim runs, whether it is first on PATH and
+which real go it hands the rest to (the first `go` on PATH that isn't a
+shim, or `$VUKA_REAL_GO`); `vuka shim remove` deletes it.
+`VUKA_GO_SHIM=off` makes the shim pass everything to the real go.
+
+The shim covers go's commands only: `vuka new`, `fmt`, `lsp` and the rest
+are still `vuka …`. It is on your machine alone: CI and teammates without
+it get the plain go, so run `vuka build` and `vuka test` there.
 
 ## Tidying go.mod {#mod-tidy}
 

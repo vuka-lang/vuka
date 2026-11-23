@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -17,10 +18,23 @@ import (
 // pretend vuka: the tests vet with the analyzers they are tested with,
 // never one fetched from the network.
 func TestMain(m *testing.M) {
-	if dir := os.Getenv(childEnv); dir != "" {
-		vukaExecutable = func() (string, error) { return filepath.Join(dir, "vuka"), nil }
+	// The test binary linked as go: the shim, as main runs it (goshim_test.go).
+	if invokedAsGo(runtime.GOOS, os.Args[0]) {
+		runGoShim(os.Args[1:])
+		shimGuard()
+		if os.Getenv(shimInternalEnv) != "" {
+			os.Exit(shimInternalGo())
+		}
 		os.Exit(childCommand(os.Args[1:]))
 	}
+	if dir := os.Getenv(childEnv); dir != "" {
+		vukaExecutable = func() (string, error) { return filepath.Join(dir, "vuka"), nil }
+		shimGuard()
+		os.Exit(childCommand(os.Args[1:]))
+	}
+	// The go commands the tests run go to the real go, past a go shim a
+	// developer has on PATH, as vuka's own do (shimGuard).
+	os.Setenv(shimOffEnv, "off")
 	// A vuka run -watch of a test keeps no build for a later run, unless the
 	// test asks for it (TestRunWatchReuse, with its own VUKA_CACHE).
 	if os.Getenv(reuseEnv) == "" {
