@@ -295,3 +295,9 @@ type ClassMerge string
 
 // Classes is the caller's classes for the forward element's written class.
 func (f Fallthrough) Classes() ClassMerge { return ClassMerge(f.Class()) }
+
+// AsChildAttr is the Fallthrough entry carrying an asChild child.
+func AsChildAttr(child Node) Attr { return Attr{Name: "data-vk-aschild", Value: child} }
+
+// AsChild is c with its forward element replaced by its asChild child.
+func AsChild(c Node) Node { return c }

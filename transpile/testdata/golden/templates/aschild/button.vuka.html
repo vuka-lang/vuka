@@ -1,0 +1,15 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+// Button is a button whose tag's asChild child can be what it is.
+type Button struct {
+	Variant  string
+	Children ui.Node
+}
+
+func (b Button) Pressed() {}
+</script>
+
+<button class="btn rounded-md px-4" type="button" data-variant={Variant} onClick={Pressed()}>{Children}</button>

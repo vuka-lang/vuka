@@ -324,6 +324,35 @@ it last, `class={"inline-flex rounded-md " + Class}` written as
 `ui.MergeClasses("inline-flex rounded-md ", Class)`, and a tagged `Class`
 no class attribute uses is [E0123](/errors/E0123).
 
+### asChild {#aschild}
+
+A bare `asChild` runs fallthrough in reverse: the tag's one element child
+becomes the component's root. The component renders as written, with the
+child in its forward element's place, and the child takes the forward
+element's attributes:
+
+```vuka
+<design.Button asChild variant="outline">
+  <a href="/reports/42" target="_blank" download>Report</a>
+</design.Button>
+```
+
+The link gets the button's classes, merged with its own — the child's
+utilities win (`px-2` on the link replaces the button's `px-4`) — and the
+button's other attributes and handlers; an attribute the child sets is its
+own, and of two handlers for one event both run, the child's first. The
+child keeps its content; the forward element's own content is replaced
+by it. Props stay props (`variant` above), and what else the tag passes
+on goes to the forward element as without `asChild`, so to the child. The
+component's author changes nothing.
+
+The child is one element written in the tag — none, several, text or a
+component's tag is [E0171](/errors/E0171) — and the component needs a
+forward element to give ([E0138](/errors/E0138)), which a component
+declaring `Attrs` or a live component doesn't have. On a live page the
+child is the page's element like any other: its handlers run and each
+render patches it in place.
+
 ## Linking Between Pages {#links}
 
 `<ui.Link href="/pets">Pets</ui.Link>` participates in live navigation.

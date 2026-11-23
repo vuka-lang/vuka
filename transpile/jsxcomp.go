@@ -57,6 +57,7 @@ type jsxComp struct {
 	lazyLoad   *jsxElem      // a <slot:loading> no field takes: the ui.Lazy's Loading
 
 	failCode diag.Code // the code of the error binding its attributes failed with, when not E0106
+	asChild  bool      // the tag is asChild: ui.AsChild(…) around it (aschild.go)
 
 	// Defaults (defaults.go).
 	autoID      bool     // a ui.AutoID prop is its ui.NewAutoID(ctx): the call is in ui.Ctx
@@ -126,6 +127,7 @@ type compArg struct {
 
 	fall       bool       // the props' Fallthrough: ui.Fallthrough{extra…} (forward.go)
 	bindVal    bool       // a bind:value passed on to the forward element: its ui.BindValue
+	asChild    bool       // the tag's asChild child, in nodes: ui.AsChildAttr(child) (aschild.go)
 	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
 	uiAttrs    bool       // the props' Attrs ([]ui.Attr): its value with extra appended
 	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs or Attrs
@@ -221,6 +223,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.fall:
 			w.gen(q + "Fallthrough{")
 			for _, x := range a.extra {
+				if x.asChild {
+					w.gen(q + "AsChildAttr(")
+					w.piece(x.nodes)
+					w.gen("), ")
+					continue
+				}
 				w.gen(q + "Attr{Name: " + strconv.Quote(passName(x.attr)) + ", Value: ")
 				if x.bindVal {
 					w.bindValue(x.attr)
@@ -330,6 +338,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	if c.try {
 		w.gen(q + "Try(")
 	}
+	if c.asChild {
+		w.gen(q + "AsChild(")
+	}
 	if c.stateful {
 		if c.urlKey != nil {
 			w.gen(q + "URLKey(")
@@ -392,6 +403,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	case c.props != "":
 		w.gen("})")
 	default:
+		w.gen(")")
+	}
+	if c.asChild {
 		w.gen(")")
 	}
 	if c.try {

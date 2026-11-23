@@ -488,7 +488,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		// What the struct's tag passes on goes to its forward element
 		// (forward.go).
 		hasFall := len(fall) > 0 && fall[0] != nil && fall[0](uiTarget(head, others, ui))
-		plan, err := planForward(string(markupText), off[first], shape, shapeForward(shape, hasFall, ui), ui, func(o int) token.Position {
+		mode := shapeForward(shape, hasFall, ui)
+		if file := unkeyedLiteral(others, src, shape.Type); mode.fall && file != "" {
+			// a field more would break the literal: the struct stays as written
+			mode.fall, mode.why = false, shape.Type+" is built with an unkeyed literal in "+file+", which a field of the compiler's would break: key it ("+shape.Type+"{Name: …})"
+		}
+		plan, err := planForward(string(markupText), off[first], shape, mode, ui, func(o int) token.Position {
 			i := sort.Search(len(off), func(i int) bool { return off[i] > o }) - 1
 			return token.Position{Line: i + 1, Column: o - off[max(i, 0)] + 1}
 		})

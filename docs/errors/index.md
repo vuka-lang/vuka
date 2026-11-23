@@ -89,6 +89,7 @@ same page in the terminal.
 | [E0168](./E0168) | A Push or Options step that cannot call its handler |
 | [E0169](./E0169) | A struct needing a live connection without ui.Live |
 | [E0170](./E0170) | An element read outside a method call |
+| [E0171](./E0171) | An asChild tag whose children aren't one element |
 | [E0172](./E0172) | An event calling a method the shape lacks |
 | [E0173](./E0173) | A modifier an attribute cannot take |
 | [E0174](./E0174) | A struct declared in a template and in its script file |
