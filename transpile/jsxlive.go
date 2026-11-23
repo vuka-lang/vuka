@@ -62,7 +62,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 	}
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
 	if msg != "" {
-		fail("E0106", off, "%s", msg)
+		fail(c.code("E0106"), off, "%s", msg)
 		return
 	}
 	if n, ok := types.Unalias(t).(*types.Named); ok && isIndex(expr) && n.TypeArgs().Len() > 0 {
@@ -298,7 +298,7 @@ func nestName(n []nestStep) string {
 // children are bound. The required fields nothing sets are c.unfilled.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	c.args, c.rest, c.pre, c.unfilled, c.ctxWrap = nil, nil, nil, nil, false // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre, c.unfilled, c.ctxWrap, c.failCode = nil, nil, nil, nil, false, "" // a round that left the tag unresolved may have bound them
 	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	var typs []types.Type
@@ -322,8 +322,25 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			uiAttrs = true
 		}
 	}
+	// a component with no Attrs passes what no prop takes on to its
+	// forward element, in its Fallthrough (forward.go)
+	var fall *fallInfo
+	if attrsAt < 0 && !c.elem {
+		if fall = fallthroughField(fields, c.target, el.tag); fall != nil {
+			names[fall.at] = "" // set by no attribute of its name
+		}
+	}
 	var extra []*compArg
 	for _, a := range attrs {
+		if fall != nil && (a.name == "class" || a.name == "className") && bindName(names, a.name) < 0 {
+			x, code, msg := e.fallthroughArg(c, fall, a, names)
+			if msg != "" {
+				c.failCode = code
+				return false, a.off, msg
+			}
+			extra = append(extra, x)
+			continue
+		}
 		if a.pass {
 			// attr:form={…}: the attribute, for the props' Attrs whatever
 			// field it would name
@@ -380,6 +397,11 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		if fl.name == "For" && a.kind == 'e' && isStringType(fl.typ) && c.target != nil && c.target.has("ModelID") {
 			a.idStr = true
 		}
+	}
+	if fall != nil && len(extra) > 0 {
+		fl := fields[fall.at]
+		c.args = append(c.args, &compArg{key: fl.name + ": ", typ: fl.typ, fall: true, extra: extra})
+		used[fall.at] = true
 	}
 	if attrsAt >= 0 {
 		var base *compArg
