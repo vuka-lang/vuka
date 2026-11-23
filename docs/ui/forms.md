@@ -282,10 +282,10 @@ What each tag does with a field:
 | Tag | |
 |---|---|
 | `<form for={Form}>` | the form, as [above](#rendering) |
-| `<label for={Form.Email}/>` | empty or self-closing: the field's label (`@ui.Label`, `label:`, else its name in words) and "(optional)" or "(required)" as [configured](#accessibility); with text, the text. Either way `for` is the control's id |
+| `<label for={Form.Email}/>` | empty or self-closing: the field's label (`label:`, a `Spec`'s `Label`, else its name in words) and "(optional)" or "(required)" as [configured](#accessibility); with text, the text. Either way `for` is the control's id |
 | `<label><input model={Form.Agree}/> I accept</label>` | a label around its control needs no `for` |
 | `<input model={…}>`, `<textarea model>`, `<select model>` | the control, from the field's type and tags (table below); `aria-required` on a required field, safe under `novalidate` |
-| `<select model>` with no options | the field's choices, after an empty "Choose…" option (`@ui.Placeholder` changes the text) when the field may be empty or has no value yet; options with a `ui.Option.Group` go under an `<optgroup label>` |
+| `<select model>` with no options | the field's choices, after an empty "Choose…" option (`placeholder:` changes the text) when the field may be empty or has no value yet; options with a `ui.Option.Group` go under an `<optgroup label>` |
 | `<input type="number" model>`, `type="range"` | `min` and `max` from the field's rules |
 | `<fieldset for={Form.Address}>` | scopes its children to a struct field: `model={Street}` is `Form.Address.Street`. A reference starting with the form's own name (`Form.Address.City`) is taken as written |
 | `<fieldset for={Form.Plan}>` | a field with choices: its radios take the fieldset's legend, the fieldset carries the field's error state and the `aria-describedby` of its hint and error |
@@ -631,8 +631,8 @@ field a submit may set; `vuka vet` warns about it ([W0311](/errors/W0311)).
 
 `ui.FormFor[T]` is a form of any struct `T`, with no form struct of its
 own: its fields are `T`'s, described by `T`'s field attributes — a model's
-own (`@orm.Char{Max: 100}`) and the form's (`@ui.Placeholder("…")`) — and
-its type decides what is required. Markup names a field through the form,
+own (`@orm.Char{Max: 100}`) and the form's (`placeholder:"…"`,
+`@ui.Spec{…}`) — and its type decides what is required. Markup names a field through the form,
 `Form.Name`, which Go code writes `Form.Value.Name`.
 
 ### Forms of Models {#formfor-models}
@@ -642,7 +642,7 @@ its type decides what is required. Markup names a field through the form,
 type Product struct {
     orm.Base
     ID     int64          @orm.PK
-    Name   string         @orm.Char{Max: 100, Unique: true, IgnoreCase: true, Trim: true} @ui.Placeholder("e.g. Desk lamp")
+    Name   string         @orm.Char{Max: 100, Unique: true, IgnoreCase: true, Trim: true} @ui.Spec{Placeholder: "e.g. Desk lamp"}
     SKU    string         @orm.Char{Max: 12, Pattern: `^[A-Z0-9-]+$`, Help: "Letters, digits and dashes"}
     Price  int64          @orm.Int{Min: 0}
     Status string         @orm.Char{Choices: []string{"draft", "live"}}
@@ -718,11 +718,11 @@ if Form.IsNew() {
 
 ```vuka
 type Signup struct {
-    Email    string         @ui.Email @ui.Label("Email address")
-    Password string         @ui.Min(12) @ui.Widget("password")
-    Plan     string         @ui.OneOf("free", "pro")
-    Referrer Option[string] @ui.Max(40)
-    Terms    bool           @ui.Required("Accept the terms to continue")
+    Email    string         `label:"Email address" validate:"email"`
+    Password string         `input:"password" validate:"min=12"`
+    Plan     string         @ui.Spec{Choices: []string{"free", "pro"}}
+    Referrer Option[string] `validate:"max=40"`
+    Terms    bool           `validate:"required" msg:"required=Accept the terms to continue"`
 }
 
 func (s Signup) Clean() error {
@@ -890,8 +890,8 @@ A `FormFor`'s field is required by its type: a plain field must be filled
 may be left empty and is `None` (with `<widget.Field>` or a raw `<input
 model={Form.Notes}/>` alike: see [the controls](#markup)), and so may a
 pointer and a slice. A
-`bool` unticked is a valid `false`; `@ui.Required` on a bool means it must
-be ticked. `@orm.Null` makes a plain field optional.
+`bool` unticked is a valid `false`; `validate:"required"` on a bool means
+it must be ticked. `@orm.Null` makes a plain field optional.
 
 ### The Fields a Form Edits {#formfor-fields}
 
@@ -916,11 +916,33 @@ type Products struct {
 ### Field Attributes {#field-attributes}
 
 A model holds a field's data rules; a form holds how the field is shown
-and what its messages say. Both are the field's attributes, which a form
-reads (`field.Describer`) whatever library declares them.
+and what its messages say. A form reads them from the field's tags and
+from its attributes (`field.Describer`), whatever library declares them.
 
-**`@ui.Spec{…}`** gives a field's details in one attribute, a struct
-literal like `@orm.Char{…}`:
+**Tags** are the way to write a form's own settings on a field:
+
+```vuka
+type Signup struct {
+    Email    string `label:"Work email" autocomplete:"email" validate:"email" msg:"email=Enter your work address"`
+    Password string `input:"password" validate:"required,min=12"`
+    Bio      string `help:"A line or two" placeholder:"About you" input:"textarea" validate:"max=280"`
+}
+```
+
+| Tag | |
+|---|---|
+| `label:"…"`, `help:"…"`, `placeholder:"…"` | the label (the field's name in words otherwise), the hint, an example value |
+| `input:"…"` | the control: `"textarea"`, `"radio"`, `"password"`, `"email"`, `"date"`, … |
+| `autocomplete:"…"` | the autocomplete token |
+| `validate:"…"` | the rules, by commas: `required`, `min=n`, `max=n` (a text's length, a number's value), `len=n`, `oneof=a b`, `email`, `omitempty` |
+| `msg:"rule=…"` | a rule's own message, by commas (`\,` is a comma in one) |
+
+**`@ui.Spec{…}`** is the same in one attribute, a struct literal like
+`@orm.Char{…}`: on a [`ui.Meta` member](#field-meta), which takes no tag;
+on a model's field, where it describes every form of the model beside the
+`@orm` attributes; and for what no tag says — a field's options
+(`Choices`), a `Pattern`, a required field's message on a number, and the
+switches `Optional`, `Disabled` and `ReadOnly`:
 
 ```vuka
 type Product struct {
@@ -940,34 +962,39 @@ type Product struct {
 | `Autocomplete` | the autocomplete token |
 | `Required: "…"` | the message of a required field; it also makes an optional one required |
 | `Optional: true` | makes a field its type or model requires optional |
-| `Min`, `Max` | a text's length, a number's value: may only tighten the model's |
-| `Choices` | the values it takes: may only narrow the model's, whose labels stay |
+| `Min`, `Max` | a text's length, a number's value, whole numbers: may only tighten the model's (a fractional bound is the tag's, `validate:"min=0.5"`) |
+| `Choices` | the values it takes, a select's options: may only narrow the model's, whose labels stay |
+| `Pattern` | a regular expression the whole value matches |
 | `Msg: ui.Msgs{rule: "…"}` | a rule's own message: `required`, `min`, `max`, `len`, `pattern`, `oneof`, `choice`, `email`, `unique`, `number`, `whole`, `format`, `digits`, `file` |
 | `Disabled`, `ReadOnly` | the value shown, not edited: a submit never sets it |
 
 A key the struct hasn't is Go's own compile error; a `Msg` key that is no
 rule (with the one it most likely meant), an empty `Required`, `Required`
 beside `Optional`, a `Max` above or a `Min` below the model's, and
-`Choices` the model hasn't are [E0189](/errors/E0189).
+`Choices` the model hasn't are [E0189](/errors/E0189). One setting given
+twice — by a tag and an attribute, or by two attributes — is
+[E0183](/errors/E0183).
 
-The single attributes are shorthand for one member each; one setting given
-by a `Spec` and a single attribute, or by a tag and an attribute, is
-[E0183](/errors/E0183):
+Attribute-style rules are a live page's: `@validate.Required`,
+`@validate.Max(50)` and the rest check a [live page's
+fields](/ui/stateful); a form's fields take the tags.
 
-| ui attribute | `ui.Spec` member | Tag |
-|---|---|---|
-| `@ui.Label("…")` | `Label` | `label:` |
-| `@ui.Help("…")` | `Help` | `help:` |
-| `@ui.Placeholder("…")` | `Placeholder` | `placeholder:` |
-| `@ui.Widget("radio")` | `Widget` | `input:` |
-| `@ui.Autocomplete("…")` | `Autocomplete` | `autocomplete:` |
-| `@ui.Msg("max", "…")` | `Msg` | `msg:` |
-| `@ui.Required`, `@ui.Required("…")` | `Required` | `validate:"required"` |
-| `@ui.Min(n)`, `@ui.Max(n)` | `Min`, `Max` | `validate:"min=n"` |
-| `@ui.OneOf("a", "b")` | `Choices` | `validate:"oneof=a b"` |
-| `@ui.Email`, `@ui.Email("…")` | | `validate:"email"` |
-| `@ui.Pattern("…")` | | |
-| `@ui.Fields(T.A, T.B)` | | on a `FormFor` field: the fields it edits |
+#### Deprecated spellings {#field-singles}
+
+Earlier releases spelled each setting as a single attribute of its own.
+They still work, but [W0314](/errors/W0314) notes each use, and the
+`attributes` fixer rewrites them:
+
+| Single attribute | Write instead |
+|---|---|
+| `@ui.Label`, `@ui.Help`, `@ui.Placeholder`, `@ui.Autocomplete` | `label:`, `help:`, `placeholder:`, `autocomplete:` (or the `Spec` member of the name) |
+| `@ui.Widget("radio")` | `input:"radio"` (or `Widget`) |
+| `@ui.Required`, `@ui.Required("…")` | `validate:"required"`, `msg:"required=…"` (on a number, `Required: "…"`: the rule also refuses 0) |
+| `@ui.Email`, `@ui.Email("…")` | `validate:"email"`, `msg:"email=…"` |
+| `@ui.Min(n)`, `@ui.Max(n)` | `validate:"min=n"`, `validate:"max=n"` (or `Min`, `Max`) |
+| `@ui.Msg("max", "…")` | `msg:"max=…"` (or `Msg`) |
+| `@ui.OneOf("a", "b")` | `Choices: []string{"a", "b"}`, the field's options (a `validate:"oneof=a b"` rule checks, and shows no select) |
+| `@ui.Pattern("…")` | `Pattern: "…"` |
 
 #### On the Form: `ui.Meta` {#field-meta}
 
@@ -986,7 +1013,7 @@ type ProductForm struct {
         Placeholder: "e.g. Blue mug",
         Msg:         ui.Msgs{"unique": "A product with this name already exists."},
     }
-    Notes ui.Meta @ui.Widget("textarea")
+    Notes ui.Meta @ui.Spec{Widget: "textarea"}
 }
 ```
 
@@ -998,7 +1025,7 @@ of T, or in a struct that is no form type, is [E0190](/errors/E0190).
 
 A form takes the rest from the model's `@orm` attributes. What applies,
 first to last, a later one's setting winning: what `@orm` implies, the
-model's `@ui` attributes, then the form's (`ui.Meta`) — whatever order they
+model's tags and `@ui.Spec`, then the form's (`ui.Meta`) — whatever order they
 are written in.
 
 | orm attribute or type | In a form |

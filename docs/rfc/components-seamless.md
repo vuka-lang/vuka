@@ -541,6 +541,10 @@ the design package.
 
 ## 10. Boundaries — one region fails, the page stands
 
+*Name.* ui's Go struct `ui.Boundary{Fallback, Children}` is deprecated for
+`ui.ErrorBoundary(fallback, children...)`, the one Go spelling today; the
+component this section designs takes the name over when it is built.
+
 `<ui.Boundary>` renders its children; if their render panics or errors —
 on first render or a live patch — the boundary renders its `failed` slot in
 place, logs the error with page and node, and the rest of the page keeps

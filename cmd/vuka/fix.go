@@ -51,7 +51,7 @@ var fixers = []fixer{
 	{"orphans", "remove files vuka gen -inplace wrote for .vuka files that are gone", fixOrphans},
 	{"attr-of", "rename vuka.Attr[T](c) to vuka.AttrOf[T](c) (v0.5.0: vuka.Attr is JSX's attribute type)", fixAttrOf},
 	{"ui", "move UI code to github.com/vuka-lang/ui/v2 (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
-	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) and a model's orm: tags as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…, @orm.Elements{…}, @orm.Column(…), …", fixAttributes},
+	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) and a model's orm: tags as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…, @orm.Elements{…}, @orm.Column(…), …; and a form field's single ui attributes as its tags: @ui.Label(\"x\") → label:\"x\", @ui.Min(3) → validate:\"min=3\", @ui.OneOf → @ui.Spec{Choices: …} (W0314)", fixAttributes},
 	{"ui-structs", "write the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}, ui.Table(ui.TableProps[T]{…}) → ui.Table[T]{…}", fixUIStructs},
 	{"shape-script", "write each .vuka.html file in the Go-header form in the <script lang=\"go\"> form (2.3): its Go in the script, the markup below", fixShapeScript},
 	{"templates-package", "start each .vuka.html file with its package clause, the package of its directory", fixTemplatesPackage},

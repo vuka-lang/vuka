@@ -361,7 +361,9 @@ dynamics.
 
 ### Shared Fragments {#shared-fragments}
 
-*Experimental.* A component that embeds `ui.SharedLive` renders once for every
+*Experimental, and deprecated:* `ui.SharedLive` and `ui.Broadcast` give way
+to a live component subscribing to a topic and `web.Broadcast`; the wire
+below stays while they do. A component that embeds `ui.SharedLive` renders once for every
 page that shows it. On the wire it is an ordinary set of instances, with two differences a
 client never has to know about:
 

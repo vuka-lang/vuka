@@ -277,6 +277,7 @@ type fileState struct {
 	pushWarns     ErrorList             // pushes losing their writes, reads that write (W0113, W0114, push.go)
 	hiddenWarns   ErrorList             // model on an <input type="hidden"> (W0115, forms.go)
 	derivedWarns  ErrorList             // ui.Derived deprecates with one state (W0117, derived.go)
+	singleWarns   ErrorList             // ui's single field attributes, the tags' earlier spelling (W0314, fieldsingle.go)
 	derivedWarned bool
 	hiddenSeen    map[int]bool // the offsets hiddenWarns holds, so a second parse adds none
 	susChecked    bool         // its <ui.Suspense>s are checked (suspense.go)

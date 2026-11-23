@@ -204,7 +204,7 @@ element the event is on, unless `.Into(target)` names another:
 | The handler returns | The target |
 |---|---|
 | nothing, an `error` | nothing: an event (on a page that isn't live, it runs over HTTP) |
-| `[]ui.Option`, `[]ui.OptionGroup` | a select's options are replaced; the value stays while still offered, else it is cleared; `change` fires |
+| `[]ui.Option` | a select's options are replaced (an option's `Group` puts it under an `<optgroup>`); the value stays while still offered, else it is cleared; `change` fires |
 | `ui.Node` | its content becomes the markup, morphed in place (focus and typing kept); `ui.Append()` / `ui.Prepend()` add it instead |
 | a `string`, number, `bool`, `time.Time` | a field's value is set, firing `input` and `change`; any other element gets it as its text |
 | a struct | each field fills the control of its form name inside the target; a field with no control is skipped, and an `Option[T]` left `None` leaves its control alone |
@@ -359,8 +359,8 @@ what it needs to see must be in a service, a database, or its arguments.
 
 `Options(target, method, args…)` is shorthand for
 `Push(method, args…, ui.Read()).Into(target)`: a select's options from a
-method returning `[]ui.Option` or `[]ui.OptionGroup` (for `<optgroup>`s),
-read over HTTP on a page that isn't live as on one that is.
+method returning `[]ui.Option` — consecutive options with one `Group` share
+an `<optgroup>` — read over HTTP on a page that isn't live as on one that is.
 
 ```html
 <select id="country" name="country" onChange={ui.JS.Options(ui.Sel("#city"), CitiesOf, ui.This.Value())}>
