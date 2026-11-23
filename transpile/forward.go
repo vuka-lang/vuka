@@ -628,3 +628,45 @@ func (c *jsxComp) code(def diag.Code) diag.Code {
 	}
 	return def
 }
+
+// unkeyedLiteral is the file of the package (src, the template's own
+// header, among them) building the struct typ with an unkeyed composite
+// literal, T{a, b}, which the Fallthrough field would break; "" when
+// none does.
+func unkeyedLiteral(files []File, src []byte, typ string) string {
+	check := func(name string, text []byte) bool {
+		if !strings.Contains(string(text), typ+"{") {
+			return false
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), name, text, parser.SkipObjectResolution)
+		if f == nil && err != nil {
+			return false
+		}
+		found := false
+		ast.Inspect(f, func(n ast.Node) bool {
+			lit, ok := n.(*ast.CompositeLit)
+			if !ok || found || len(lit.Elts) == 0 {
+				return !found
+			}
+			t := lit.Type
+			if ix, ok := t.(*ast.IndexExpr); ok {
+				t = ix.X
+			} else if ix, ok := t.(*ast.IndexListExpr); ok {
+				t = ix.X
+			}
+			if id, ok := t.(*ast.Ident); ok && id.Name == typ {
+				if _, kv := lit.Elts[0].(*ast.KeyValueExpr); !kv {
+					found = true
+				}
+			}
+			return !found
+		})
+		return found
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f.Name, ".go") && check(f.Name, f.Src) {
+			return f.Name
+		}
+	}
+	return ""
+}
