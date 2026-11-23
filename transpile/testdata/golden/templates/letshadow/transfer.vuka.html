@@ -1,0 +1,38 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/stateui"
+
+type TransferReq struct {
+	ID   int
+	Name string
+}
+
+type Detail struct {
+	ui.FormState
+	Note string
+}
+
+// Transfer's markup declares t, the name its methods give it: a let
+// and a loop variable, inside which its bare names stay its own.
+type Transfer struct {
+	ui.Live
+	Form Detail
+	For  ui.State[*TransferReq]
+	Rows []TransferReq
+}
+
+func (t *Transfer) Save(id int) {}
+</script>
+
+<Sheet for={For} let={t}>
+  <p>{t.Name}</p>
+  <form for={Form} onSubmit={Save(t.ID)}>
+    <input model={Form.Note}/>
+  </form>
+</Sheet>
+<ul>
+  for _, t := range Rows {
+    <li>{Form.Note} {t.Name}</li>
+  }
+</ul>

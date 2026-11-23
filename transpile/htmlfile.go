@@ -519,6 +519,19 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 			opening = " { " + statesCall + "(" + amp + recv + "); " + strings.TrimPrefix(opening, " { ")
 		}
+		// A name the markup declares as the receiver's — a let={t}, a
+		// loop's t — would capture what the compiler qualifies with the
+		// receiver inside it: the method's receiver takes a name of its
+		// own, and the markup's name is a local of the same value, which
+		// the let shadows where it declares it, as Go scopes it.
+		if declaresName(string(markupText), recv) {
+			own := receiverName(typ+"Self", string(markupText))
+			if own == recv {
+				own = "vukaSelf"
+			}
+			opening = " { " + recv + " := " + own + "; _ = " + recv + "; " + strings.TrimPrefix(opening, " { ")
+			recv, h.recv = own, own
+		}
 		open := "func (" + recv + " " + star + typ + targs + ") " + method + "() " + ui + "Node" + opening
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
@@ -912,6 +925,14 @@ func packageNameOf(files []File) string {
 		}
 	}
 	return ""
+}
+
+// declaresName reports whether markup declares name itself: a let naming
+// it (let={t}, let={x, t}), or a loop's variable (for _, t := range …).
+func declaresName(markup, name string) bool {
+	n := regexp.QuoteMeta(name)
+	return regexp.MustCompile(`\blet=\{[^}]*\b`+n+`\b`).MatchString(markup) ||
+		regexp.MustCompile(`\bfor\s+(\w+\s*,\s*)?`+n+`\s*(,\s*\w+\s*)?:=`).MatchString(markup)
 }
 
 // receiverName is the markup's receiver: the type's first letter,
