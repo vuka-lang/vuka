@@ -298,7 +298,7 @@ func nestName(n []nestStep) string {
 // children are bound. The required fields nothing sets are c.unfilled.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	c.args, c.rest, c.pre, c.unfilled, c.ctxWrap, c.failCode = nil, nil, nil, nil, false, "" // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre, c.unfilled, c.ctxWrap, c.failCode, c.asChild = nil, nil, nil, nil, false, "", false // a round that left the tag unresolved may have bound them
 	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	var typs []types.Type
@@ -329,6 +329,13 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		if fall = fallthroughField(fields, c.target, el.tag); fall != nil {
 			names[fall.at] = "" // set by no attribute of its name
 		}
+	}
+	// asChild: the tag's one element child is the component's forward
+	// element, taking its attributes (aschild.go)
+	attrs, asChild, off, code, msg := e.asChildArg(c, attrs, fall, attrsAt >= 0 || stateful && !c.structComp)
+	if msg != "" {
+		c.failCode = code
+		return false, off, msg
 	}
 	var extra []*compArg
 	for _, a := range attrs {
@@ -401,6 +408,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			a.idStr = true
 		}
 	}
+	if asChild != nil {
+		extra = append(extra, asChild)
+	}
 	if fall != nil && len(extra) > 0 {
 		fl := fields[fall.at]
 		c.args = append(c.args, &compArg{key: fl.name + ": ", typ: fl.typ, fall: true, extra: extra})
@@ -431,6 +441,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 	repeated := map[int]*compArg{}
 	for _, k := range el.kids {
 		sl, ok := k.(*jsxElem)
+		if asChild != nil && ok && sl == asChild.nodes[0] {
+			continue // the forward element's, not the children's
+		}
 		if !ok || !sl.isSlot() {
 			rest = append(rest, k)
 			continue
@@ -495,6 +508,7 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		}
 	}
 	e.bindDefaults(c, fields, used, stateful && !c.structComp)
+	kids = kids || asChild != nil // its child is taken
 	if c.lazy != nil {
 		for _, a := range c.args {
 			if a.attr != nil && a.attr.name == "show" {

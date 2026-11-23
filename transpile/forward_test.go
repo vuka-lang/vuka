@@ -202,3 +202,78 @@ func TestFallthroughFragment(t *testing.T) {
 	}
 	wantIn(t, src, `<p {c.Fallthrough.Attrs()...} class="note{c.Fallthrough.Classes()}">`, "`vuka:\"forward=p\" json:\"-\"`")
 }
+
+const fallButton = `<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+type Button struct {
+	Variant  string
+	Children ui.Node
+}
+
+func (b Button) Toggle() {}
+</script>
+
+<button class="btn px-4" type="button" data-variant={Variant} onClick={Toggle()}>{Children}</button>
+`
+
+// TestAsChild: asChild puts the tag's one element child in its
+// Fallthrough and the tag in ui.AsChild; the tag's other attributes fall
+// through beside it, its props stay props, and the child is no Children.
+func TestAsChild(t *testing.T) {
+	src, err := compileFall(t, `<Button asChild variant="outline" class="mt-4" aria-label="Report">
+    <a href="/reports/42" target="_blank" download onClick={Save()}>Report</a>
+  </Button>`, "button.vuka.html", fallButton)
+	if err != nil {
+		t.Fatal(codes(err))
+	}
+	wantIn(t, src, "ui.AsChild(Button{Variant: \"outline\", Fallthrough: ui.Fallthrough{ui.Attr{Name: \"class\", Value: \"mt-4\"}, ui.Attr{Name: \"aria-label\", Value: \"Report\"}, ui.AsChildAttr(ui.HTML(`<a href=\"/reports/42\" target=\"_blank\" download onClick={ui.JS.Push(p.Save)}>Report</a>`, ui.JS.Push(p.Save)))}})")
+	if strings.Contains(src, "Children: ui.HTML(`<a") {
+		t.Errorf("the child is Children too:\n%s", src)
+	}
+}
+
+func TestAsChildErrors(t *testing.T) {
+	for _, c := range []struct {
+		name, comp, markup, code, want string
+	}{
+		{"no children", fallButton, `<Button asChild/>`, "E0171", "<Button asChild> has no children"},
+		{"text only", fallButton, `<Button asChild>Report</Button>`, "E0171", "has text and no element"},
+		{"two children", fallButton, `<Button asChild><a>a</a><a>b</a></Button>`, "E0171", "has 2 children"},
+		{"an element and text", fallButton, `<Button asChild><a>a</a> or b</Button>`, "E0171", "has 1 children and text"},
+		{"a component child", fallButton, `<Button asChild><Card title="x">a</Card></Button>`, "E0171", "child is the component <Card>"},
+		{"a value", fallButton, `<Button asChild="yes"><a>a</a></Button>`, "E0106", "takes asChild bare"},
+		{"several roots", fallComp("Box", "Label string", "<h2>{Label}</h2>\n<p>x</p>"), `<Box asChild><a>a</a></Box>`, "E0138", "several roots, <h2>, <p>"},
+		{"a component root", fallComp("Box", "Label string", `<Card title={Label}>x</Card>`), `<Box asChild><a>a</a></Box>`, "E0138", "forward element is the component <Card>"},
+		{"Attrs", fallComp("Box", "Attrs []ui.Attr", `<div {Attrs...}>x</div>`), `<Box asChild><a>a</a></Box>`, "E0138", "Box takes no Fallthrough"},
+	} {
+		name := "button.vuka.html"
+		if !strings.Contains(c.comp, "type Button") {
+			name = "box.vuka.html"
+		}
+		_, err := compileFall(t, c.markup, name, c.comp)
+		if err == nil || !strings.Contains(codes(err), c.code) || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: want %s %q, got %v", c.name, c.code, c.want, err)
+		}
+	}
+}
+
+// TestFallthroughUnkeyed: a struct the package builds with an unkeyed
+// literal gets no Fallthrough field, which would break it.
+func TestFallthroughUnkeyed(t *testing.T) {
+	src, err := compileFall(t, `<Box label="x"/>`, "box.vuka.html", fallComp("Box", "Label string", `<div>{Label}</div>`),
+		"make.go", "package main\n\nfunc box() Box { return Box{\"made\"} }\n")
+	if err != nil {
+		t.Fatal(codes(err))
+	}
+	if strings.Contains(src, "type Box struct {\n//line box.vuka.html:6\n\tFallthrough") || strings.Contains(src, "Box{Fallthrough") {
+		t.Errorf("an unkeyed Box got a Fallthrough:\n%s", src)
+	}
+	_, err = compileFall(t, `<Box class="x"/>`, "box.vuka.html", fallComp("Box", "Label string", `<div forward>{Label}</div>`),
+		"make.go", "package main\n\nfunc box() Box { return Box{\"made\"} }\n")
+	if err == nil || !strings.Contains(err.Error(), "unkeyed literal in make.go") {
+		t.Errorf("a marker on an unkeyed Box: %v", err)
+	}
+}

@@ -260,7 +260,8 @@ func TestLSPAttrPassthrough(t *testing.T) {
 	page := strings.Replace(lspEnumPage, `<components.Button variant="" tone="" icon="">Save</components.Button>`,
 		`<components.Button attr:form={id} icon?={x} >Save</components.Button>
   <components.Card icon?={x} >x</components.Card>
-  <p data-x="1" >x</p>`, 1)
+  <p data-x="1" >x</p>
+  <components.Card asChild ><a>x</a></components.Card>`, 1)
 	src := []byte(page)
 	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
 	vf := &vfile{source: filepath.Join(dir, "pages", "index.vuka.html"), from: src}
@@ -283,13 +284,16 @@ func TestLSPAttrPassthrough(t *testing.T) {
 	// a template without Attrs passes its tag's attributes on to its
 	// forward element: attr:, class and the element's global attributes
 	cardAttrs := labels(`<components.Card icon?={x} `)
-	for _, want := range []string{"attr:", "class", "id", "title", "aria-label", "onClick", "data-"} {
+	for _, want := range []string{"attr:", "asChild", "class", "id", "title", "aria-label", "onClick", "data-"} {
 		if !cardAttrs[want] {
 			t.Errorf("no %s on a component passing its tag's attributes on", want)
 		}
 	}
 	if cardAttrs["fallthrough"] || cardAttrs["key"] {
 		t.Error("its Fallthrough field or key offered as an attribute")
+	}
+	if after := labels(`<components.Card asChild `); after["asChild"] || !after["class"] {
+		t.Error("after a bare asChild: asChild offered again, or the rest not")
 	}
 	if !labels(`<p data-x="1" `)["forward"] {
 		t.Error("no forward on an element of a template")

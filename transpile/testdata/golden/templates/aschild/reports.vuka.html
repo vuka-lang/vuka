@@ -1,0 +1,17 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+type Reports struct {
+	ID string
+}
+
+func (r *Reports) Open() error { return nil }
+</script>
+
+<main>
+  <Button asChild variant="outline" class="mt-4" aria-label="Report">
+    <a href={"/reports/" + ID} class="px-2" target="_blank" download onClick={Open()}>Report</a>
+  </Button>
+</main>

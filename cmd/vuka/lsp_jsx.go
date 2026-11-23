@@ -702,6 +702,11 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			item("attr:", 5, "an attribute passed on to the element", "attr:${1:name}={$2}", 2, "5")
 			doc("`attr:form={id}` sets the attribute `form` on the element the component spreads its `Attrs` on, whatever its props call `form`.")
 		}
+		if fall && !used["aschild"] {
+			// its one element child as its forward element (RFC §5)
+			item("asChild", 5, "its child is the root, taking the forward element's attributes", "asChild", 1, "05")
+			doc("`asChild` makes the tag's one element child the component's root: the child takes the forward element's class (the child's utilities winning), attributes and handlers, and keeps its own.\n\n```vuka\n<design.Button asChild variant=\"outline\">\n  <a href=\"/reports/42\">Report</a>\n</design.Button>\n```")
+		}
 		if fall {
 			// a component passing its tag's attributes on to its forward
 			// element takes the element's global ones

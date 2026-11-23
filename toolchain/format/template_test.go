@@ -229,3 +229,9 @@ func TestTemplateForward(t *testing.T) {
 	src := "<script lang=\"go\">\npackage p\n\ntype Field struct{ Label, Email string }\n</script>\n\n<label>\n  {Label}\n  <input class=\"h-10 rounded-md border\" forward />\n  <Input class=\"mt-4\" bind:value={Email} ref=\"email\" disabled />\n</label>\n"
 	check(t, src, "", src, Options{})
 }
+
+// TestTemplateAsChild: a bare asChild and its child keep their form.
+func TestTemplateAsChild(t *testing.T) {
+	src := "<script lang=\"go\">\npackage p\n\ntype Page struct{}\n</script>\n\n<main>\n  <Button asChild variant=\"outline\">\n    <a href=\"/reports/42\" download>Report</a>\n  </Button>\n</main>\n"
+	check(t, src, "", src, Options{})
+}
