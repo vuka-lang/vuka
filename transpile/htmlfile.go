@@ -519,6 +519,19 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 			opening = " { " + statesCall + "(" + amp + recv + "); " + strings.TrimPrefix(opening, " { ")
 		}
+		// A name the markup declares as the receiver's — a let={t}, a
+		// loop's t — would capture what the compiler qualifies with the
+		// receiver inside it: the method's receiver takes a name of its
+		// own, and the markup's name is a local of the same value, which
+		// the let shadows where it declares it, as Go scopes it.
+		if declaresName(string(markupText), recv) {
+			own := receiverName(typ+"Self", string(markupText))
+			if own == recv {
+				own = "vukaSelf"
+			}
+			opening = " { " + recv + " := " + own + "; _ = " + recv + "; " + strings.TrimPrefix(opening, " { ")
+			recv, h.recv = own, own
+		}
 		open := "func (" + recv + " " + star + typ + targs + ") " + method + "() " + ui + "Node" + opening
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
@@ -912,6 +925,108 @@ func packageNameOf(files []File) string {
 		}
 	}
 	return ""
+}
+
+// declaresName reports whether markup declares name itself — a let naming
+// it (let={t}, let={x, t}) or a loop's variable (for _, t := range …) —
+// around a bare name the compiler would qualify with it: an identifier,
+// in a hole or a block's head inside the let's tag or the loop's body,
+// other than the names the let or loop declares. It may say so of a name
+// that turns out to be a package or a local, never miss one that is the
+// receiver's.
+func declaresName(markup, name string) bool {
+	n := regexp.QuoteMeta(name)
+	for _, m := range regexp.MustCompile(`\blet=\{([^}]*\b`+n+`\b[^}]*)\}`).FindAllStringSubmatchIndex(markup, -1) {
+		lt := strings.LastIndex(markup[:m[0]], "<")
+		tag := regexp.MustCompile(`^<([\w.:\[\]-]+)`).FindStringSubmatch(markup[lt:])
+		if lt < 0 || tag == nil {
+			return true
+		}
+		if bareIn(markup[m[1]:tagEnd(markup, m[1], strings.SplitN(tag[1], "[", 2)[0])], markup[m[2]:m[3]]) {
+			return true
+		}
+	}
+	for _, m := range regexp.MustCompile(`\bfor\s+((\w+\s*,\s*)?`+n+`(\s*,\s*\w+)?)\s*:=`).FindAllStringSubmatchIndex(markup, -1) {
+		open := strings.IndexByte(markup[m[1]:], '{')
+		if open < 0 {
+			return true
+		}
+		body := markup[m[1]+open:]
+		if bareIn(body[1:max(balanced(body)-1, 1)], markup[m[2]:m[3]]) {
+			return true
+		}
+	}
+	return false
+}
+
+// tagEnd is where the element whose tag opens before from closes: the
+// start of its </tag>, the markup's end when it has none.
+func tagEnd(markup string, from int, tag string) int {
+	depth := 1
+	re := regexp.MustCompile(`<(/?)` + regexp.QuoteMeta(tag) + `[\s>/\[]`)
+	for _, m := range re.FindAllStringSubmatchIndex(markup[from:], -1) {
+		if m[3] > m[2] {
+			if depth--; depth == 0 {
+				return from + m[0]
+			}
+		} else {
+			depth++
+		}
+	}
+	return len(markup)
+}
+
+// balanced is the length of the {…} s starts with, all of s when it
+// doesn't close.
+func balanced(s string) int {
+	depth := 0
+	for i, c := range s {
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			if depth--; depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return len(s)
+}
+
+var (
+	blockHead  = regexp.MustCompile(`(?m)^\s*(\}\s*else\s+if|if|for|switch|case)\b[^{\n]*`)
+	identifier = regexp.MustCompile(`(^|[^\w.$])([A-Za-z_]\w*)`)
+	notBare    = map[string]bool{"range": true, "nil": true, "true": true, "false": true, "func": true, "if": true, "else": true,
+		"for": true, "switch": true, "case": true, "default": true, "len": true, "cap": true, "string": true, "int": true,
+		"int64": true, "float64": true, "bool": true, "byte": true, "rune": true, "any": true, "append": true, "make": true, "new": true}
+)
+
+// bareIn reports whether scope, markup, holds a name other than declared
+// (a let's or a loop's names, comma-separated) in a hole or a block head;
+// a block's own { opens no hole.
+func bareIn(scope, declared string) bool {
+	own := map[string]bool{}
+	for _, d := range strings.Split(declared, ",") {
+		own[strings.TrimSpace(d)] = true
+	}
+	var code []string
+	for i := 0; i < len(scope); i++ {
+		line := strings.TrimSpace(scope[strings.LastIndexByte(scope[:i], '\n')+1 : i])
+		if scope[i] == '{' && !blockHead.MatchString(line) && !strings.HasSuffix(line, "else") {
+			n := balanced(scope[i:])
+			code = append(code, scope[i+1:i+n])
+			i += n - 1
+		}
+	}
+	code = append(code, blockHead.FindAllString(scope, -1)...)
+	for _, c := range code {
+		for _, m := range identifier.FindAllStringSubmatch(c, -1) {
+			if !own[m[2]] && !notBare[m[2]] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // receiverName is the markup's receiver: the type's first letter,

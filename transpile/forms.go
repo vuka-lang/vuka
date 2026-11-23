@@ -354,6 +354,8 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 			at := f.at(a.expr.start + off)
 			if s := closestName(sel.Sel.Name, names); s != "" {
 				e.errs.add("E0159", at, msg+"; did you mean %s?", append(args, s)...).help("write %s={…%s}", what, s)
+			} else if len(names) == 0 {
+				e.errs.add("E0159", at, msg, args...).help("it has no fields")
 			} else {
 				e.errs.add("E0159", at, msg, args...).help("its fields are %s", strings.Join(names, ", "))
 			}

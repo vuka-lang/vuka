@@ -1,0 +1,12 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/stateui"
+
+type Sheet[T any] struct {
+	For      ui.State[*T]
+	Children func(*T) ui.Node
+}
+</script>
+
+<div>{Children(For.Get())}</div>
