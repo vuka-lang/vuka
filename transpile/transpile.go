@@ -645,21 +645,31 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // Package transpiles one package: its .vuka files, plus any .go files that share
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
-	var force map[string]bool
+	var h *compileHints
 	for {
-		res, again, err := compile(files, opts, force)
+		res, again, err := compile(files, opts, h)
 		if again == nil {
 			return res, err
 		}
-		force = again
+		h = again
 	}
 }
 
-// compile is Package, its template files named in force given the
-// render's ctx; again names more that need it, when it compiled nothing.
-func compile(files []File, opts Options, force map[string]bool) (*Result, map[string]bool, error) {
+// compileHints is what one compile learnt from the types for the next to
+// read its files with.
+type compileHints struct {
+	ctx     map[string]bool   // template files whose markup gets the render's ctx (implicit.go)
+	goFuncs map[string]string // func literals set on a component's prop of a func type not returning Node, by position: Go, not markup — the prop's type (markupfn.go)
+}
+
+// compile is Package, read with what earlier compiles learnt; again is
+// what this one learnt, when it compiled nothing.
+func compile(files []File, opts Options, h *compileHints) (*Result, *compileHints, error) {
 	var errs ErrorList
-	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx, wrapErrors: opts.WrapErrors}
+	if h == nil {
+		h = &compileHints{}
+	}
+	e := &engine{forceCtx: maps.Clone(h.ctx), goFuncs: maps.Clone(h.goFuncs), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx, wrapErrors: opts.WrapErrors}
 	if e.imp == nil {
 		e.impFset = token.NewFileSet()
 		e.imp = importer.ForCompiler(e.impFset, "source", nil)
@@ -701,7 +711,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	}
 	e.run()
 	if e.recompile {
-		return nil, e.forceCtx, nil
+		return nil, &compileHints{ctx: e.forceCtx, goFuncs: e.goFuncs}, nil
 	}
 	e.foldKnockOns()
 	if err := errs.err(); err != nil {

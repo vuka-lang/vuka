@@ -1,0 +1,56 @@
+<script lang="go">
+package main
+
+import (
+	"strconv"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Board lists two equal lists of orders, one inline in its loop, one
+// through a markup func, each row's button approving its order.
+type Board struct {
+	ui.Live
+	inline []Order
+	fn     []Order
+}
+
+// Load fills both lists alike.
+func (b *Board) Load() {
+	for i := 1; i <= 5; i++ {
+		b.inline = append(b.inline, Order{ID: i, Number: "N-" + strconv.Itoa(i)})
+		b.fn = append(b.fn, Order{ID: i, Number: "N-" + strconv.Itoa(i)})
+	}
+}
+
+// ApproveInline approves an order of the inline list.
+func (b *Board) ApproveInline(id int) { b.inline[id-1].Approved = true }
+
+// ApproveFn approves an order of the markup func's list.
+func (b *Board) ApproveFn(id int) { b.fn[id-1].Approved = true }
+</script>
+
+row := func(o Order) {
+  <li key={o.ID} id="fn-{strconv.Itoa(o.ID)}" class:done={o.Approved}>
+    <b>{o.Number}</b>
+    if o.Approved { <i>approved</i> }
+    <button class="ok" onClick={ApproveFn(o.ID)}>approve</button>
+  </li>
+}
+
+<main>
+  <ul>
+    for _, o := range inline {
+      <li key={o.ID} id="in-{strconv.Itoa(o.ID)}" class:done={o.Approved}>
+        <b>{o.Number}</b>
+        if o.Approved { <i>approved</i> }
+        <button class="ok" onClick={ApproveInline(o.ID)}>approve</button>
+      </li>
+    }
+  </ul>
+  <ol>
+    for _, o := range fn {
+      {row(o)}
+    }
+  </ol>
+</main>

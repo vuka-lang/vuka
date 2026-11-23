@@ -815,7 +815,9 @@ as above.
 
 The body is markup like the rest of the file's: it reads the shape's
 fields, states and methods by their bare names, and its events are checked
-and pushed as the main markup's are. Each call renders the body again, so a
+and pushed as the main markup's are. A state it reads is read by the
+markup, wherever the func is called: rendering one in a markup func's body
+leaves it browser-local, as the main markup does. Each call renders the body again, so a
 `key` in it keys the element each call renders, and a keyed live component
 in it keeps its state across renders as it would written inline in a loop.
 
@@ -843,12 +845,16 @@ binding nothing uses. A markup func calling itself is declared first with
 
 A func literal takes markup for its body when a template statement binds
 it, or when it is set on a component's prop of a func type returning
-`ui.Node` ([Passing Values to a Slot](#scoped-slots)). Markup in a func
-literal anywhere else is [E0197](/errors/E0197); its parameters are a Go
-parameter list, each with its type ([E0198](/errors/E0198)). An event
-calling a markup func, `onClick={row(o)}`, is
-[E0199](/errors/E0199): the call renders markup, and an event pushes one of
-the shape's methods.
+`ui.Node` ([Passing Values to a Slot](#scoped-slots)). The position
+decides, never what the body holds: a literal set on a prop of any other
+type, `validate={func(s string) { … }}`, and one in an event or a hole, is
+Go, its body Go statements, as it always was. Markup in a func literal that
+is Go is [E0197](/errors/E0197); its parameters are a Go parameter list,
+each with its type ([E0198](/errors/E0198)). The body is the markup the
+func renders, so a `return` in it, or a call standing alone on a line, is
+[E0100](/errors/E0100). An event calling a markup func, `onClick={row(o)}`,
+is [E0199](/errors/E0199): the call renders markup, and an event pushes
+one of the shape's methods.
 
 ## Components and Slots {#components-and-slots}
 

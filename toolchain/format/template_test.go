@@ -235,3 +235,12 @@ func TestTemplateAsChild(t *testing.T) {
 	src := "<script lang=\"go\">\npackage p\n\ntype Page struct{}\n</script>\n\n<main>\n  <Button asChild variant=\"outline\">\n    <a href=\"/reports/42\" download>Report</a>\n  </Button>\n</main>\n"
 	check(t, src, "", src, Options{})
 }
+
+// TestTemplateMarkupFuncs: a markup func's body is laid out as markup — a
+// binding's on the lines after it, a literal set on a prop two spaces in
+// from its attribute — and one-line forms keep their line.
+func TestTemplateMarkupFuncs(t *testing.T) {
+	src := "row := func(o Order) {\n<li class:x={o.F}>\n<b>{o.Number}</b> — {o.Total}\n</li>\n}\ncell := func(p Person, i int) { <b>{i + 1}.</b> {p.Name} }\n\n<section>\n<List items={Open} row={func(o Order) { <li>{o.Number}</li> }} />\n<List items={Open} row={func(o Order) ui.Node {\n<li>{o.Number}</li>\n}} />\n  var tree func(o Order) ui.Node\n  tree = func(o Order) {\n <li>{tree(o)}</li>\n }\n</section>\n"
+	want := "package pages\n\nrow := func(o Order) {\n  <li class:x={o.F}>\n    <b>{o.Number}</b> — {o.Total}\n  </li>\n}\ncell := func(p Person, i int) { <b>{i + 1}.</b> {p.Name} }\n\n<section>\n  <List items={Open} row={func(o Order) { <li>{o.Number}</li> }} />\n  <List\n    items={Open}\n    row={func(o Order) ui.Node {\n      <li>{o.Number}</li>\n    }}\n  />\n  var tree func(o Order) ui.Node\n  tree = func(o Order) {\n    <li>{tree(o)}</li>\n  }\n</section>\n"
+	check(t, src, "pages", want, Options{})
+}

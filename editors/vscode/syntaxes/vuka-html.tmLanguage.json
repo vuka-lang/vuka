@@ -78,6 +78,7 @@
         { "include": "#escape" },
         { "include": "#script" },
         { "include": "#style" },
+        { "include": "#markup-func" },
         { "include": "#statement" },
         { "include": "#close" },
         { "include": "#hole" },
@@ -94,9 +95,30 @@
       "end": "\\*/\\}",
       "name": "comment.block.vuka"
     },
+    "markup-func": {
+      "comment": "A markup func bound with its body on the line its { opens, cell := func(p Person) { <b>{p.Name}</b> }: the binding Go, the body markup to its }. A body opening at the line's end is the statement's, its lines the markup's; a literal writing another result is Go.",
+      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(:?=)\\s*(func\\b\\s*\\((?:[^{}()]|\\([^{}()]*\\))*\\)\\s*(?:(?:[A-Za-z_]\\w*\\.)?Node\\s*)?)(\\{)(?=\\s*\\S)",
+      "beginCaptures": {
+        "1": { "name": "variable.other.assignment.go" },
+        "2": { "name": "keyword.operator.assignment.go" },
+        "3": { "patterns": [{ "include": "#go-code" }] },
+        "4": { "name": "punctuation.definition.block.begin.go" }
+      },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.definition.block.end.go" } },
+      "name": "meta.function.markup.vuka",
+      "patterns": [
+        { "begin": "<!--", "end": "-->", "name": "comment.block.html" },
+        { "include": "#comment" },
+        { "include": "#escape" },
+        { "include": "#hole" },
+        { "include": "#tag" },
+        { "include": "text.html.basic#entities" }
+      ]
+    },
     "statement": {
-      "comment": "A Go statement starting a line: if, for, switch, case, default, an assignment.",
-      "begin": "^\\s*(?=(?:\\}\\s*)?(?:if|for|switch|else|match)\\b|case\\b|default\\s*:|[A-Za-z_][\\w.,\\s]*:?=[^=])",
+      "comment": "A Go statement starting a line: if, for, switch, case, default, an assignment, a markup func's var.",
+      "begin": "^\\s*(?=(?:\\}\\s*)?(?:if|for|switch|else|match)\\b|case\\b|default\\s*:|[A-Za-z_][\\w.,\\s]*:?=[^=]|var\\s+[A-Za-z_][\\w,\\s]*\\bfunc\\b)",
       "end": "(\\{)\\s*$|:\\s*$|$",
       "endCaptures": { "1": { "name": "punctuation.definition.block.begin.go" } },
       "name": "meta.statement.vuka",
@@ -130,6 +152,23 @@
       "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } },
       "name": "meta.tag.vuka",
       "patterns": [
+        {
+          "comment": "A func literal set on an attribute, row={func(o Order) { <li>{o.Number}</li> }}: on a component's prop of a func type returning ui.Node its body is markup. Read as markup when the body starts with a tag or the line ends at its {; an event's literal is Go.",
+          "begin": "(?<![\\w:.-])(?!on(?:[A-Z]|\\b))([A-Za-z_][\\w:.-]*)\\s*(=)\\s*(\\{)\\s*(func\\b\\s*\\((?:[^{}()]|\\([^{}()]*\\))*\\)\\s*(?:(?:[A-Za-z_]\\w*\\.)?Node\\s*)?)(\\{)(?=\\s*<|\\s*$)",
+          "beginCaptures": {
+            "1": { "name": "entity.other.attribute-name.html" },
+            "3": { "name": "punctuation.section.embedded.begin.vuka" },
+            "4": { "patterns": [{ "include": "#go-code" }] },
+            "5": { "name": "punctuation.definition.block.begin.go" }
+          },
+          "end": "(\\})\\s*(\\})",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.block.end.go" },
+            "2": { "name": "punctuation.section.embedded.end.vuka" }
+          },
+          "name": "meta.function.markup.vuka",
+          "patterns": [{ "include": "#markup" }]
+        },
         { "include": "#hole" },
         {
           "comment": "attr:name sets the attribute name as written, whatever it means to the compiler.",
@@ -217,8 +256,9 @@
       "patterns": [{ "include": "#package" }, { "include": "#imports" }, { "include": "#go-code" }]
     },
     "go-header": {
+      "comment": "The header form's Go: up to the markup's first line, a tag's, or a markup func's binding, row := func(…) {, which no Go declaration is.",
       "begin": "\\A(?![ \\t]*<)",
-      "end": "(?=^[ \\t]*<(?!-))",
+      "end": "(?=^[ \\t]*<(?!-)|^[ \\t]*[A-Za-z_]\\w*[ \\t]*:?=[ \\t]*func\\b)",
       "name": "meta.embedded.block.go",
       "contentName": "source.go",
       "patterns": [

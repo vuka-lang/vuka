@@ -147,11 +147,15 @@ func (e *engine) goUse(f *fileState, n ast.Node, attrs []span) bool {
 	if h := f.html; h != nil && off >= h.start && off < h.end {
 		// Inside the markup, only a func literal the user wrote is Go code
 		// (a handler): the compiler's own closures — a slot's content, a
-		// guard's block — are still the markup's expressions.
+		// guard's block — are still the markup's expressions, and so is a
+		// markup func's body (markupfn.go), wherever it is called.
 		for p := f.parents[n]; p != nil; p = f.parents[p] {
 			switch p := p.(type) {
 			case *ast.FuncLit:
 				fo := f.orig(p.Pos())
+				if f.markupFuncAt(fo) {
+					continue
+				}
 				return fo >= 0 && fo+4 <= len(f.src) && string(f.src[fo:fo+4]) == "func"
 			case *ast.FuncDecl:
 				return false

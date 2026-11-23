@@ -381,9 +381,13 @@ row := func(o Order) {
 
 <section>
   <h2>Submitted</h2>
-  <ul>for _, o := range Submitted { {row(o)} }</ul>
+  <ul>
+    for _, o := range Submitted { {row(o)} }
+  </ul>
   <h2>Flagged</h2>
-  <ul>for _, o := range Flagged { {row(o)} }</ul>
+  <ul>
+    for _, o := range Flagged { {row(o)} }
+  </ul>
 </section>
 ```
 
@@ -414,6 +418,20 @@ Rules:
   ordinary Go error, and mutual recursion takes the standard
   `var a func(Order) ui.Node` pre-declaration. An unused binding is the
   ordinary unused-variable error.
+- On a component the position is the prop's type, known only once types
+  are: a literal set on a prop of any other type (`validate={func(s
+  string) { … }}`, an `any` prop) stays Go, as before this section — the
+  compiler reads the package again with that literal as Go (the
+  implicit-ctx recompile is the precedent), so the check costs nothing
+  where no such literal is. Markup in a literal that is Go, and a written
+  result other than `ui.Node`, are E0197.
+- The body is markup, so Go statements in it are an error rather than
+  text: a `return`, or a call standing alone on a line outside any
+  element, is E0100. Text inside an element, and prose that only starts
+  like Go, stay text.
+- A state the body reads is read by the markup, wherever the func is
+  called: one-state classification (§12) leaves it browser-local, as it
+  would written in the main markup.
 
 This is also the answer to "pages full of `fieldClass` constants": a page
 that keeps repeating nine identical alert `<div>`s can afford
@@ -737,6 +755,7 @@ Order, cheapest and highest-leverage first:
    Fallthrough costs nothing on the wire, and the form-field singleton
    annotations retired to tags/@ui.Spec alongside (W0314).*
 4. §7 markup func literals (transpiler + lsp; no runtime change).
+   *Shipped.*
 5. §11 keyed transitions (runtime morph; attribute already parses).
 6. §6 OnChange-for-props + `ui.State` defaults (runtime).
 7. §10 boundaries (runtime + live patch scoping).
@@ -801,7 +820,9 @@ alert := func(a Alert) {
     <components.Money bind:value={Budget} />
     <design.Button type="submit" attr:form?={formID}>Save</design.Button>
   </form>
-  <ul>for _, a := range Alerts { {alert(a)} }</ul>
+  <ul>
+    for _, a := range Alerts { {alert(a)} }
+  </ul>
 </design.TabPanel>
 
 <design.TabPanel for="usage">

@@ -486,11 +486,15 @@ func (e *engine) liveReceiver(f *fileState, st ast.Node) string {
 }
 
 // inFuncLit reports whether n is in a function literal: a handler the
-// markup passes, not code running as it renders.
+// markup passes, not code running as it renders — which a markup func's
+// body is (markupfn.go).
 func (e *engine) inFuncLit(f *fileState, n ast.Node) bool {
 	for p := f.parents[n]; p != nil; p = f.parents[p] {
-		switch p.(type) {
+		switch p := p.(type) {
 		case *ast.FuncLit:
+			if f.markupFuncAt(f.orig(p.Pos())) {
+				continue
+			}
 			return true
 		case *ast.FuncDecl:
 			return false
