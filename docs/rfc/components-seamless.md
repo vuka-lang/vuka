@@ -220,31 +220,72 @@ type Dialog struct {
 Kit and registry components move their colliding fixed defaults
 ("modal", "tabs") to `ui.AutoID`; `ID + "-title"` threads disappear.
 
-## 5. One class story
+## 5. Fallthrough — one marked element, and one class story
 
-A `Class string` prop tagged `vuka:"class"` is **merged, not carried**: the
-compiler requires the component to use it exactly once in a `class`
-attribute, and that use lowers through `ui.MergeClasses` (tailwind-merge
-semantics):
+One principle, applied across the tag: **the common case declares
+nothing; the compiler routes it to a deterministic element; a marker
+relocates it; a declared field switches to explicit mode; a guard keeps
+typos out of the implicitness.**
 
-```go
-type Card struct {
-    Class    string `vuka:"class"`
-    Children ui.Node
-}
-```
+Every component has at most one **forward element**: the template's single
+top-level element, or, when there are several roots or the right spot is
+an inner element, the one carrying a bare `forward` attribute (two
+markers, or several roots and no marker, is a compile error naming them).
+What a caller writes on the component's tag and no prop claims goes
+there:
 
-```vuka
-<div class={"rounded-xl border bg-card shadow-xs " + Class}>{Children}</div>
-```
+- **`class` merges.** The caller's classes combine with the element's own
+  through `ui.MergeClasses` (tailwind-merge semantics), so
+  `class="border-red-200"` *replaces* the base `border` instead of
+  fighting it on stylesheet order. Both sides write a plain `class`:
 
-lowers to `ui.MergeClasses("rounded-xl border bg-card shadow-xs", Class)`,
-so a caller's `class="border-red-200"` *replaces* the border instead of
-fighting it. A `vuka:"class"` field never used in a class attribute is the
-existing forwarding warning (W0602) hardened to an error. The kit's private
-`withClass` and the vendored `cn.go` both become this one call;
-`vuka ui add` stops shipping `cn.go` and the registry components take the
-tag. `ui.Variants` is untouched — it's the variant table, not the merge.
+  ```vuka
+  <div class="rounded-xl border bg-card shadow-xs">{Children}</div>
+  ```
+
+  ```vuka
+  <design.Card class="border-red-200 mt-4">…</design.Card>
+  ```
+
+  The kit's private `withClass` and the vendored `cn.go` both dissolve;
+  `vuka ui add` stops shipping `cn.go`. `ui.Variants` is untouched — the
+  variant table says what a variant means, the merge says how a caller's
+  classes compose with it. A component that *computes* with the caller's
+  classes declares `Class string` with `vuka:"class"` instead: its one
+  use in a `class` attribute lowers through the same merge, fallthrough
+  turns off, and a tagged field never used in a class attribute hardens
+  W0602 to an error.
+
+- **Plain attributes fall through.** `id`, `title`, `tabindex`, `data-*`,
+  `aria-*` on a component tag land on the forward element — no `Attrs`
+  field, no `attr:`. Only names that are real HTML/ARIA/data attributes
+  qualify, and the nearest-field typo check runs first, so a misspelled
+  prop is still a did-you-mean error, never a silent attribute (the
+  disease Vue's `$attrs` has). `attr:` stays the explicit form that skips
+  the check; a declared `Attrs` field takes everything and turns
+  fallthrough off.
+
+- **DOM events fall through.** `onClick` on a component with no matching
+  handler prop attaches to the forward element. Typed props (§2) remain
+  the contract for semantic events; fallthrough covers the DOM-level ones
+  the author didn't anticipate, with the same near-miss guard.
+
+- **`bind:value` reaches the control.** On a component whose forward
+  element is a form control, `bind:value={p.Email}` wires it two-way with
+  no declaration — the Input wrapper's author writes
+  `<input class="h-10 rounded-md border" forward />` and nothing else.
+  §9's declared form stays for components that mediate the value, and is
+  to be re-read against this section before it is built.
+
+- **`ref` and `disabled` follow.** `ref={x}` resolves to the forward
+  element; `disabled` on a wrapper reaches the control, retiring the
+  forwarded `Disabled bool` props half a kit declares.
+
+Where the principle does **not** go: data props (declared fields are the
+component's API), semantic events with payloads (`ui.ActionOf[T]` needs
+its type), `key`/`let`/slot syntax (compiler-owned), and §8's give/take
+(deliberately declared shared state — a trust boundary, like
+`ui.State`'s writability).
 
 ## 6. Live children: props that change, state that starts
 
@@ -658,8 +699,9 @@ Order, cheapest and highest-leverage first:
 1. §2 typed handler props + one event-sugar rule (transpiler + vet; the
    footgun fix).
 2. §3 `attr:` and `?=` (transpiler only).
-3. §4 defaults + checked enum literals + `ui.AutoID`; §5 `vuka:"class"`
-   merge (ui + transpiler).
+3. §4 defaults + checked enum literals + `ui.AutoID`; §5 fallthrough in
+   slices — class merge first, then attributes and events, then
+   `bind:`/`ref`/`disabled` to the forward element (ui + transpiler).
 4. §7 markup func literals (transpiler + lsp; no runtime change).
 5. §11 keyed transitions (runtime morph; attribute already parses).
 6. §6 OnChange-for-props + `@ui.Start` (runtime).
@@ -670,7 +712,7 @@ Order, cheapest and highest-leverage first:
    last: it changes observed semantics, so it rides a release note.
 
 Then the two component sets converge on the new vocabulary — one
-`On ui.Action` per component, `ui.AutoID` ids, `vuka:"class"` merging,
+`On ui.Action` per component, `ui.AutoID` ids, class fallthrough,
 give/take families (Tabs, Dialog, Form, DataTable) — one family per
 release, with the registry (`vuka ui add`) updated in the same release so
 newly vendored components are born on the new forms. Existing vendored
