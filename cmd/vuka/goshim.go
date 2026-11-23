@@ -121,6 +121,11 @@ func isVukaModule(path string) bool {
 func runGoShim(args []string) {
 	dir, _ := os.Getwd()
 	if os.Getenv(shimOffEnv) != "off" && shimRoutes(args, dir) {
+		// Plain go commands: a flag only vuka has is refused, not taken.
+		if f := vukaOnlyFlag(args); f != "" {
+			fmt.Fprintf(os.Stderr, "vuka: -%s is vuka %s's flag, not go's: run vuka %s -%s …\n", f, args[0], args[0], f)
+			os.Exit(2)
+		}
 		// vuka's go commands go to the real go, past this shim.
 		os.Setenv(shimOffEnv, "off")
 		return
@@ -317,4 +322,24 @@ func shimGuard() {
 	if real, err := realGo(l, runtime.GOOS); err == nil {
 		os.Setenv(realGoEnv, real)
 	}
+}
+
+// vukaOnlyFlag is the first flag in go args that vuka's command has and
+// go's hasn't (run -watch, build -islands, -debug…), "" for none. For go
+// run, the flags end at the package: what follows is the program's.
+func vukaOnlyFlag(args []string) string {
+	for _, a := range args[1:] {
+		if a == "--" || a == "-args" || !strings.HasPrefix(a, "-") {
+			if args[0] == "run" || a == "--" || a == "-args" {
+				break
+			}
+			continue
+		}
+		name, _, _ := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		switch name {
+		case "watch", "islands", "debug", "fresh", "keep-cache", "embed", "diag":
+			return name
+		}
+	}
+	return ""
 }

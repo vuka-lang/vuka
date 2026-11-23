@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -67,6 +68,11 @@ func executableID() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
+	}
+	// Through a link (the go shim's, a gopls link) the one file: macOS's
+	// os.Executable names the link, which would key a cache of its own.
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
 	}
 	fi, err := os.Stat(exe)
 	if err != nil {

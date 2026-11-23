@@ -20,9 +20,11 @@ is the overlay and the Tailwind stylesheet the app embeds: the binary
 plain go build would make with the generated code on disk, with your
 flags as given — none of vuka build's release flags (-ldflags=-w,
 -tags=vuka_release), build/ module or frontend (vite) build; run vuka
-build for those. Every other go command (go
-mod, go env, go version, go list, go tool…), and every go command outside
-a vuka app, runs the real go untouched.
+build for those. Their flags are go's: one only vuka has (go run -watch,
+go build -islands, -debug…) is refused with the vuka command to run
+instead (vuka run -watch). Every other go command (go mod, go env, go
+version, go list, go tool…), and every go command outside a vuka app,
+runs the real go untouched.
 
 	vuka shim install    put a go linked to this vuka in the shim directory,
 	                     and print the PATH line that puts it first

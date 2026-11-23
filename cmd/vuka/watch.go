@@ -225,6 +225,14 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Until the first build is done the loop below doesn't read sig: a
+	// signal then cancels it, and vuka returns once it has stopped —
+	// or exits, if transpiling, which doesn't stop for one, goes on.
+	startup := watchStartup(sig, cancel, func() {
+		removeAll(tmp)
+		removeTemps()
+	})
+
 	s.w.scan() // the sources as the first build sees them
 	s.setState(buildState{State: "building", Since: time.Now()})
 	// A kept build of an earlier run whose key the sources have starts at
@@ -238,6 +246,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		if css, ok := predictCSS(root); kept != nil && ok {
 			s.env = append(s.env, twCSSEnv+"="+css)
 			started = s.startKept(kept)
+			startup.app.Store(s.app)
 		}
 	}
 	first := s.prepare(ctx, 1)
@@ -247,6 +256,10 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	overlay := first.overlay
 	if first.err != nil {
 		overlay = "" // finish removes it
+	}
+	if sig, ok := startup.done(); ok {
+		s.app.stop(sig, 0, nil)
+		return exitStatus(130)
 	}
 	if first.err == nil {
 		t0 := time.Now()
@@ -1551,3 +1564,56 @@ const traceEnv = "VUKA_WATCH_TRACE"
 // profileEnv names a directory each rebuild writes a CPU profile of its
 // transpile into, prepare-<n>.pprof.
 const profileEnv = "VUKA_WATCH_PROFILE"
+
+// startupSignals answers a signal while vuka run -watch's first build runs,
+// before its loop reads the signal channel.
+type startupSignals struct {
+	end, left chan struct{}
+	got       atomic.Pointer[os.Signal]
+	app       atomic.Pointer[app] // a kept build started before the first build
+}
+
+// watchStartupGrace is how long a cancelled first build may take to stop
+// before vuka exits without it.
+var watchStartupGrace = time.Second
+
+// watchStartup cancels the first build on a signal; when that build hasn't
+// stopped within watchStartupGrace (transpiling doesn't stop for one), or
+// on a second signal, it stops a kept build already running, cleans up and
+// exits with 130, as vuka does on a signal before the go command starts.
+func watchStartup(sig chan os.Signal, cancel context.CancelFunc, cleanup func()) *startupSignals {
+	st := &startupSignals{end: make(chan struct{}), left: make(chan struct{})}
+	go func() {
+		defer close(st.left)
+		select {
+		case <-st.end:
+		case first := <-sig:
+			st.got.Store(&first)
+			cancel()
+			select {
+			case <-st.end:
+			case <-time.After(watchStartupGrace):
+				st.app.Load().stop(first, 0, nil)
+				cleanup()
+				os.Exit(130)
+			case <-sig: // a second one: at once
+				if a := st.app.Load(); a != nil {
+					killTree(a.cmd)
+				}
+				cleanup()
+				os.Exit(130)
+			}
+		}
+	}()
+	return st
+}
+
+// done ends the startup: it reports the signal that came during it, if any.
+func (st *startupSignals) done() (os.Signal, bool) {
+	close(st.end)
+	<-st.left
+	if p := st.got.Load(); p != nil {
+		return *p, true
+	}
+	return nil, false
+}

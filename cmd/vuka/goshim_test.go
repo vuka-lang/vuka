@@ -121,6 +121,25 @@ func TestGoShimRoutes(t *testing.T) {
 	}
 }
 
+func TestGoShimVukaOnlyFlag(t *testing.T) {
+	for args, want := range map[string]string{
+		"run -watch .":            "watch",
+		"run --watch=true .":      "watch",
+		"run . -watch":            "",
+		"run -race .":             "",
+		"build -islands":          "islands",
+		"build -debug -o x .":     "debug",
+		"build -o x .":            "",
+		"test ./... -diag=json":   "diag",
+		"test ./... -args -debug": "",
+		"vet ./...":               "",
+	} {
+		if got := vukaOnlyFlag(strings.Fields(args)); got != want {
+			t.Errorf("vukaOnlyFlag(go %s) = %q, want %q", args, got, want)
+		}
+	}
+}
+
 func loadModuleRoot(dir string) (string, string, error) {
 	for d := dir; ; d = filepath.Dir(d) {
 		if _, err := os.Stat(filepath.Join(d, "go.mod")); err == nil {
