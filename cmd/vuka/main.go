@@ -281,10 +281,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 }
 
 // runGoAs is runGo; plain, for the go shim's go build, builds with the
-// overlay alone: the go command's flags as given, and none of vuka
-// build's own work (its release flags, static-path check, keep file,
-// frontend and Tailwind builds, build/ module) — the binary plain go
-// build makes with the generated Go on disk.
+// overlay and the generated input the binary embeds (Tailwind's
+// stylesheet): the go command's flags as given, and none of vuka build's
+// own work (its release flags, static-path check, keep file, frontend
+// build, build/ module) — the binary plain go build makes with the
+// generated code on disk.
 func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) error {
 	plain = plain && cmd == "build"
 	args = cutDiagFlag(args)
@@ -410,10 +411,13 @@ func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) er
 	var env []string
 	stopTailwind, stopFrontend := func() {}, func() {}
 	switch {
-	case plain:
 	case cmd == "build", cmd == "install":
-		if err := buildFrontend(root, stderr); err != nil {
-			return err
+		// The stylesheet is generated input the binary embeds, so a plain
+		// build has it too; the frontend's vite build is vuka build's.
+		if !plain {
+			if err := buildFrontend(root, stderr); err != nil {
+				return err
+			}
 		}
 		css, err := buildTailwind(root, overlay, pa, stderr)
 		if err != nil {

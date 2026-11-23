@@ -424,7 +424,7 @@ editor's test runner or a script that calls `go test` work on `.vuka` files.
 | You type | In a vuka app |
 |---|---|
 | `go test`, `go vet`, `go run` | `vuka test`, `vet`, `run`: the same output, errors and exit status |
-| `go build` | the overlay alone: the binary plain `go build` makes with the generated Go on disk, your `-ldflags` and `-tags` as given; none of `vuka build`'s `-ldflags=-w`, `-tags=vuka_release`, `build/` module, frontend or Tailwind build |
+| `go build` | the overlay and the app's Tailwind stylesheet: the binary plain `go build` makes with the generated code on disk, your `-ldflags` and `-tags` as given; none of `vuka build`'s `-ldflags=-w`, `-tags=vuka_release`, `build/` module or frontend (vite) build |
 | `go build -h`, `-overlay=…`, `-modfile=…`; `go -C dir …` | the real go |
 | any other go command | the real go |
 

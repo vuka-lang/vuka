@@ -16,10 +16,11 @@ const shimUsage = `usage: vuka shim install|status|remove [-dir dir]
 The go shim makes plain go build, go test, go vet and go run in a vuka app
 see the module's .vuka files: they are transpiled into the build's
 overlay. go test, go vet and go run are vuka test, vet and run. go build
-is the overlay alone: the binary plain go build would make with the
-generated Go on disk, with your flags as given — none of vuka build's
-release flags (-ldflags=-w, -tags=vuka_release), build/ module, frontend
-or Tailwind build; run vuka build for those. Every other go command (go
+is the overlay and the Tailwind stylesheet the app embeds: the binary
+plain go build would make with the generated code on disk, with your
+flags as given — none of vuka build's release flags (-ldflags=-w,
+-tags=vuka_release), build/ module or frontend (vite) build; run vuka
+build for those. Every other go command (go
 mod, go env, go version, go list, go tool…), and every go command outside
 a vuka app, runs the real go untouched.
 

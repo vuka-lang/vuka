@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -598,6 +601,65 @@ func TestGoShimBuildPlain(t *testing.T) {
 	if has, err := hasDWARF(bin); err == nil && !has {
 		t.Error("go build -ldflags through the shim: -w was added to the caller's flag")
 	}
+
+	// An app on web: the stylesheet is built and embedded, as the
+	// generated Go is.
+	t.Run("tailwind", func(t *testing.T) {
+		if _, err := exec.LookPath("tailwindcss"); err != nil {
+			needs(t, "no tailwindcss on PATH")
+		}
+		root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
+			"styles/app.css": "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"})
+		t.Setenv(twEnv, "")
+		app := filepath.Join(t.TempDir(), exe("app"))
+		var out bytes.Buffer
+		c := shimCommand(t, ctx, entry, root, path, "build", "-o", app, ".")
+		c.Stdout, c.Stderr = &out, &out
+		if err := c.Run(); err != nil {
+			t.Fatalf("go build through the shim: %v\n%s", err, out.Bytes())
+		}
+		if has, err := hasDWARF(app); err == nil && !has {
+			t.Error("go build through the shim left out the debug information")
+		}
+		for _, p := range []string{"build", twGoName} {
+			if _, err := os.Stat(filepath.Join(root, p)); err == nil {
+				t.Errorf("go build through the shim wrote %s into the module", p)
+			}
+		}
+		ln, _ := net.Listen("tcp", "127.0.0.1:0")
+		port := ln.Addr().(*net.TCPAddr).Port
+		ln.Close()
+		srv := exec.Command(app)
+		srv.Env = append(os.Environ(), fmt.Sprint("PORT=", port), twCSSEnv+"=")
+		if err := srv.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer srv.Process.Kill()
+		get := func(p string) string {
+			var res *http.Response
+			waitFor(t, func() bool {
+				var err error
+				res, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d%s", port, p))
+				return err == nil
+			})
+			defer res.Body.Close()
+			b, _ := io.ReadAll(res.Body)
+			return string(b)
+		}
+		page := get("/")
+		i := strings.Index(page, `<link rel="stylesheet" href="/_vuka/app.css?v=`)
+		if i < 0 {
+			t.Fatalf("the page links no stylesheet: %s", page)
+		}
+		href := page[i+len(`<link rel="stylesheet" href="`):]
+		href = href[:strings.IndexByte(href, '"')]
+		css := get(href)
+		for _, want := range []string{".text-brand", "#123456"} {
+			if !strings.Contains(css, want) {
+				t.Errorf("the embedded stylesheet lacks %s:\n%.300s", want, css)
+			}
+		}
+	})
 
 	// vuka build itself keeps its release build.
 	bin = filepath.Join(bins, exe("vuka"))
