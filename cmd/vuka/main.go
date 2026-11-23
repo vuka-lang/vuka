@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -116,6 +117,11 @@ Usage:
 	vuka lsp [-gopls path] [-log file] [-shared=false]
 	        language server for .vuka files (gopls behind a proxy), over stdio;
 	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too
+	vuka shim install|status|remove [-dir dir]
+	        a go on PATH that sees .vuka files in a vuka app: go test, vet and
+	        run are vuka's, go build the overlay alone (no release flags or
+	        build/); every other go command, and go outside a vuka app, is
+	        the real go; vuka shim -h
 	vuka version
 	        print this vuka's toolchain set and, in an app, the set its go.mod
 	        requires (warning when its vuka, ui and web aren't one set)
@@ -135,6 +141,13 @@ Maintainers:
 `
 
 func main() {
+	// Invoked as go (vuka shim install): vuka's build, test, vet and run in
+	// a vuka app, else the real go, which runGoShim runs without returning.
+	shimmed := invokedAsGo(runtime.GOOS, os.Args[0])
+	if shimmed {
+		runGoShim(os.Args[1:])
+	}
+	shimGuard()
 	// Invoked as gopls (a link named gopls, for VS Code's go.alternateTools):
 	// a drop-in gopls that also knows .vuka files.
 	if strings.HasPrefix(filepath.Base(os.Args[0]), "gopls") {
@@ -171,7 +184,7 @@ func main() {
 		go trimCaches(time.Now())
 		go trimGoBuildCache(time.Now())
 		go sweepTemp(os.TempDir(), time.Now())
-		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
+		err = runGoAs(cmd, os.Args[2:], os.Stdout, os.Stderr, shimmed)
 	case "new":
 		err = newProject(os.Args[2:], os.Stdin, os.Stdout)
 	case "add":
@@ -209,6 +222,8 @@ func main() {
 		err = upgrade(os.Args[2:], os.Stdout, os.Stderr)
 	case "release":
 		err = release(os.Args[2:], os.Stdout, os.Stderr)
+	case "shim":
+		err = shimCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "help", "-h", "-help", "--help":
 		if len(os.Args) > 2 && os.Args[2] == "mod" {
 			fmt.Print(modUsage)
@@ -262,6 +277,17 @@ vuka -h lists what vuka adds to it.
 // `go <cmd> -overlay=…` so the generated files exist only for the compiler.
 // vuka build also brings the build/ module up to date.
 func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
+	return runGoAs(cmd, args, stdout, stderr, false)
+}
+
+// runGoAs is runGo; plain, for the go shim's go build, builds with the
+// overlay and the generated input the binary embeds (Tailwind's
+// stylesheet): the go command's flags as given, and none of vuka build's
+// own work (its release flags, static-path check, keep file, frontend
+// build, build/ module) — the binary plain go build makes with the
+// generated code on disk.
+func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) error {
+	plain = plain && cmd == "build"
 	args = cutDiagFlag(args)
 	if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
 		fmt.Fprint(stdout, goCmdUsage(cmd))
@@ -279,7 +305,10 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	args, release := releaseFlags(cmd, args)
+	var release []string
+	if !plain {
+		args, release = releaseFlags(cmd, args)
+	}
 	dev := append(devFlags(cmd, args, modPath), release...)
 	compileFlags = compilerFlags(dev)
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
@@ -349,7 +378,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	} else if ds := buildWarnings(transpileWarnings(root, gens)); len(ds) > 0 {
 		writeDiags(stderr, ds, colorFor(stderr))
 	}
-	if cmd == "build" || cmd == "install" {
+	if (cmd == "build" && !plain) || cmd == "install" {
 		if ds := staticDiags(root, false); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Severity == diag.Error }) {
@@ -373,18 +402,22 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if overlay, gens, linkMsg, err = moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
 		return err
 	}
-	if (cmd == "build" || cmd == "install") && len(pkgs) > 0 {
+	if ((cmd == "build" && !plain) || cmd == "install") && len(pkgs) > 0 {
 		syncKeep(root, modPath, pkgs, gens, stderr)
 	}
-	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
+	if linkMsg != "" && (cmd == "run" || (cmd == "build" && !plain) || cmd == "install") {
 		fmt.Fprintln(stderr, linkMsg)
 	}
 	var env []string
 	stopTailwind, stopFrontend := func() {}, func() {}
-	switch cmd {
-	case "build", "install":
-		if err := buildFrontend(root, stderr); err != nil {
-			return err
+	switch {
+	case cmd == "build", cmd == "install":
+		// The stylesheet is generated input the binary embeds, so a plain
+		// build has it too; the frontend's vite build is vuka build's.
+		if !plain {
+			if err := buildFrontend(root, stderr); err != nil {
+				return err
+			}
 		}
 		css, err := buildTailwind(root, overlay, pa, stderr)
 		if err != nil {
@@ -396,7 +429,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			}
 			gens = append(gens, css...)
 		}
-	case "run":
+	case cmd == "run":
 		if _, stub := stubbing(nil); stub {
 			if overlay, err = stubEmbeds(overlay, tmp, frontendEmbeds(root)); err != nil {
 				return err
@@ -416,7 +449,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		stopFrontend = devFrontend(root, stderr)
 		defer stopFrontend()
 	}
-	if cmd == "build" && len(pkgs) > 0 {
+	if cmd == "build" && !plain && len(pkgs) > 0 {
 		if _, err := load.Mirror(root, filepath.Join(root, "build"), gens, false); err != nil {
 			return err
 		}

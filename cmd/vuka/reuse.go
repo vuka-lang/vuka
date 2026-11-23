@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -376,7 +375,7 @@ func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string
 	}
 	fmt.Fprintf(h, "vuka run -watch %s\n%s\n%s/%s\n", reuseFormat, load.CompilerVersion, runtime.GOOS, runtime.GOARCH)
 	// The go command, and the Go it runs for the module.
-	if goBin, err := exec.LookPath("go"); err == nil {
+	if goBin, err := goCommandPath(); err == nil {
 		if fi, err := os.Stat(goBin); err == nil {
 			fmt.Fprintf(h, "go %s %d %d\n", goBin, fi.Size(), fi.ModTime().UnixNano())
 		}
