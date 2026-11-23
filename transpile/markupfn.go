@@ -65,6 +65,9 @@ func (p *jsxParser) attrMarkupFunc(i int) (span, int, bool) {
 	}
 	g.reset(end)
 	rb := g.significant()
+	if rb.tok == token.RPAREN || rb.tok == token.RBRACK {
+		p.failCode("E0003", rb.off, "unexpected %s after the func literal; the attribute closes with }", rb.tok)
+	}
 	if rb.tok != token.RBRACE {
 		p.fail(rb.off, "expected } after the func literal: a prop set to one takes the literal alone")
 	}

@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -182,16 +183,17 @@ type jsxError struct {
 }
 
 type jsxParser struct {
-	f       *fileState
-	src     []byte
-	errs    *ErrorList
-	trees   []*jsxTree
-	matches []*matchStmt
-	cur     *jsxTree
-	goToks  [][]tok    // each Go expression's tokens, its JSX read as one
-	inComp  int        // how many component tags the parser is inside
-	scopes  []*jsxAttr // the for={…} of each <fieldset for> the parser is inside (forms.go)
-	goFunc  string     // in a component's attribute whose func literal is Go by its prop's type: why (markupfn.go)
+	f         *fileState
+	src       []byte
+	errs      *ErrorList
+	trees     []*jsxTree
+	matches   []*matchStmt
+	cur       *jsxTree
+	goToks    [][]tok    // each Go expression's tokens, its JSX read as one
+	inComp    int        // how many component tags the parser is inside
+	scopes    []*jsxAttr // the for={…} of each <fieldset for> the parser is inside (forms.go)
+	attrBrace bool       // reading an attribute's {…}
+	goFunc    string     // in a component's attribute whose func literal is Go by its prop's type: why (markupfn.go)
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
@@ -462,10 +464,10 @@ func (p *jsxParser) element(off int) *jsxElem {
 							}
 						}
 					}
-					outerGo := p.goFunc
-					p.goFunc = goFunc
+					outerGo, outerAttr := p.goFunc, p.attrBrace
+					p.goFunc, p.attrBrace = goFunc, true
 					a.expr, i, ok = p.expr(i)
-					p.goFunc = outerGo
+					p.goFunc, p.attrBrace = outerGo, outerAttr
 					if !ok {
 						p.fail(a.off, "attribute %s has an empty expression", a.name)
 					}
@@ -811,6 +813,9 @@ func (p *jsxParser) goUntil(g *goScan, first tok, prev token.Token, open int, st
 		case isOpen(t.tok):
 			d++
 		case isClose(t.tok):
+			if d == 0 {
+				p.strayClose(t, toks, open)
+			}
 			d--
 		case t.tok == token.LSS && jsxStarts(prev) && jsxTagAt(p.src, t.off):
 			if prev == token.LBRACE && p.f.html != nil && opensFuncBody(toks) {
@@ -836,7 +841,65 @@ func (p *jsxParser) expr(i int) (span, int, bool) {
 	if start.off < 0 {
 		return span{}, rb.off + 1, false
 	}
+	if start.tok == token.FUNC {
+		p.funcLitParses(start.off, last.end(), p.goToks[len(p.goToks)-1])
+	}
 	return span{start.off, last.end()}, rb.off + 1, true
+}
+
+// strayClose fails at t, a ) or ] closing nothing the expression in the {
+// at open opened: Go's error at the token, not an unclosed { at the start.
+func (p *jsxParser) strayClose(t tok, toks []tok, open int) {
+	var sig []tok
+	for _, x := range toks {
+		if !trivia(x) {
+			sig = append(sig, x)
+		}
+	}
+	where := "the { at line " + strconv.Itoa(p.f.at(open).Line) + " closes with }"
+	if p.attrBrace {
+		where = "the attribute closes with }"
+	}
+	if len(sig) > 0 && sig[0].tok == token.FUNC && sig[len(sig)-1].tok == token.RBRACE {
+		p.failCode("E0003", t.off, "unexpected %s after the func literal; %s", t.tok, where)
+	}
+	p.failCode("E0003", t.off, "unexpected %s: nothing it closes is open; %s", t.tok, where)
+}
+
+// funcLitParses fails, at Go's error, when the func literal src[start:end]
+// read from toks doesn't parse for a bracket closing nothing in its body:
+// return nil ) closes the body's { early, so the literal ends there. The
+// language's own syntax in it — ?, match, markup — is never that error.
+func (p *jsxParser) funcLitParses(start, end int, toks []tok) {
+	text := []byte(string(p.src[start:end]))
+	for _, t := range toks {
+		if t.off < start || t.off >= end {
+			continue
+		}
+		switch {
+		case t.tok == token.ILLEGAL && t.lit == "?":
+			text[t.off-start] = ' '
+		case t.tok == token.IDENT && (t.lit == "match" || strings.HasPrefix(t.lit, "<")):
+			return // the language's, not Go's: the compiler reads it
+		}
+	}
+	_, err := parser.ParseExpr(string(text))
+	var list scanner.ErrorList
+	if !errors.As(err, &list) || len(list) == 0 {
+		return
+	}
+	e := list[0]
+	off := 0
+	for line := 1; line < e.Pos.Line && off < len(text); off++ {
+		if text[off] == '\n' {
+			line++
+		}
+	}
+	off += e.Pos.Column - 1
+	if off < 0 || off >= len(text) || text[off] != ')' && text[off] != ']' {
+		return
+	}
+	p.failCode("E0003", start+off, "unexpected %c in the func literal's body: it closes nothing there, so the body ends early", text[off])
 }
 
 // hole reads a {…} child: an expression, a comment, or a block.
