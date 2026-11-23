@@ -728,12 +728,14 @@ to two.
 Order, cheapest and highest-leverage first:
 
 1. §2 typed handler props + one event-sugar rule (transpiler + vet; the
-   footgun fix).
-2. §3 `attr:` and `?=` (transpiler only).
+   footgun fix). *Shipped.*
+2. §3 `attr:` and `?=` (transpiler only). *Shipped.*
 3. §4 defaults + checked enum literals + `ui.AutoID`; §5 fallthrough in
    slices — class merge first, then attributes and events, then
    `bind:`/`ref`/`disabled` to the forward element, and `asChild` last —
-   the same routing in reverse (ui + transpiler).
+   the same routing in reverse (ui + transpiler). *Shipped; an empty
+   Fallthrough costs nothing on the wire, and the form-field singleton
+   annotations retired to tags/@ui.Spec alongside (W0314).*
 4. §7 markup func literals (transpiler + lsp; no runtime change).
 5. §11 keyed transitions (runtime morph; attribute already parses).
 6. §6 OnChange-for-props + `ui.State` defaults (runtime).
