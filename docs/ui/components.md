@@ -279,7 +279,10 @@ id="billing" aria-label="Billing">`. What falls through:
   stay;
 - **HTML, ARIA and data attributes** — `id`, `title`, `role`, `tabindex`,
   `disabled`, `aria-*`, `data-*`, an element's own (`placeholder`,
-  `autocomplete`) — replacing the element's own of that name;
+  `autocomplete`) — replacing the element's own of that name when it
+  writes it as text or bare (`role="region"`); one it computes
+  (`aria-label={Label}`) is the component's, and a caller setting it is
+  [E0139](/errors/E0139);
 - **DOM events**: `onClick={Save()}` on a component with no handler prop
   for it is the element's `onClick`;
 - **`bind:value`** when the forward element is an `input`, `select` or

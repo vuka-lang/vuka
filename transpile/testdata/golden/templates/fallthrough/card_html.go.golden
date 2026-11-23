@@ -16,7 +16,7 @@ import (
 //line card.vuka.html:8
 type Card struct {
 //line card.vuka.html:8
-	Fallthrough ui.Fallthrough `vuka:"forward=section"`
+	Fallthrough ui.Fallthrough `vuka:"forward=section" json:"-"`
 	Title       string
 	Children    ui.Node
 }
@@ -25,10 +25,10 @@ type Card struct {
 func (c Card) View() ui.Node {
 //line card.vuka.html:14
 	return ui.HTML(`
-<section {c.Fallthrough.Attrs()...} class={c.Fallthrough.Merge("rounded-xl border bg-card p-4")} role={c.Fallthrough.Or("role", "region")}>
+<section {c.Fallthrough.Attrs()...} class="rounded-xl border bg-card p-4{c.Fallthrough.Classes()}" role={c.Fallthrough.Or("role", "region")}>
   <h2>{c.Title}</h2>
   {c.Children}
-</section>`, c.Fallthrough.Attrs(), c.Fallthrough.Merge("rounded-xl border bg-card p-4"), c.Fallthrough.Or("role", "region"), c.Title, c.Children)
+</section>`, c.Fallthrough.Attrs(), c.Fallthrough.Classes(), c.Fallthrough.Or("role", "region"), c.Title, c.Children)
 }
 
 //line card.vuka.html:17

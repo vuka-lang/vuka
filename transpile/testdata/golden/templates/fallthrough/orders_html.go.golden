@@ -13,7 +13,7 @@ import (
 //line orders.vuka.html:6
 type Orders struct {
 //line orders.vuka.html:6
-	Fallthrough ui.Fallthrough `vuka:"forward=main"`
+	Fallthrough ui.Fallthrough `vuka:"forward=main" json:"-"`
 	Query       string
 	Hint        string
 }

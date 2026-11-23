@@ -97,6 +97,7 @@ func elementLabel(src []byte, t jsxTag) string {
 func shapeSymbols(vf *vfile, v any) any {
 	src := vf.text()
 	list, _ := v.([]any)
+	list = withoutFallthrough(list)
 	roots := markupRoots(src)
 	if len(list) > 0 {
 		if m, _ := list[0].(map[string]any); m != nil && m["location"] != nil {
@@ -292,4 +293,26 @@ func withHeaderFold(vf *vfile, folds []any) []any {
 		}
 	}
 	return append([]any{map[string]any{"startLine": start, "endLine": end}}, folds...)
+}
+
+// withoutFallthrough is symbols without the Fallthrough field the compiler
+// gives a template's struct (RFC components-seamless §5), which the
+// source doesn't declare.
+func withoutFallthrough(syms []any) []any {
+	out := syms[:0:0]
+	for _, s := range syms {
+		m, _ := s.(map[string]any)
+		if m == nil {
+			out = append(out, s)
+			continue
+		}
+		if d, _ := m["detail"].(string); m["name"] == "Fallthrough" && strings.HasSuffix(d, "Fallthrough") {
+			continue
+		}
+		if kids, ok := m["children"].([]any); ok {
+			m["children"] = withoutFallthrough(kids)
+		}
+		out = append(out, m)
+	}
+	return out
 }

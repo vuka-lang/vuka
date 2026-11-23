@@ -16,7 +16,7 @@ import (
 //line field.vuka.html:8
 type Field struct {
 //line field.vuka.html:8
-	Fallthrough ui.Fallthrough `vuka:"forward=input"`
+	Fallthrough ui.Fallthrough `vuka:"forward=input" json:"-"`
 	Label       string
 }
 
@@ -26,8 +26,8 @@ func (f Field) View() ui.Node {
 	return ui.HTML(`
 <label class="field">
   {f.Label}
-  <input {f.Fallthrough.Attrs()...} class={f.Fallthrough.Merge("h-10 rounded-md border")} type={f.Fallthrough.Or("type", "text")}/>
-</label>`, f.Label, f.Fallthrough.Attrs(), f.Fallthrough.Merge("h-10 rounded-md border"), f.Fallthrough.Or("type", "text"))
+  <input {f.Fallthrough.Attrs()...} class="h-10 rounded-md border{f.Fallthrough.Classes()}" type={f.Fallthrough.Or("type", "text")}/>
+</label>`, f.Label, f.Fallthrough.Attrs(), f.Fallthrough.Classes(), f.Fallthrough.Or("type", "text"))
 }
 
 //line field.vuka.html:16

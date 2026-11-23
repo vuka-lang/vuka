@@ -25,16 +25,16 @@ import (
 // A .vuka.html component whose struct is its own and declares no Attrs
 // (which takes everything, as it always has) gets a field
 //
-//	Fallthrough ui.Fallthrough `vuka:"forward=div,own=onclick"`
+//	Fallthrough ui.Fallthrough `vuka:"forward=div,own=onclick" json:"-"`
 //
 // its tag names the forward element — or why there is none: several roots
 // (?<div>|<p>), none that is an element (-{Children}) — and the attributes
 // the element sets that a caller can't replace (its events, its style, its
-// bind:value). The forward element takes the field: its class merged with
+// bind:value, a value it computes). The forward element takes the field: its class merged with
 // the caller's, its own attributes the caller sets left out, the caller's
 // spread after its name:
 //
-//	<div {Fallthrough.Attrs()...} class={Fallthrough.Merge("rounded-xl border")}>
+//	<div {Fallthrough.Attrs()...} class="rounded-xl border{Fallthrough.Classes()}">
 //
 // A tag's caller (bindFields) puts there its class, the HTML, ARIA and
 // data attributes, the DOM events, a bind:value and a ref no prop takes.
@@ -226,7 +226,19 @@ func planForward(markup string, base int, sh *Shape, m forwardMode, ui string, p
 		fwd = markers[0]
 	} else {
 		var elems []*jsxElem
-		for _, n := range root.kids {
+		var top func(ns []jsxNode) []jsxNode // a fragment renders no element: its children are roots
+		top = func(ns []jsxNode) []jsxNode {
+			var out []jsxNode
+			for _, n := range ns {
+				if el, ok := n.(*jsxElem); ok && el.frag {
+					out = append(out, top(el.kids)...)
+				} else {
+					out = append(out, n)
+				}
+			}
+			return out
+		}
+		for _, n := range top(root.kids) {
 			switch n := n.(type) {
 			case *jsxText:
 				if strings.TrimSpace(n.val) != "" {
@@ -272,7 +284,7 @@ func planForward(markup string, base int, sh *Shape, m forwardMode, ui string, p
 	if len(own) > 0 {
 		tag += ",own=" + strings.Join(own, "|")
 	}
-	plan.ins = append(plan.ins, insertion{sh.open, fallField + " " + ui + "Fallthrough `vuka:" + strconv.Quote(tag) + "`; "})
+	plan.ins = append(plan.ins, insertion{sh.open, fallField + " " + ui + "Fallthrough `vuka:" + strconv.Quote(tag) + " json:\"-\"`; "})
 	return plan, nil
 }
 
@@ -337,8 +349,9 @@ func blockName(n *jsxBlock, markup string) string {
 var forwardKeeps = map[string]bool{"style": true, "ref": true, "key": true, "for": true, "form": true, "model": true, "value": true,
 	"checked": true, "selected": true, "show": true, "transition": true, "lazy": true, "innerhtml": true, "slot": true, "on": true}
 
-// forwardElement plans the forward element's edits: its own attributes a
-// caller may replace given ui.Fallthrough.Or, its class merged, the
+// forwardElement plans the forward element's edits: its own written
+// attributes (role="region", disabled) a caller may replace given
+// ui.Fallthrough.Or, its class merged, the
 // caller's attributes spread after its name. It returns the attributes
 // it keeps, lower-cased, for the Fallthrough field's tag.
 func forwardElement(plan *forwardPlan, el *jsxElem, markup string, m forwardMode, at func(int) int) []string {
@@ -356,8 +369,9 @@ func forwardElement(plan *forwardPlan, el *jsxElem, markup string, m forwardMode
 			}
 			switch a.kind {
 			case 's', 'p':
-				plan.blanks = append(plan.blanks, span{at(a.quote.start), at(a.quote.end)})
-				plan.ins = append(plan.ins, insertion{at(a.quote.start), "{" + fallField + ".Merge(" + classPieces(a, markup) + ")}"})
+				// the text stays the template's (edited without a rebuild);
+				// the caller's classes merge into it
+				plan.ins = append(plan.ins, insertion{at(a.quote.end - 1), "{" + fallField + ".Classes()}"})
 			case 'e':
 				plan.ins = append(plan.ins, insertion{at(a.expr.start), fallField + ".Merge("}, insertion{at(a.expr.end), ")"})
 			}
@@ -372,9 +386,9 @@ func forwardElement(plan *forwardPlan, el *jsxElem, markup string, m forwardMode
 			plan.ins = append(plan.ins, insertion{at(a.quote.start), "{" + fallField + ".Or(" + strconv.Quote(a.name) + ", " + strconv.Quote(a.val) + ")}"})
 		case a.kind == 'b':
 			plan.ins = append(plan.ins, insertion{at(a.off + len(a.name)), "={" + fallField + ".Or(" + strconv.Quote(a.name) + ", true)}"})
-		case a.kind == 'e':
-			plan.ins = append(plan.ins, insertion{at(a.expr.start), fallField + ".Or(" + strconv.Quote(a.name) + ", "}, insertion{at(a.expr.end), ")"})
 		default:
+			// a value computed in the markup keeps its own lowering (a
+			// state's binding, a field reference): the element keeps it
 			own = appendOnce(own, name)
 		}
 	}
@@ -405,23 +419,6 @@ func appendOnce(s []string, v string) []string {
 		}
 	}
 	return append(s, v)
-}
-
-// classPieces is a quoted class's text and holes as Merge's arguments:
-// "card {Size}" is "card ", Size.
-func classPieces(a *jsxAttr, markup string) string {
-	if a.kind == 's' {
-		return strconv.Quote(a.val)
-	}
-	var ps []string
-	for _, p := range a.parts {
-		if p.expr.end == 0 {
-			ps = append(ps, strconv.Quote(p.text))
-		} else {
-			ps = append(ps, markup[p.expr.start-2:p.expr.end-2])
-		}
-	}
-	return strings.Join(ps, ", ")
 }
 
 // mergeClassUse reports whether a class attribute's expression uses the

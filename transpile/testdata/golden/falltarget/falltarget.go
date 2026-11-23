@@ -289,3 +289,9 @@ func SlotOr(n, fallback Node) Node {
 	}
 	return n
 }
+
+// ClassMerge is a caller's classes, merged into a class's text before it.
+type ClassMerge string
+
+// Classes is the caller's classes for the forward element's written class.
+func (f Fallthrough) Classes() ClassMerge { return ClassMerge(f.Class()) }

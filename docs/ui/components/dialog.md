@@ -395,6 +395,7 @@ import (
 // hide a dialog by its ID; OnClose tells a live page when the visitor
 // closed it.
 type Dialog struct {
+	Fallthrough ui.Fallthrough `vuka:"forward=<ui.Teleport>" json:"-"`
 	// Show is the browser state the dialog follows: pass the page's, or
 	// leave it to the dialog's own, which OpenDialog and CloseDialog set.
 	Show ui.State[bool]

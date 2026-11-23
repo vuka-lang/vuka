@@ -62,8 +62,8 @@ func TestFallthroughShape(t *testing.T) {
 		t.Fatal(codes(err))
 	}
 	wantIn(t, src,
-		"Fallthrough ui.Fallthrough `vuka:\"forward=div\"`",
-		`<div {c.Fallthrough.Attrs()...} class={c.Fallthrough.Merge("rounded-xl border bg-card")} role={c.Fallthrough.Or("role", "region")}>{c.Children}</div>`,
+		"Fallthrough ui.Fallthrough `vuka:\"forward=div\" json:\"-\"`",
+		`<div {c.Fallthrough.Attrs()...} class="rounded-xl border bg-card{c.Fallthrough.Classes()}" role={c.Fallthrough.Or("role", "region")}>{c.Children}</div>`,
 		`card := Card{Title: "x", Children: ui.HTML(`+"`a`"+`)}`)
 }
 
@@ -105,8 +105,8 @@ func TestFallthroughEventsBind(t *testing.T) {
 		`Card{Fallthrough: ui.Fallthrough{ui.Attr{Name: "onClick", Value: ui.JS.Push(p.Save)}, ui.Attr{Name: "ref", Value: "card"}}`,
 		`ui.RegisterPush((*Page).Save)`,
 		`Input{Label: "Email", Fallthrough: ui.Fallthrough{ui.Attr{Name: "bind:value", Value: ui.BindValue(p, &p.Q)}, ui.Attr{Name: "disabled", Value: true}, ui.Attr{Name: "placeholder", Value: "you@example.com"}}}`,
-		"Fallthrough ui.Fallthrough `vuka:\"forward=input\"`",
-		`<label>{i.Label} <input {i.Fallthrough.Attrs()...} class={i.Fallthrough.Merge("h-10 rounded-md border")}/></label>`)
+		"Fallthrough ui.Fallthrough `vuka:\"forward=input\" json:\"-\"`",
+		`<label>{i.Label} <input {i.Fallthrough.Attrs()...} class="h-10 rounded-md border{i.Fallthrough.Classes()}"/></label>`)
 }
 
 func fallComp(name, fields, markup string) string {
@@ -134,10 +134,12 @@ func TestFallthroughErrors(t *testing.T) {
 		{"a marker's value", fallComp("Box", "Label string", `<div forward="yes">{Label}</div>`), `<Box/>`, "E0137", "forward takes no value"},
 		{"a marker beside Attrs", fallComp("Box", "Attrs []ui.Attr", `<div forward {Attrs...}>x</div>`), `<Box/>`, "E0137", "Box declares Attrs"},
 		{"several roots", fallComp("Box", "Label string", "<h2>{Label}</h2>\n<p>x</p>"), `<Box id="a"/>`, "E0138", "several roots, <h2>, <p>, and none is marked forward"},
+		{"a fragment's roots", fallComp("Box", "Label string", "<>\n  if Label != \"\" {\n    <p>{Label}</p>\n  }\n</>"), `<Box class="a"/>`, "E0138", "Box's markup's root is an if, not an element"},
 		{"a slot root", fallComp("Box", "Title ui.Node", `<slot:title>Untitled</slot:title>`), `<Box class="mt-4"/>`, "E0138", "Box's markup's root is <slot:title>, not an element"},
 		{"a component root", fallComp("Box", "Label string", `<Card title={Label}>x</Card>`), `<Box id="a"/>`, "E0138", "forward element is the component <Card>"},
 		{"bind on no control", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box bind:value={Q}/>`, "E0139", "Box's is <div>, not an input, select or textarea"},
 		{"an event the element handles", fallComp("Box", "Label string", `<button onClick={Toggle()}>{Label}</button>`), `<Box onClick={Save()}/>`, "E0139", "which sets onClick itself"},
+		{"an attribute the element computes", fallComp("Box", "Label string", `<div aria-label={Label}>x</div>`), `<Box aria-label="y"/>`, "E0139", "which sets aria-label itself"},
 		{"a misspelt prop", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box lable="x"/>`, "E0106", "did you mean Label?"},
 		{"not an attribute", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box tone="x"/>`, "E0106", "attr:tone={…} passes it on as written"},
 		{"bind on a component with Attrs", fallComp("Box", "Attrs []ui.Attr", `<input {Attrs...}/>`), `<Box bind:value={Q}/>`, "E0106", "takes no bind:value"},
@@ -182,11 +184,21 @@ func TestFallthroughInteractions(t *testing.T) {
 		t.Fatal(codes(err))
 	}
 	wantIn(t, src,
-		`<dialog {c.Fallthrough.All()...} id={c.Fallthrough.Or("id", c.ID)} data-size={c.Fallthrough.Or("data-size", c.Size)}>`,
+		`<dialog {c.Fallthrough.All()...} id={c.ID} data-size={c.Size}>`,
 		`Dialog{ID: "confirm", Fallthrough: ui.Fallthrough{ui.Attr{Name: "class", Value: "w-96"}}, Size: "md"}`,
 		`Dialog{ID: ui.NewAutoID(ctx), Size: "md"}`,
 		`Button{Attrs: []ui.Attr{ui.Attr{Name: "class", Value: "mt-2"}, ui.Attr{Name: "id", Value: ui.OmitZero(p.Hint)}}}`)
 	if strings.Contains(src, "type Button struct {\n//line button.vuka.html:6\n\tFallthrough") {
 		t.Errorf("a component with Attrs has a Fallthrough:\n%s", src)
 	}
+}
+
+// TestFallthroughFragment: a fragment renders no element; its one element
+// is the forward element.
+func TestFallthroughFragment(t *testing.T) {
+	src, err := compileFall(t, `<Box class="mt-2"/>`, "box.vuka.html", fallComp("Box", "Label string", "<>\n  <p class=\"note\">{Label}</p>\n</>"))
+	if err != nil {
+		t.Fatal(codes(err))
+	}
+	wantIn(t, src, `<p {c.Fallthrough.Attrs()...} class="note{c.Fallthrough.Classes()}">`, "`vuka:\"forward=p\" json:\"-\"`")
 }
