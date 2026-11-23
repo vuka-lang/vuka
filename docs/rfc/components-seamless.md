@@ -321,12 +321,17 @@ its type), `key`/`let`/slot syntax (compiler-owned), and §8's give/take
   func (c *Counter) changed(c ui.Changed) { if c.Has("Start") { c.n = c.Start } }
   ```
 
-- **Browser state can start somewhere.** `@ui.Start(v)` on a `ui.State[T]`
-  field gives it an initial value on any shape, static ones included —
-  today a non-zero start needs a live `@ui.Mount` (E0149's workaround).
+- **Browser state can start somewhere.** A `ui.State[T]` field needs an
+  initial value on any shape, static ones included — today a non-zero start
+  needs a live `@ui.Mount` (E0149's workaround). §4's `vuka:"default=…"`
+  tag carries it: on a `ui.State[T]` field the value is parsed as `T`'s, as
+  a prop's default is parsed as its field's type, and is the state's value
+  until the browser writes one. No new annotation: a `@ui.Start(v)`
+  attribute was considered and set aside, since the tag the compiler
+  already reads for prop metadata says the same thing.
 
   ```go
-  open ui.State[bool] `@ui.Start(true)`
+  open ui.State[bool] `vuka:"default=true"`
   ```
 
 - **Kept instances (a `keep` attribute).** An embedded live component
@@ -727,7 +732,7 @@ Order, cheapest and highest-leverage first:
    the same routing in reverse (ui + transpiler).
 4. §7 markup func literals (transpiler + lsp; no runtime change).
 5. §11 keyed transitions (runtime morph; attribute already parses).
-6. §6 OnChange-for-props + `@ui.Start` (runtime).
+6. §6 OnChange-for-props + `ui.State` defaults (runtime).
 7. §10 boundaries (runtime + live patch scoping).
 8. §9 `ui.Bound` (ui + transpiler).
 9. §8 give/take (render context + registry diagnostics).

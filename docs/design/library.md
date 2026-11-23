@@ -91,7 +91,7 @@ func main() {
 | `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `web.Routes.Get("/x", NewX, ui.Island(opts…))` |
 | `@web.Use(mw)`, `@web.Template(f)`, `web.Layout(l)` | the options `web.Use(mw)`, `web.Template(f)`, `web.Layout(l)` |
 | `@web.Controller("/admin") type Admin` | `web.Routes.Controller("/admin", NewAdmin)` |
-| `@web.Service type S` | `web.Routes.Service(NewS)` |
+| a service: `type S` with `func NewS(deps…) *S` | `app.Service(NewS)` or `web.Provide(NewS)` in `main` |
 | `@auth.Required` | `auth.Required()` option |
 | `func X.New(…)` (static constructor) | `func NewX(…)` |
 

@@ -778,10 +778,13 @@ at once when it ends the sign-in itself (`app.CloseLive`), else at its next
 
 A page that checks in the mount hook whether
 the visitor may see what its URL names (order `{id}`) makes the same check
-in its `Update` taking `web.URLParams` , if it has one: a patch keeps the
+in its `Update` taking `web.URLParams`, if it has one: a patch keeps the
 page mounted and hands the new URL to that `Update`, not to the mount hook. A page
-without such an `Update` mounts again on every patch, so its mount hook sees
-each URL; the browser's asking for a patch doesn't change that. See
+without such an `Update` mounts again on every patch that changes more than
+its `@ui.URL` fields keep, so its mount hook sees each such URL; the
+browser's asking for a patch doesn't change that. A patch changing only
+those fields' parameters keeps it, the mount hook not running: a check it
+makes of what a field names is made again where the field is used. See
 [Navigation](/web/navigation#the-server-decides-what-stays-mounted).
 
 ## The Wire {#the-wire}
@@ -794,7 +797,7 @@ The transport is Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | `GET /_vuka/live.js?v=<hash>` | the runtime, immutable for its hash (ETag otherwise) |
 | `join` | runs the route; a second `join` on the same connection starts over |
 | `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL. Never to a URL that isn't a path or `http`/`https`: an `error` instead |
-| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does only for an `Update` taking `web.URLParams` ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a mount hook, `Update` or render failing answers `error`, nothing staying mounted |
+| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does for an `Update` taking `web.URLParams`, or when the URL changes only parameters the page's `@ui.URL` fields and DataTables keep ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a mount hook, `Update` or render failing answers `error`, nothing staying mounted |
 | `GET /_vuka/live?transport=sse&t=<token>` | the [event stream](#the-event-stream-fallback) a page falls back to; the browser's messages are `POST`s to `/_vuka/live?c=<id>`, one message each |
 | close 4001 | invalid or expired token, or a `LiveCheck` failed: recover in place, then reload |
 | close 4002 | the page sat idle (`LiveIdleTimeout`): join again once the page is in view |

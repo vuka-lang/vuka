@@ -158,10 +158,15 @@ and editor check:
 ### 2.2 Explicit hooks instead of magic method names
 
 **Done** for `@ui.Mount`, `@ui.OnChange` and `@ui.Loads` (library step 3):
-`vuka vet` warns of a hook found by its name (W0303), `vuka fix hooks`
-adds the attribute. From 1.2 only `Load<Group>` is warned of: `Mount` and
-`Changed` by name are hooks again. `@ui.On[T]` (in place of `Info`) and `Update`
-overloads are still found by name.
+`vuka vet` warned of a hook found by its name (W0303), `vuka fix hooks`
+adds the attribute. 1.2 briefly made `Mount` and `Changed` by name hooks
+again; 2.0 reversed that ([one-way RFC](../rfc/one-way.md), decision 3): a
+method is never a hook because of its name, and a `Mount` or `Changed` no
+attribute marks is [E0337](/errors/E0337), as a loader named `Load<Group>`
+is [E0324](/errors/E0324). ~~`@ui.On[T]` (in place of `Info`)~~ —
+superseded by the existing `Update` convention: a live component takes a
+message of type `T` in an `Update(T)` overload, found by its parameter
+type, and needs no attribute.
 
 `Mount`, `Changed`, `Update(T)` overloads and `Load<Group>` are found by
 name today. That's how a field `CV` required a loader named `LoadCv`, and
@@ -173,6 +178,9 @@ why fields and methods can collide on the browser's `live` object.
 @ui.Loads("lists")       func (p *Orders) loadLists(ctx context.Context) error
 @ui.On[OrderPlaced]      func (p *Orders) placed(ctx context.Context, m OrderPlaced) error
 ```
+
+(The `@ui.On[OrderPlaced]` line is superseded: `func (p *Orders) Update(m
+OrderPlaced)` takes the message.)
 
 - Hooks may be unexported, so they can never be called from the browser.
 - Only exported methods without a hook attribute are callable as
