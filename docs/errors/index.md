@@ -21,6 +21,7 @@ same page in the terminal.
 
 | Code | |
 |---|---|
+| [E0100](./E0100) | Go statements in a markup func's body |
 | [E0101](./E0101) | JSX syntax error |
 | [E0102](./E0102) | JSX needs a target |
 | [E0103](./E0103) | Two JSX targets |

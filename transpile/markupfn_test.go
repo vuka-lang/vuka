@@ -53,6 +53,14 @@ type List struct {
 func (l List) View() ui.Node                                    { return nil }
 func (l List) Render(ctx context.Context, w io.Writer) error { return nil }
 
+type Picks struct {
+	Pick  func(Order)
+	Later any
+}
+
+func (l Picks) View() ui.Node                                    { return nil }
+func (l Picks) Render(ctx context.Context, w io.Writer) error { return nil }
+
 type Labels struct {
 	Format func(Order) string
 }
@@ -222,12 +230,36 @@ row := func(o Order) { <p/> }
 		{"on an element", `<div title={func() { <b/> }}>x</div>
 `, "E0197", "22:22", "where the literal is Go"},
 		{"prop not Node", `<Labels format={func(o Order) { <b/> }}/>
-`, "E0197", "22:9", "format is func("},
+`, "E0197", "22:33", "format is func("},
 		{"params", `row := func(o Order i int) { <li/> }
 `, "E0198", "22:12", "parameters"},
 		{"untyped param", `row := func(o) { <li>{o}</li> }
 <ul>{row(1)}</ul>
 `, "E0198", "22:13", "o has no type"},
+		{"prop not Node, markup", `<Picks pick={func(o Order) { <b/> }}/>
+`, "E0197", "22:30", "pick is func(Order), so the func literal set on it is Go"},
+		{"result not Node", `row := func(o Order) string { <li/> }
+<ul>{row(Orders[0])}</ul>
+`, "E0197", "22:31", "result is string"},
+		{"return", `row := func(o Order) {
+  if o.ID == 0 { return }
+  <li/>
+}
+<ul>{row(Orders[0])}</ul>
+`, "E0100", "23:18", "has no return"},
+		{"return markup", `row := func(o Order) {
+  return <li/>
+}
+<ul>{row(Orders[0])}</ul>
+`, "E0100", "23:3", "has no return"},
+		{"return on a prop", `<List items={Orders} row={func(o Order) { return <li/> }}/>
+`, "E0100", "22:43", "has no return"},
+		{"statement", `row := func(o Order) {
+  label(o)
+  <li/>
+}
+<ul>{row(Orders[0])}</ul>
+`, "E0100", "23:3", "label(o) is a Go statement"},
 		{"event call", `row := func(o Order) { <li/> }
 <button onClick={row(Orders[0])}>x</button>
 `, "E0199", "23:18", "renders markup"},
@@ -279,5 +311,39 @@ func TestMarkupFuncGoLiteral(t *testing.T) {
 		if !strings.Contains(src, want) {
 			t.Errorf("no %q in:\n%s", want, src)
 		}
+	}
+}
+
+// TestMarkupFuncGoProp: the position decides, and on a component the
+// position is the prop's type: a func literal set on a prop not of a func
+// type returning Node is Go, its body statements, as it was before markup
+// funcs.
+func TestMarkupFuncGoProp(t *testing.T) {
+	src := compileMarkupFnGo(t, `<section>
+  <Picks pick={func(o Order) { println(o.Number) }} later={func() { println("later") }}/>
+  <List items={Orders} row={func(o Order) { <li>{o.Number}</li> }}/>
+</section>
+`)
+	for _, want := range []string{`Pick: func(o Order) { println(o.Number) }`, `Later: func() { println("later") }`, "Row: func(o Order) ui.Node {"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("no %q in:\n%s", want, src)
+		}
+	}
+}
+
+// TestMarkupFuncProse: text that only resembles Go — inside an element, or
+// a sentence — is the body's markup.
+func TestMarkupFuncProse(t *testing.T) {
+	src := compileMarkupFnGo(t, `row := func(o Order) {
+  <p>
+    return policy(30 days)
+    println(x)
+  </p>
+  Hello {o.Number}, return within a week
+}
+<ul>{row(Orders[0])}</ul>
+`)
+	if !strings.Contains(src, "return policy(30 days)") || !strings.Contains(src, "return within a week") {
+		t.Errorf("text:\n%s", src)
 	}
 }

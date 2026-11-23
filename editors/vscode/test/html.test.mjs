@@ -199,5 +199,53 @@ expect(sugar, 'vuka-html', '?={hint', 'punctuation.separator.key-value.omit');
 expect(sugar, 'vuka-html', 'hint}', 'source.go');
 expect(sugar, 'vuka-html', 'id?=', 'entity.other.attribute-name');
 
+// Markup funcs: a binding's body is markup, on its line or on the lines
+// after it; so is a func literal's set on a prop, unless the attribute is an
+// event's or the literal writes another result.
+const fns = `package main
+
+type Review struct{ Open []Order }
+
+func (r Review) Count() int {
+	n := func() int { return len(r.Open) }
+	return n()
+}
+
+row := func(o Order) {
+  <li class:flagged={o.Flagged}>{o.Number}</li>
+}
+cell := func(p Person, i int) { <b>{i + 1}.</b> {p.Name} }
+typed := func(o Order) ui.Node { <i>{o.Number}</i> }
+label := func(o Order) string { return o.Number }
+<section>
+  var tree func(o Order) ui.Node
+  <List items={Open} row={func(o Order) { <em>{o.Number}</em> }} />
+  <List items={Open} row={func(o Order) {
+    <u>{o.Number}</u>
+  }} />
+  <Picks onPick={func(o Order) { save(o) }} />
+  <p>after</p>
+</section>
+`;
+expect(fns, 'vuka-html', 'n := func', 'source.go');
+expect(fns, 'vuka-html', 'return len', 'keyword.control');
+expect(fns, 'vuka-html', 'row :=', 'variable.other.assignment.go');
+expect(fns, 'vuka-html', 'li class', 'entity.name.tag');
+expect(fns, 'vuka-html', 'b>{i', 'entity.name.tag');
+expect(fns, 'vuka-html', 'Person, i', 'entity.name.type');
+expect(fns, 'vuka-html', 'i + 1', 'source.go');
+expect(fns, 'vuka-html', 'i>{o', 'entity.name.tag');
+expect(fns, 'vuka-html', 'Node {', 'entity.name.type');
+expect(fns, 'vuka-html', 'return o', 'keyword.control');
+expect(fns, 'vuka-html', 'var tree', 'keyword');
+expect(fns, 'vuka-html', 'em>', 'entity.name.tag');
+expect(fns, 'vuka-html', 'u>{o', 'entity.name.tag');
+expect(fns, 'vuka-html', 'save(o)', 'source.go');
+expect(fns, 'vuka-html', 'p>after', 'entity.name.tag');
+assert.ok(!scopesAt(fns, 'vuka-html', 'row :=').includes('meta.embedded.block.go'), 'a binding ends the header');
+for (const needle of ['<li class', '<em>', '<u>']) {
+  assert.ok(!scopesAt(fns, 'vuka-html', needle).some((sc) => sc.startsWith('keyword.operator')), needle);
+}
+
 if (failures) process.exit(1);
 console.log('ok html grammar');

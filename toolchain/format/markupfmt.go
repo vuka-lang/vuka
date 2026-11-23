@@ -715,6 +715,9 @@ func multiLineAttr(a, ind string) string {
 		return a
 	}
 	expr := strings.TrimSpace(a[open+1 : len(a)-1])
+	if out, ok := markupFuncAttr(a[:open+1], expr, ind); ok {
+		return out
+	}
 	spread := strings.HasSuffix(expr, "...")
 	expr = strings.TrimSuffix(expr, "...")
 	if hasComment(expr) {
@@ -753,6 +756,71 @@ func multiLineAttr(a, ind string) string {
 	}
 	b.WriteString("\n" + ind + "}")
 	return b.String()
+}
+
+// markupFuncAttr lays out an attribute set to a markup func literal
+// spanning lines, row={func(o Order) { <li>…</li> }}: its head on the
+// attribute's line, its body markup laid out two spaces in, and }} at ind.
+// false when expr isn't one, or its body doesn't lay out as what it was.
+func markupFuncAttr(name, expr, ind string) (string, bool) {
+	if !strings.HasPrefix(expr, "func") || !strings.HasSuffix(expr, "}") {
+		return "", false
+	}
+	lp := strings.IndexByte(expr, '(')
+	if lp < 0 || strings.TrimSpace(expr[len("func"):lp]) != "" {
+		return "", false
+	}
+	d, rp := 0, -1
+	for i := lp; i < len(expr) && rp < 0; i++ {
+		switch expr[i] {
+		case '(':
+			d++
+		case ')':
+			if d--; d == 0 {
+				rp = i
+			}
+		}
+	}
+	if rp < 0 {
+		return "", false
+	}
+	lb := strings.IndexByte(expr[rp:], '{')
+	if lb < 0 {
+		return "", false
+	}
+	lb += rp
+	result := strings.TrimSpace(expr[rp+1 : lb])
+	if result != "" && result != "Node" && !strings.HasSuffix(result, ".Node") {
+		return "", false
+	}
+	body := expr[lb+1 : len(expr)-1]
+	if !strings.HasPrefix(strings.TrimSpace(body), "<") {
+		return "", false
+	}
+	m, err := formatMarkup([]byte(body), 0, Options{}, nil)
+	if err != nil {
+		return "", false
+	}
+	before, err1 := templateSig([]byte(body))
+	after, err2 := templateSig([]byte(m))
+	if err1 != nil || err2 != nil || trimSig(before) != trimSig(after) {
+		return "", false
+	}
+	head := expr[:rp+1]
+	if result != "" {
+		head += " " + result
+	}
+	var b strings.Builder
+	b.WriteString(name + strings.TrimSuffix(simpleStmt(head+" {}"), "}")) // the {}'s }
+	for _, l := range strings.Split(m, "\n") {
+		if l == "" {
+			b.WriteString("\n")
+			continue
+		}
+		b.WriteString("\n" + ind + "  " + l)
+	}
+	b.WriteString("\n" + ind + "}}")
+	return b.String(), true
 }
 
 // stmtHead is a block's head — if, for, switch, } else … — as gofmt

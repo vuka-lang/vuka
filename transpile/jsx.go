@@ -60,6 +60,7 @@ type jsxTree struct {
 	fn         bool       // a markup func literal's body, from after its parameters (its result, when typed) to its }
 	typed      bool       // that literal writes its result type
 	lit        int        // where that literal's func is
+	goErr      *jsxError  // a Go statement in that body, reported once its prop is known to take markup (markupfn.go)
 }
 
 // jsxEvent is an on… attribute with an expression on an element, whose type is
@@ -190,6 +191,7 @@ type jsxParser struct {
 	goToks  [][]tok    // each Go expression's tokens, its JSX read as one
 	inComp  int        // how many component tags the parser is inside
 	scopes  []*jsxAttr // the for={…} of each <fieldset for> the parser is inside (forms.go)
+	goFunc  string     // in a component's attribute whose func literal is Go by its prop's type: why (markupfn.go)
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
@@ -451,13 +453,19 @@ func (p *jsxParser) element(off int) *jsxElem {
 				case '{':
 					var ok bool
 					a.kind = 'e'
+					goFunc := ""
 					if comp && p.f.html != nil && !isEvent(a.name) && a.name != "on" {
-						if sp, end, ok := p.attrMarkupFunc(i); ok {
-							a.expr, i, a.mfn = sp, end, true
-							break
+						if goFunc = p.goFuncProp(el.tag, a.name, i); goFunc == "" {
+							if sp, end, ok := p.attrMarkupFunc(i); ok {
+								a.expr, i, a.mfn = sp, end, true
+								break
+							}
 						}
 					}
+					outerGo := p.goFunc
+					p.goFunc = goFunc
 					a.expr, i, ok = p.expr(i)
+					p.goFunc = outerGo
 					if !ok {
 						p.fail(a.off, "attribute %s has an empty expression", a.name)
 					}

@@ -1,0 +1,26 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+// Review renders its cards through a markup func: what a tag passes on
+// falls through inside the body as in the main markup.
+type Review struct {
+	Names []string
+	Query string
+}
+
+func (r *Review) Open(name string) error { return nil }
+</script>
+
+card := func(name string) {
+  <Card title={name} class="bg-muted" aria-label={name} onClick={Open(name)}>
+    <Field label="Search" bind:value={Query} type="search"/>
+  </Card>
+}
+
+<main>
+  for _, n := range Names {
+    {card(n)}
+  }
+</main>

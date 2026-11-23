@@ -1,0 +1,51 @@
+package main
+
+import (
+	ui "vukatest.local/stateui"
+)
+
+// Orders renders its rows through a markup func. note and tab are read
+// only inside the func's body, and note written there in the browser: a
+// body's read is the markup's, so both stay browser-local. open is read
+// by Confirm, Go code: synced.
+type Orders struct {
+	ui.Live
+	rows []Order
+	open ui.State[bool]
+	note ui.State[string]
+	tab  ui.State[string]
+}
+
+type Order struct {
+	ID   int
+	Name string
+}
+
+func (o *Orders) Load() {
+	o.rows = []Order{{1, "tea"}, {2, "beans"}}
+}
+
+func (o *Orders) Confirm() {
+	if !o.open {
+		return
+	}
+	o.open = false
+}
+
+row := func(r Order) {
+  <li>
+    {r.Name} <span>{tab}</span> <i>{note}</i>
+    <button onClick={note = r.Name}>note</button>
+  </li>
+}
+
+<section>
+  <ul>
+    for _, r := range rows {
+      {row(r)}
+    }
+  </ul>
+  <dialog open={open}>
+    <button onClick={Confirm}>confirm</button>
+  </dialog>
+</section>

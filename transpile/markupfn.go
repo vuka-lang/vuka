@@ -1,6 +1,8 @@
 package transpile
 
 import (
+	"bytes"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -33,7 +35,7 @@ func (p *jsxParser) markupFuncStmt(first tok) (int, bool) {
 	if fn.tok != token.FUNC {
 		return 0, false
 	}
-	end, ok := p.markupFunc(fn.off)
+	end, ok := p.markupFunc(fn.off, false)
 	if !ok {
 		return 0, false
 	}
@@ -57,7 +59,7 @@ func (p *jsxParser) attrMarkupFunc(i int) (span, int, bool) {
 	if fn.tok != token.FUNC {
 		return span{}, 0, false
 	}
-	end, ok := p.markupFunc(fn.off)
+	end, ok := p.markupFunc(fn.off, true)
 	if !ok {
 		return span{}, 0, false
 	}
@@ -72,7 +74,7 @@ func (p *jsxParser) attrMarkupFunc(i int) (span, int, bool) {
 // markupFunc reads the func literal at off, its body markup, and returns
 // where it ends. It reads nothing, and reports false, for a literal whose
 // result isn't Node.
-func (p *jsxParser) markupFunc(off int) (int, bool) {
+func (p *jsxParser) markupFunc(off int, attr bool) (int, bool) {
 	g := newGoScan(p.src, off)
 	g.significant()
 	lp := g.significant()
@@ -116,6 +118,9 @@ func (p *jsxParser) markupFunc(off int) (int, bool) {
 		q = p.f.target.q
 	}
 	if r := strings.Join(result, ""); r != "" && r != q+"Node" && r != "("+q+"Node)" {
+		if b := p.space(lb.off + 1); p.at(b) == '<' && jsxTagAt(p.src, b) {
+			p.failCode("E0197", b, "the func literal's result is %s, so it is Go and its body markup: a markup func's result is %sNode, or left out — func%s { <li>…</li> }", r, q, string(p.src[lp.off:rp.end()]))
+		}
 		return 0, false
 	}
 	p.markupParams(lp.off, rp.end())
@@ -129,10 +134,110 @@ func (p *jsxParser) markupFunc(off int) (int, bool) {
 	var rb int
 	root.kids, rb = p.children(lb.off+1, nil, lb.off, false)
 	root.end = rb + 1
+	p.goInMarkupBody(t, root.kids, attr)
 	t.root, t.end = root, rb+1
 	p.cur, p.inComp = outer, inComp
 	p.trees = append(p.trees, t)
 	return t.end, true
+}
+
+// markupFuncAt reports whether the func literal at off is a markup func's:
+// its body is markup, not Go code.
+func (f *fileState) markupFuncAt(off int) bool { return f.markupFuncTree(off) != nil }
+
+// markupFuncTree is the body of the markup func literal at off, nil when
+// none is there.
+func (f *fileState) markupFuncTree(off int) *jsxTree {
+	for _, t := range f.jsx {
+		if t.fn && t.lit == off {
+			return t
+		}
+	}
+	return nil
+}
+
+// goInMarkupBody fails for a line of a markup func's body, outside its
+// elements, that is a Go statement rather than markup — a return, or a
+// call standing alone: the body is the markup the func renders, so it has
+// neither. Read as markup they would render as text.
+//
+// A literal set on a component's attribute may yet be Go, by its prop's
+// type: there the problem waits on the tree for checkMarkupFuncs.
+func (p *jsxParser) goInMarkupBody(t *jsxTree, kids []jsxNode, attr bool) {
+	for i, k := range kids {
+		switch n := k.(type) {
+		case *jsxBlock:
+			for _, b := range n.bodies {
+				p.goInMarkupBody(t, b, attr)
+			}
+			for _, b := range n.cases {
+				p.goInMarkupBody(t, b, attr)
+			}
+		case *jsxText:
+			end := n.start
+			for end < len(p.src) && strings.IndexByte("<{}", p.src[end]) < 0 {
+				end++
+			}
+			for off := n.start; off < end; {
+				nl := bytes.IndexByte(p.src[off:end], '\n')
+				line := end
+				if nl >= 0 {
+					line = off + nl
+				}
+				lead := off
+				for lead < line && (p.src[lead] == ' ' || p.src[lead] == '\t') {
+					lead++
+				}
+				if lead < line && (off > n.start || i == 0 || lineOpens(p.src, n.start)) {
+					if msg := goStmtLine(strings.TrimRight(string(p.src[lead:line]), " \t\r"), line == end && end < len(p.src) && p.src[end] == '<'); msg != "" {
+						if !attr {
+							p.failCode("E0100", lead, "%s", msg)
+						}
+						if t.goErr == nil {
+							t.goErr = &jsxError{off: lead, msg: msg, code: "E0100"}
+						}
+					}
+				}
+				off = line + 1
+			}
+		}
+	}
+}
+
+// lineOpens reports whether nothing but spaces is before off on its line,
+// or since the { opening a block.
+func lineOpens(src []byte, off int) bool {
+	for off > 0 && (src[off-1] == ' ' || src[off-1] == '\t') {
+		off--
+	}
+	return off == 0 || src[off-1] == '\n' || src[off-1] == '{'
+}
+
+// goStmtLine is why text starting a markup func body's line is a Go statement
+// — a return, or a call alone — "" when it is markup. tagged is whether a
+// tag follows the text on its line, return <li>…</li>.
+func goStmtLine(text string, tagged bool) string {
+	if rest, ok := strings.CutPrefix(text, "return"); ok && (rest == "" || rest[0] == ' ' || rest[0] == '\t' || rest[0] == '(') {
+		rest = strings.TrimSpace(rest)
+		if _, err := parser.ParseExpr(rest); rest == "" || tagged || err == nil {
+			return "a markup func's body is the markup it renders, so it has no return: write the markup itself, and an if around what renders only sometimes"
+		}
+	}
+	x, err := parser.ParseExpr(text)
+	if err != nil {
+		return ""
+	}
+	call, ok := x.(*ast.CallExpr)
+	if !ok || call.Rparen != token.Pos(len(text)) {
+		return ""
+	}
+	switch fun := call.Fun.(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+		if fun.End() == call.Lparen {
+			return fmt.Sprintf("%s is a Go statement, and a markup func's body is the markup it renders: show a value in a hole, {%s}, and call what does work in an event or a method", text, text)
+		}
+	}
+	return ""
 }
 
 // markupParams fails unless a markup func's parameters, src[start:end] with
@@ -193,11 +298,45 @@ func opensFuncBody(toks []tok) bool {
 // a func literal is Go: anywhere but a template statement's binding and a
 // component's prop.
 func (p *jsxParser) misplacedMarkupFunc(off int) {
+	if p.goFunc != "" {
+		p.failCode("E0197", off, "%s", p.goFunc)
+	}
 	p.failCode("E0197", off, "markup starts a func literal's body where the literal is Go: a func takes markup for its body when a template statement binds it, row := func(o Order) { … }, or a component's prop is set to it, row={func(o Order) { … }}")
 }
 
+// goFuncProp is, for <tag>'s attribute name whose value in the braces at i
+// starts with a func literal an earlier compile found is given to a prop
+// not of a func type returning Node, why that literal is Go: the position
+// decides, and the position is the prop's type. "" otherwise.
+func (p *jsxParser) goFuncProp(tag, name string, i int) string {
+	if p.f.eng == nil || len(p.f.eng.goFuncs) == 0 {
+		return ""
+	}
+	fn := newGoScan(p.src, i+1).significant()
+	if fn.tok != token.FUNC {
+		return ""
+	}
+	typ, ok := p.f.eng.goFuncs[p.f.at(fn.off).String()]
+	if !ok {
+		return ""
+	}
+	return goFuncMsg(tag, name, typ, p.f.target)
+}
+
+// goFuncMsg is E0197 for markup in a func literal set on <tag>'s name,
+// whose prop is of type typ: the literal is Go.
+func goFuncMsg(tag, name, typ string, target *jsxTarget) string {
+	q := "ui."
+	if target != nil {
+		q = target.q
+	}
+	return fmt.Sprintf("<%s>'s %s is %s, so the func literal set on it is Go, and its body markup: a func takes markup for its body when its prop is a func returning %sNode", tag, name, typ, q)
+}
+
 // checkMarkupFuncs reports, once types are known, a markup func literal set
-// on a component's attribute whose prop isn't a func returning Node.
+// on a component's attribute whose prop isn't a func returning Node — and
+// has the package compile again, the literal read as Go, when it writes no
+// result: its prop's type says it is Go, as it was before markup funcs.
 func (e *engine) checkMarkupFuncs() {
 	for _, f := range e.vuka {
 		if f.html == nil {
@@ -220,14 +359,28 @@ func (e *engine) checkMarkupFuncs() {
 						continue
 					}
 					want := e.markupFuncTarget(f, c, a)
-					if want == nil {
+					lit := f.markupFuncTree(a.expr.start)
+					var sig *types.Signature
+					if want != nil {
+						sig, _ = want.Underlying().(*types.Signature)
+					}
+					if want == nil || sig != nil && sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), node) {
+						if lit != nil && lit.goErr != nil {
+							e.errs.add(lit.goErr.code, f.at(lit.goErr.off), "%s", lit.goErr.msg)
+						}
 						continue
 					}
-					sig, _ := want.Underlying().(*types.Signature)
-					if sig != nil && sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), node) {
-						continue
+					if lit != nil && !lit.typed {
+						key := f.at(a.expr.start).String()
+						if _, again := e.goFuncs[key]; !again {
+							if e.goFuncs == nil {
+								e.goFuncs = map[string]string{}
+							}
+							e.goFuncs[key], e.recompile = e.display(want), true
+							continue
+						}
 					}
-					e.errs.add("E0197", f.at(a.off), "<%s>'s %s is %s, so the func literal set on it is Go, and its body markup: a func takes markup for its body when its prop is a func returning %sNode", c.el.tag, a.name, e.display(want), f.target.q).
+					e.errs.add("E0197", f.at(a.off), "%s", goFuncMsg(c.el.tag, a.name, e.display(want), f.target)).
 						help("set %s to a method or func declared in the script, or declare the prop as func(…) %sNode", a.name, f.target.q)
 				}
 			}
