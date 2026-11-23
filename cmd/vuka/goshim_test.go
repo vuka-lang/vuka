@@ -605,11 +605,14 @@ func TestGoShimBuildPlain(t *testing.T) {
 	// An app on web: the stylesheet is built and embedded, as the
 	// generated Go is.
 	t.Run("tailwind", func(t *testing.T) {
-		if _, err := exec.LookPath("tailwindcss"); err != nil {
-			needs(t, "no tailwindcss on PATH")
-		}
 		root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
 			"styles/app.css": "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"})
+		// As vuka finds it: tailwindcss, or the standalone binary under
+		// its released name (tailwindcss-windows-x64.exe on the Windows
+		// job), or the npm package's.
+		if _, err := tailwindBinary(root); err != nil {
+			needs(t, "no Tailwind CLI: %v", err)
+		}
 		t.Setenv(twEnv, "")
 		app := filepath.Join(t.TempDir(), exe("app"))
 		var out bytes.Buffer
