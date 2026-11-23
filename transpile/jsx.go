@@ -88,6 +88,8 @@ type jsxElem struct {
 	partFB     *deferMethod // a <ui.Fallback for={M}>: the method it stands in for
 	formFor    bool         // a <form for={Form}>: the target's FormElement component (forms.go)
 	legendOf   *jsxAttr     // an empty <legend/> in a <fieldset for>: the fieldset's for (forms.go)
+	contentLet *jsxAttr     // a component tag's let={t}: its content is <slot:children let={t}> (letContent)
+	letOf      string       // that <slot:children>: the tag it is the content of
 }
 
 // letVar is a name a slot's let declares.
@@ -327,6 +329,9 @@ func (p *jsxParser) element(off int) *jsxElem {
 			p.fail(off, "unclosed <%s>", el.tag)
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
+			if el.contentLet != nil {
+				p.fail(el.contentLet.off, "let names the values <%s>'s content takes, and <%s/> has none: give it content, or drop the let", el.tag, el.tag)
+			}
 			p.checkStyle(el)
 			if !p.formTag(el) && !comp {
 				p.innerHTML(el)
@@ -370,6 +375,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 			if comp {
 				p.inComp--
 			}
+			p.letContent(el, i)
 			j := p.space(i + 2)
 			name, k := p.name(j)
 			if comp && p.at(k) == '[' { // </List[Task]> closes <List[Task]> as </List> does
@@ -477,6 +483,10 @@ func (p *jsxParser) element(off int) *jsxElem {
 				el.lets = p.lets(a)
 				continue
 			}
+			if a.name == "let" && comp {
+				el.contentLet = a
+				continue
+			}
 			if a.kind == 'e' && (isEvent(a.name) || comp) && isStmts(p.src[a.expr.start:a.expr.end]) {
 				if !p.f.target.has("VukaState") || !comp && !p.f.target.has("On") {
 					p.fail(a.off, "%s={…} holds statements: an on… attribute writes states with them (open = !open) when the markup's target has states", a.name)
@@ -492,6 +502,33 @@ func (p *jsxParser) element(off int) *jsxElem {
 			p.fail(i, "unexpected %q in <%s>", c, el.tag)
 		}
 	}
+}
+
+// letContent makes the content of a component tag with a let — <List
+// let={t}>…</List> — the default slot's: <slot:children let={t}>…</>, its
+// other <slot:x>s staying the tag's. end is where the tag's closing tag
+// starts.
+func (p *jsxParser) letContent(el *jsxElem, end int) {
+	a := el.contentLet
+	if a == nil {
+		return
+	}
+	var content, rest []jsxNode
+	for _, k := range el.kids {
+		if sl, ok := k.(*jsxElem); ok && sl.isSlot() {
+			if sl.tag == "slot:children" {
+				p.fail(a.off, "<%s>'s content is in <slot:children>: put the let there, or drop the <slot:children>", el.tag)
+			}
+			rest = append(rest, k)
+			continue
+		}
+		content = append(content, k)
+	}
+	if !hasContent(content) {
+		p.fail(a.off, "let names the values <%s>'s content takes, and it has none outside its slots: give it content, or put the let on the <slot:x> it is for", el.tag)
+	}
+	slot := &jsxElem{start: a.off, end: end, tag: "slot:children", tagEnd: a.off, lets: p.lets(a), kids: content, letOf: el.tag}
+	el.kids = append([]jsxNode{slot}, rest...)
 }
 
 // lets reads a slot's let={t} or let={t, i}: the names its content gives

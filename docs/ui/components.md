@@ -65,6 +65,17 @@ type Members struct { People []models.Person }
 </ui.Card>
 ```
 
+When the func field is Children, the `let` goes on the tag itself: the
+tag's content is the function's body, beside its other slots, as Vue's
+`v-slot` on a component takes its default slot:
+
+```html
+<ui.ModalOf for={edit} let={u}>
+  <p>Rename {u.Name}?</p>
+  <slot:footer let={u}><button onClick={Rename(u.ID)}>Rename</button></slot:footer>
+</ui.ModalOf>
+```
+
 A func field is also set as a prop, to a value of its type. A func literal
 set on it takes markup for its body, so a slot used once needs no
 `<slot:…>` tag, and a [markup func](/ui/templates#markup-funcs) bound once
@@ -462,3 +473,80 @@ and their named node fields as slots. `ui.Table` and `ui.DataTable` take
 their columns as repeated `<slot:column>` slots, or as a `columns={…}` slice
 built in Go. The kit uses the same node tree and
 live protocol as application components; no second rendering syntax is needed.
+
+### Modal {#modal}
+
+`<ui.ModalOf>` is a dialog driven by one state: a `ui.State[*T]`, nil
+while it is closed, holding the value it shows while it is open. Write a
+value to open it, from a handler or right in the markup; its content takes
+the value by `let`, never nil there:
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "example.com/app/models"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Repos struct {
+    ui.Live
+    Rows []models.Repo
+    sync ui.State[*models.Repo]
+}
+
+func (p *Repos) RunSync(id int) { … }
+</script>
+
+<table>
+  for _, r := range Rows {
+    <tr onClick={sync = &models.Repo{ID: r.ID, Name: r.Name}}><td>{r.Name}</td></tr>
+  }
+</table>
+
+<ui.ModalOf for={sync} let={t} title={ui.Text("Sync")}>
+  <p>Sync {t.Name} now?</p>
+  <input name="note" value={t.Name} />
+  <slot:footer let={t}>
+    <ui.Button on={RunSync(t.ID)}>Sync now</ui.Button>
+  </slot:footer>
+</ui.ModalOf>
+```
+
+- **Opening** shows the modal at once and asks the server for its
+  content, the state's new value riding the request, so a write in the
+  markup opens it as a handler's write does. Each open is a new write of
+  the state: a field in the content takes the new value's, as a field
+  takes a server value that changed, with no key or remount.
+- **Closing**: the close button, a click on the backdrop and Escape write
+  nil in the browser, at once, and give the focus back to what had it.
+  The content stays as it was while the modal fades out; the server is
+  told once the fade is over (`onClose`, when set, is called then) and its
+  render removes the content. `closed` keeps the modal open until its own
+  buttons or the server write nil.
+- **Focus and labels**: showing moves the focus to the dialog, and on to
+  the content's first field when the content is there; the dialog is
+  labelled by its `title`, its ids its tag's ([ids](#ids)). It renders in
+  a [Teleport](#teleport).
+
+A close of your own fades the same way when it is a write in the markup
+(`onClick={sync = nil}`); a handler's write of nil closes it with its
+reply, at once. Only the modal's own close gives the focus back.
+
+The state is synced: the modal's Go code reads it, so its value is the
+browser's as of each event — a value the visitor can write, so check it
+on the server before acting on it, as any synced state. On a page that
+isn't live the content is rendered by the page's handlers' replies;
+opening it with a write in the markup needs a live page.
+
+`<ui.Modal>` stays for a modal whose open state isn't a value: a
+browser-only modal named by `ref` and opened with `ui.OpenModal(ref)`, or
+a server-owned one following a live field through `open` and `onClose`:
+
+```html
+<button onClick={ui.OpenModal("help")}>Help</button>
+<ui.Modal ref="help" title={ui.Text("Help")}>…</ui.Modal>
+
+<ui.Modal ref="edit" open={editing} onClose={Close}>…</ui.Modal>
+```

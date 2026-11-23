@@ -1,0 +1,21 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Show renders its content for Value, its default slot taking the value,
+// and Empty when there is none.
+type Show[T any] struct {
+	Value    *T
+	Empty    ui.Node
+	Children func(*T) ui.Node
+}
+</script>
+
+<div class="show">
+  if Value != nil {
+    {Children(Value)}
+  } else {
+    {Empty}
+  }
+</div>
