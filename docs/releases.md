@@ -108,6 +108,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   sources in about two seconds on a 216-package module.
 - **A model edit reruns the orm tool only where it can reach**, not
   across the whole module.
+- **Ctrl-C stops `vuka run -watch`'s first build.** The first press
+  cancels the compile and exits before anything starts; a transpile
+  that can't stop is given a second, and a second press exits at once.
+  Shimmed go commands refuse vuka-only flags with the spelling to use,
+  and a vuka run through a link keeps one transpile cache.
 
 ## v2.24.0 — 2026-11-20
 
