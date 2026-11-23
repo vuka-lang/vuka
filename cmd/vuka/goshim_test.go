@@ -528,6 +528,94 @@ func TestGoShimInternalGo(t *testing.T) {
 	}
 }
 
+const shimBuildSrc = `package main
+
+import "fmt"
+
+var released bool
+
+var mark = "none"
+
+func name() Result[string] { return Ok("ada") }
+
+func main() { fmt.Println(name().Unwrap(), released, mark) }
+`
+
+const shimBuildRelease = `//go:build vuka_release
+
+package main
+
+func init() { released = true }
+`
+
+// TestGoShimBuildPlain: go build through the shim is the overlay alone:
+// the binary plain go build makes with the generated Go on disk — debug
+// information kept, no vuka_release tag, no build/ module — and the
+// caller's -tags and -ldflags as given. vuka build adds its own.
+func TestGoShimBuildPlain(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	dir := module(t, map[string]string{"main.vuka": shimBuildSrc, "release.go": shimBuildRelease})
+	shimDir, entry := selfShim(t)
+	goDir, _ := realGoDir(t)
+	path := append([]string{shimDir, goDir}, filepath.SplitList(os.Getenv("PATH"))...)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	bins := t.TempDir()
+	build := func(bin string, args ...string) string {
+		t.Helper()
+		var out bytes.Buffer
+		c := shimCommand(t, ctx, entry, dir, path, append(append([]string{"build", "-o", bin}, args...), ".")...)
+		c.Stdout, c.Stderr = &out, &out
+		if err := c.Run(); err != nil {
+			t.Fatalf("go build %s through the shim: %v\n%s", strings.Join(args, " "), err, out.Bytes())
+		}
+		run, err := exec.CommandContext(ctx, bin).Output()
+		if err != nil {
+			t.Fatalf("%s: %v", bin, err)
+		}
+		return strings.TrimSpace(string(run))
+	}
+
+	bin := filepath.Join(bins, exe("plain"))
+	if got := build(bin); got != "ada false none" {
+		t.Errorf("go build through the shim: the binary prints %q, want %q (no vuka_release tag)", got, "ada false none")
+	}
+	if has, err := hasDWARF(bin); err != nil {
+		t.Log(err)
+	} else if !has {
+		t.Error("go build through the shim left out the debug information")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "build")); err == nil {
+		t.Error("go build through the shim wrote the build/ module")
+	}
+
+	bin = filepath.Join(bins, exe("flags"))
+	if got := build(bin, "-tags=vuka_release", "-ldflags=-X=main.mark=mine"); got != "ada true mine" {
+		t.Errorf("go build -tags -ldflags through the shim: the binary prints %q, want %q", got, "ada true mine")
+	}
+	if has, err := hasDWARF(bin); err == nil && !has {
+		t.Error("go build -ldflags through the shim: -w was added to the caller's flag")
+	}
+
+	// vuka build itself keeps its release build.
+	bin = filepath.Join(bins, exe("vuka"))
+	var out bytes.Buffer
+	if err := vukaIn(dir, &out, &out, "build", "-o", bin, "."); err != nil {
+		t.Fatalf("vuka build: %v\n%s", err, out.Bytes())
+	}
+	if run, err := exec.CommandContext(ctx, bin).Output(); err != nil || strings.TrimSpace(string(run)) != "ada true none" {
+		t.Errorf("vuka build: the binary prints %q (%v), want the vuka_release build", run, err)
+	}
+	if has, err := hasDWARF(bin); err == nil && has {
+		t.Error("vuka build kept the debug information")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "build")); err != nil {
+		t.Errorf("vuka build wrote no build/ module: %v", err)
+	}
+}
+
 func mustExecutable(t *testing.T) string {
 	t.Helper()
 	self, err := os.Executable()

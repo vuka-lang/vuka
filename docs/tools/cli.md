@@ -416,11 +416,17 @@ whole module.
 ### Plain go Commands {#shim}
 
 The go shim lets you type `go build`, `go test`, `go vet` and `go run` in a
-vuka app and get `vuka build`, `test`, `vet` and `run`: the same output,
-errors and exit status. Every other go command (`go mod`, `go env`,
-`go version`, `go list`, `go tool`…), and every go command outside a vuka
-app, runs the real go untouched. That makes an editor's test runner or a
-script that calls `go test` work on `.vuka` files.
+vuka app and have them see its `.vuka` files. Every other go command
+(`go mod`, `go env`, `go version`, `go list`, `go tool`…), and every go
+command outside a vuka app, runs the real go untouched. That makes an
+editor's test runner or a script that calls `go test` work on `.vuka` files.
+
+| You type | In a vuka app |
+|---|---|
+| `go test`, `go vet`, `go run` | `vuka test`, `vet`, `run`: the same output, errors and exit status |
+| `go build` | the overlay alone: the binary plain `go build` makes with the generated Go on disk, your `-ldflags` and `-tags` as given; none of `vuka build`'s `-ldflags=-w`, `-tags=vuka_release`, `build/` module, frontend or Tailwind build |
+| `go build -h`, `-overlay=…`, `-modfile=…`; `go -C dir …` | the real go |
+| any other go command | the real go |
 
 ```sh
 vuka shim install

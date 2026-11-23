@@ -25,6 +25,7 @@ func TestMain(m *testing.M) {
 		if os.Getenv(shimInternalEnv) != "" {
 			os.Exit(shimInternalGo())
 		}
+		childShimmed = true
 		os.Exit(childCommand(os.Args[1:]))
 	}
 	if dir := os.Getenv(childEnv); dir != "" {
@@ -82,6 +83,9 @@ func vukaIn(dir string, stdout, stderr io.Writer, args ...string) error {
 	return c.Run()
 }
 
+// childShimmed: the child is the go shim, as main's shimmed.
+var childShimmed bool
+
 // childCommand is vuka args run in the child, as the tests run the
 // commands in process: main's commands without its cache trims and notices.
 func childCommand(args []string) int {
@@ -90,7 +94,7 @@ func childCommand(args []string) int {
 	var err error
 	switch cmd {
 	case "build", "run", "test", "vet", "install":
-		err = runGo(cmd, args, stdout, stderr)
+		err = runGoAs(cmd, args, stdout, stderr, childShimmed)
 	case "routes":
 		err = routesCmd(args, stdout, stderr)
 	case "gen":
