@@ -34,7 +34,8 @@ var msgRules = []string{"required", "min", "max", "len", "pattern", "oneof", "ch
 // specSettings are what each ui.Spec member sets, as uiTagSettings names
 // the settings.
 var specSettings = map[string]string{"Label": "label", "Help": "help", "Placeholder": "placeholder", "Widget": "input", "Autocomplete": "autocomplete",
-	"Required": "validate:required", "Optional": "validate:required", "Min": "validate:min", "Max": "validate:max", "Choices": "validate:oneof"}
+	"Required": "validate:required", "Optional": "validate:required", "Min": "validate:min", "Max": "validate:max", "Choices": "validate:oneof",
+	"Pattern": "pattern"}
 
 // fieldAttr is a field attribute and the file it is written in.
 type fieldAttr struct {
@@ -348,6 +349,8 @@ func (e *engine) uiSettings(fa fieldAttr) []string {
 			}
 		case name == "Required" && len(args) > 0:
 			out = append(out, "msg:required")
+		case name == "Pattern":
+			out = append(out, "pattern") // no tag sets it: only a Spec's Pattern
 		}
 		return out
 	}

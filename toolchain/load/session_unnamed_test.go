@@ -178,6 +178,7 @@ enumlit.go n
 fields.go kind
 fields.go n.Obj().Name() + "Columns"
 fields.go n.Obj().Name() + suffix
+fieldsingle.go typeName
 forms.go key
 forward.go fallField
 graphql.go name

@@ -276,6 +276,7 @@ func (e *engine) run() {
 		e.checkTagAttrs()
 		e.checkFieldSpecs()
 		e.checkStreams()
+		e.warnSingleAttrs()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
@@ -284,7 +285,7 @@ func (e *engine) run() {
 		for _, f := range e.vuka {
 			e.droppedHandlers(f)
 			e.implicitLive(f)
-			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 && len(f.hiddenWarns) == 0 && len(f.derivedWarns) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 && len(f.hiddenWarns) == 0 && len(f.derivedWarns) == 0 && len(f.singleWarns) == 0 {
 				continue
 			}
 			if e.warns == nil {
@@ -297,6 +298,7 @@ func (e *engine) run() {
 			e.warns[f] = append(e.warns[f], f.pushWarns...)
 			e.warns[f] = append(e.warns[f], f.hiddenWarns...)
 			e.warns[f] = append(e.warns[f], f.derivedWarns...)
+			e.warns[f] = append(e.warns[f], f.singleWarns...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {
