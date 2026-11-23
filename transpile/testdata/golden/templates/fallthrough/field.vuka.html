@@ -1,0 +1,16 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+// Field is a labelled control: the control is marked forward, so a
+// caller's attributes and bind:value reach it, not the label.
+type Field struct {
+	Label string
+}
+</script>
+
+<label class="field">
+  {Label}
+  <input class="h-10 rounded-md border" type="text" forward/>
+</label>

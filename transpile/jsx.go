@@ -460,7 +460,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 				}
 			}
 			switch {
-			case a.name == "bind:value" && (comp || a.kind != 'e'):
+			case a.name == "bind:value" && a.kind != 'e':
 				p.fail(a.off, "bind:value takes a field of the page: <input bind:value={p.Q}/>")
 			case a.name == "bind:value" && !strings.Contains(string(p.src[a.expr.start:a.expr.end]), ".") && (p.f.html == nil || p.f.html.recv == ""):
 				p.fail(a.off, "bind:value takes a field of the page, through its receiver: bind:value={p.%s}", strings.TrimSpace(string(p.src[a.expr.start:a.expr.end])))

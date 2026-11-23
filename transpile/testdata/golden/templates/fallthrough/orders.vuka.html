@@ -1,0 +1,18 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+type Orders struct {
+	Query string
+	Hint  string
+}
+
+func (o *Orders) Refresh() error { return nil }
+</script>
+
+<main>
+  <Card title="Orders" class="bg-muted p-6" id="orders" aria-label="Orders" onClick={Refresh()}>
+    <Field label="Search" bind:value={Query} placeholder?={Hint} type="search" disabled/>
+  </Card>
+</main>

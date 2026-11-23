@@ -56,6 +56,21 @@ func (e *engine) checkRefs() {
 			x.jsx = true
 			walkJSX(t.root, func(el *jsxElem) {
 				if el.comp != nil {
+					// a ref the tag passes on names its forward element
+					for _, a := range el.comp.args {
+						if !a.fall {
+							continue
+						}
+						for _, b := range a.extra {
+							switch {
+							case b.attr.name != "ref":
+							case b.attr.kind == 's':
+								x.names = append(x.names, b.attr.val)
+							default:
+								x.computed = true
+							}
+						}
+					}
 					return
 				}
 				for _, a := range el.attrs {

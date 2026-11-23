@@ -1,0 +1,17 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/falltarget"
+
+// Card is a surface: its one element takes what its tag passes on, its
+// classes merged with the caller's.
+type Card struct {
+	Title    string
+	Children ui.Node
+}
+</script>
+
+<section class="rounded-xl border bg-card p-4" role="region">
+  <h2>{Title}</h2>
+  {Children}
+</section>

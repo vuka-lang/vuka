@@ -568,6 +568,9 @@ func (fi *fallInfo) nowhere() (string, string) {
 
 func (fi *fallInfo) element() string { return "<" + fi.forward + ">" }
 
+// formControl reports whether a tag is an element bind:value binds.
+func formControl(tag string) bool { return tag == "input" || tag == "select" || tag == "textarea" }
+
 // nearMiss is the prop name a misspelt attribute means, "" when none is
 // near: as unknownAttr's did-you-mean, but never for a name as short as
 // the edit (id isn't a misspelt Kind).
@@ -588,7 +591,8 @@ func (e *engine) fallthroughArg(c *jsxComp, fi *fallInfo, a *jsxAttr, names []st
 	name := passName(a)
 	switch {
 	case a.pass:
-	case a.name == "class" || a.name == "className":
+	case a.name == "bind:value":
+	case a.name == "class" || a.name == "className" || a.name == "ref":
 	default:
 		if near := nearMiss(a.name, names); near != "" {
 			return nil, "E0106", unknownAttr(el.tag, a.name, "fields", names)
@@ -601,14 +605,22 @@ func (e *engine) fallthroughArg(c *jsxComp, fi *fallInfo, a *jsxAttr, names []st
 	if why, help := fi.nowhere(); why != "" {
 		return nil, "E0138", "<" + el.tag + " " + name + "> passes " + name + " on, and " + why + "; " + help
 	}
-	if own := strings.ToLower(name); slices.Contains(fi.own, own) {
+	if a.name == "bind:value" {
+		if !formControl(fi.forward) {
+			return nil, "E0139", "<" + el.tag + " bind:value> binds the forward element, and " + fi.typ + "'s is " + fi.element() + ", not an input, select or textarea; mark the control with forward, or declare a prop for the value"
+		}
+	}
+	if own := strings.ToLower(name); slices.Contains(fi.own, own) || a.name == "bind:value" && (slices.Contains(fi.own, "bind:value") || slices.Contains(fi.own, "value")) {
 		what := name
+		if a.name == "bind:value" {
+			what = "its value"
+		}
 		return nil, "E0139", "<" + el.tag + " " + name + "> passes " + name + " on to " + fi.typ + "'s " + fi.element() + ", which sets " + what + " itself; declare a prop for it in " + fi.typ + ", or drop it here"
 	}
 	if a.kind == 'e' && isEvent(a.name) && !a.stmts {
 		a.event = true
 	}
-	return &compArg{attr: a, typ: types.Universe.Lookup("any").Type()}, "", ""
+	return &compArg{attr: a, typ: types.Universe.Lookup("any").Type(), bindVal: a.name == "bind:value"}, "", ""
 }
 
 // code is the code of the error binding c's attributes failed with: its

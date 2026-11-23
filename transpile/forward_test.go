@@ -91,19 +91,20 @@ type Input struct {
 <label>{Label} <input class="h-10 rounded-md border" forward/></label>
 `
 
-// TestFallthroughEvents: a DOM event no prop takes is the forward
-// element's, its call of a method a push; a bool attribute passes on as
-// written.
-func TestFallthroughEvents(t *testing.T) {
-	src, err := compileFall(t, `<Card onClick={Save()}>a</Card>
-  <Input label="Email" disabled placeholder="you@example.com"/>`, "input.vuka.html", fallInput)
+// TestFallthroughEventsBind: a DOM event no prop takes is the forward
+// element's, its call of a method a push; bind:value on a component whose
+// forward element is a control is that control's binding; ref and a bool
+// attribute pass on as written.
+func TestFallthroughEventsBind(t *testing.T) {
+	src, err := compileFall(t, `<Card onClick={Save()} ref="card">a</Card>
+  <Input label="Email" bind:value={Q} disabled placeholder="you@example.com"/>`, "input.vuka.html", fallInput)
 	if err != nil {
 		t.Fatal(codes(err))
 	}
 	wantIn(t, src,
-		`Card{Fallthrough: ui.Fallthrough{ui.Attr{Name: "onClick", Value: ui.JS.Push(p.Save)}}`,
+		`Card{Fallthrough: ui.Fallthrough{ui.Attr{Name: "onClick", Value: ui.JS.Push(p.Save)}, ui.Attr{Name: "ref", Value: "card"}}`,
 		`ui.RegisterPush((*Page).Save)`,
-		`Input{Label: "Email", Fallthrough: ui.Fallthrough{ui.Attr{Name: "disabled", Value: true}, ui.Attr{Name: "placeholder", Value: "you@example.com"}}}`,
+		`Input{Label: "Email", Fallthrough: ui.Fallthrough{ui.Attr{Name: "bind:value", Value: ui.BindValue(p, &p.Q)}, ui.Attr{Name: "disabled", Value: true}, ui.Attr{Name: "placeholder", Value: "you@example.com"}}}`,
 		"Fallthrough ui.Fallthrough `vuka:\"forward=input\"`",
 		`<label>{i.Label} <input {i.Fallthrough.Attrs()...} class={i.Fallthrough.Merge("h-10 rounded-md border")}/></label>`)
 }
@@ -135,10 +136,13 @@ func TestFallthroughErrors(t *testing.T) {
 		{"several roots", fallComp("Box", "Label string", "<h2>{Label}</h2>\n<p>x</p>"), `<Box id="a"/>`, "E0138", "several roots, <h2>, <p>, and none is marked forward"},
 		{"a slot root", fallComp("Box", "Title ui.Node", `<slot:title>Untitled</slot:title>`), `<Box class="mt-4"/>`, "E0138", "Box's markup's root is <slot:title>, not an element"},
 		{"a component root", fallComp("Box", "Label string", `<Card title={Label}>x</Card>`), `<Box id="a"/>`, "E0138", "forward element is the component <Card>"},
-				{"an event the element handles", fallComp("Box", "Label string", `<button onClick={Toggle()}>{Label}</button>`), `<Box onClick={Save()}/>`, "E0139", "which sets onClick itself"},
+		{"bind on no control", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box bind:value={Q}/>`, "E0139", "Box's is <div>, not an input, select or textarea"},
+		{"an event the element handles", fallComp("Box", "Label string", `<button onClick={Toggle()}>{Label}</button>`), `<Box onClick={Save()}/>`, "E0139", "which sets onClick itself"},
 		{"a misspelt prop", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box lable="x"/>`, "E0106", "did you mean Label?"},
 		{"not an attribute", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box tone="x"/>`, "E0106", "attr:tone={…} passes it on as written"},
-						{"an unused class tag", fallComp("Box", "Class string `vuka:\"class\"`", `<div class="p-4">x</div>`), `<Box/>`, "E0123", "Box's Class is tagged vuka:\"class\" and no class attribute uses it"},
+		{"bind on a component with Attrs", fallComp("Box", "Attrs []ui.Attr", `<input {Attrs...}/>`), `<Box bind:value={Q}/>`, "E0106", "takes no bind:value"},
+		{"a near prop through attr: skips the check", fallComp("Box", "Label string", `<div>{Label}</div>`), `<Box attr:lable="x" bind:value.debounce.300ms={Q}/>`, "E0139", "Box's is <div>"},
+		{"an unused class tag", fallComp("Box", "Class string `vuka:\"class\"`", `<div class="p-4">x</div>`), `<Box/>`, "E0123", "Box's Class is tagged vuka:\"class\" and no class attribute uses it"},
 	} {
 		_, err := compileFall(t, c.markup, "box.vuka.html", c.comp)
 		if err == nil || !strings.Contains(codes(err), c.code) || !strings.Contains(err.Error(), c.want) {

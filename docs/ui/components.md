@@ -231,8 +231,9 @@ spreads its `Attrs` on: `<Combobox onChange={Choose(this.value)}/>`
 ([Events on Components](/ui/events#components)).
 
 `attr:name` sets any attribute by its HTML name. On a component it is an
-entry of its `Attrs`, never a prop, whatever the name, so it needs no
-`[]ui.Attr` literal; a component without an `Attrs` field is
+entry of its `Attrs`, or what it passes on to its
+[forward element](#fallthrough), never a prop, whatever the name, so it
+needs no `[]ui.Attr` literal; a component taking neither is
 [E0106](/errors/E0106). On an element it is the attribute as written, for a
 name the compiler would read otherwise:
 
@@ -253,6 +254,72 @@ prop keeps its [default](#defaults). A bool needs no `?=` — `disabled={Busy}`
 is left out when false — and `disabled?={Busy}` is
 [E0135](/errors/E0135); `Option[T]` stays the way to pass a zero that is a
 real value.
+
+## Fallthrough {#fallthrough}
+
+A component's tag takes its props, and what no prop takes goes on to one
+element of the component's markup, its **forward element**: its one
+top-level element, or, when it has several or the right spot is inside,
+the element marked with a bare `forward`:
+
+```vuka
+<div class="rounded-xl border bg-card shadow-xs">{Children}</div>
+```
+
+```vuka
+<design.Card class="border-red-200 mt-4" id="billing" aria-label="Billing">…</design.Card>
+```
+
+renders `<div class="rounded-xl border bg-card shadow-xs border-red-200 mt-4"
+id="billing" aria-label="Billing">`. What falls through:
+
+- **`class`**, merged with the element's own by
+  [MergeClasses](/ui/classes#merging): the caller's utilities replace the
+  component's of the same group (`bg-muted` replaces `bg-card`), the rest
+  stay;
+- **HTML, ARIA and data attributes** — `id`, `title`, `role`, `tabindex`,
+  `disabled`, `aria-*`, `data-*`, an element's own (`placeholder`,
+  `autocomplete`) — replacing the element's own of that name;
+- **DOM events**: `onClick={Save()}` on a component with no handler prop
+  for it is the element's `onClick`;
+- **`bind:value`** when the forward element is an `input`, `select` or
+  `textarea`: it binds the control as it would written on it;
+- **`ref`**, naming the element for JS commands.
+
+```vuka
+<label>{Label} <input class="h-10 rounded-md border" forward/></label>
+```
+
+```vuka
+<components.Input label="Email" bind:value={Email} placeholder="you@example.com" disabled={Busy}/>
+```
+
+The order of the checks is the design: an attribute naming a prop sets the
+prop; one a letter or two off a prop's name is a did-you-mean error,
+never a silent attribute; then it falls through when it is an attribute of
+HTML — anything else is an error. `attr:name` passes an attribute on as
+written, skipping the checks. A component declaring `Attrs []ui.Attr`
+takes everything there instead, wherever its markup spreads it, and a
+caller's `id` sets an `ID` prop — a [ui.AutoID](#ids) one included, so the
+caller's id wins over the generated one.
+
+The compiler gives the component a field `Fallthrough ui.Fallthrough`
+holding what its tag passed on, which Go code sets like any field. A
+component's struct declared in a `.go` file beside its template passes
+nothing on; a forward marker there is [E0137](/errors/E0137), as are two
+markers or one inside a `for` loop. A tag passing something on to a
+component with no forward element — several roots and none marked, a root
+that is `{Children}` or a slot, or a component's tag — is
+[E0138](/errors/E0138); `bind:value` on a component whose forward element
+isn't a control, or an attribute the element sets in a way a caller's
+can't replace (its own handler for the event, its `style`), is
+[E0139](/errors/E0139).
+
+A component that computes with the caller's classes declares
+`Class string` tagged `vuka:"class"`: the class attribute using it merges
+it last, `class={"inline-flex rounded-md " + Class}` written as
+`ui.MergeClasses("inline-flex rounded-md ", Class)`, and a tagged `Class`
+no class attribute uses is [E0123](/errors/E0123).
 
 ## Linking Between Pages {#links}
 

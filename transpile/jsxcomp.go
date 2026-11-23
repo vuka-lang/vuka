@@ -125,6 +125,7 @@ type compArg struct {
 	or    string       // and the call taking v and it: "cmp.Or[T]"
 
 	fall       bool       // the props' Fallthrough: ui.Fallthrough{extra…} (forward.go)
+	bindVal    bool       // a bind:value passed on to the forward element: its ui.BindValue
 	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
 	uiAttrs    bool       // the props' Attrs ([]ui.Attr): its value with extra appended
 	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs or Attrs
@@ -221,7 +222,11 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			w.gen(q + "Fallthrough{")
 			for _, x := range a.extra {
 				w.gen(q + "Attr{Name: " + strconv.Quote(passName(x.attr)) + ", Value: ")
-				w.omitWrap(x.attr, func() { value(x, false) })
+				if x.bindVal {
+					w.bindValue(x.attr)
+				} else {
+					w.omitWrap(x.attr, func() { value(x, false) })
+				}
 				w.gen("}, ")
 			}
 			w.gen("}")

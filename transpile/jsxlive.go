@@ -332,7 +332,7 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 	}
 	var extra []*compArg
 	for _, a := range attrs {
-		if fall != nil && a.name != "model" && a.name != "ref" && (a.pass || bindName(names, a.name) < 0) {
+		if fall != nil && a.name != "model" && (a.pass || a.name == "bind:value" || bindName(names, a.name) < 0) {
 			x, code, msg := e.fallthroughArg(c, fall, a, names)
 			if msg != "" {
 				c.failCode = code
@@ -340,6 +340,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			}
 			extra = append(extra, x)
 			continue
+		}
+		if a.name == "bind:value" {
+			return false, a.off, "<" + el.tag + "> takes no bind:value: bind:value goes on an element, or on a component passing its tag's attributes on to an input, select or textarea (its forward element)"
 		}
 		if a.pass {
 			// attr:form={…}: the attribute, for the props' Attrs whatever
