@@ -21,6 +21,94 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.25.0 — 2026-11-23
+
+### Upgrading
+
+- **One state.** `ui.State[T]` is the one state type: the server and the
+  browser each hold a replica, writes are versioned on both sides, and a
+  field is classified by how it is used — read only by markup it stays in
+  the browser and is never sent; read by Go it is synced, and a handler
+  reads the browser's value as of the event. `ui.Assign` is an alias and
+  deprecated; `ui.Derived` and `@ui.From` deprecate with it (a derived
+  value is an expression). Existing pages compile unchanged; the one
+  observable change is that handlers now see the browser's truth for
+  synced states at event boundaries.
+- **Form field attributes become tags.** The twelve single-setting field
+  attributes — `@ui.Label`, `Help`, `Placeholder`, `Widget`,
+  `Autocomplete`, `Required`, `Email`, `Min`, `Max`, `Pattern`, `OneOf`,
+  `Msg` — warn (W0314) and name their replacement: the `label:`/`help:`/
+  `validate:`/`msg:` tags, or one `@ui.Spec`. They keep working this
+  release; `vuka fix attributes` rewrites them mechanically. `Spec` gains
+  `Pattern`.
+- **Deprecated, with survivors named:** `ui.OptionGroup` (use
+  `Option.Group`), the `ui.Boundary` struct (use `ui.ErrorBoundary`),
+  `ui.SharedLive` and `ui.Broadcast` (use `ui.Live` with `Subscribe` and
+  `web.Broadcast`).
+- **A func literal on a prop follows the prop's type.** On a prop
+  returning `ui.Node` its body is markup; on any other prop it is Go, a
+  written result type deciding at once — so callback props take any Go
+  body, `?` included. Go statements silently rendering as text is now
+  E0100, and a stray bracket after a literal is a syntax error at that
+  token, not an unclosed-element report.
+
+### Components
+
+- **Typed handler props.** `ui.Action`, `ui.ActionOf[T]` and `ui.JSChain`
+  type a component's handlers; event sugar follows the field's type, and
+  calling one from Go, or pushing the wrong payload, is a compile error
+  (E0192–E0194).
+- **Plain attributes.** `attr:name` sets any pass-through attribute, on
+  components too; `name?={v}` writes an attribute only when the value
+  isn't its type's zero. Props declare defaults in the tag
+  (`vuka:"default=button"`, applied only when the tag leaves the prop
+  out), and a quoted value on a typed prop completes in the editor and is
+  checked against the type's constants.
+- **`ui.AutoID`.** A field of this type renders as an id unique on the
+  page and stable across renders, derived from the tag's place; `Suffix`
+  names its parts. The kit's required modal ids are gone.
+- **Fallthrough.** A component has one forward element (its single root,
+  or the one marked `forward`): a caller's `class` merges into it with
+  tailwind-merge semantics (`ui.MergeClasses`), real HTML/ARIA/data
+  attributes and DOM events fall through to it after the prop and
+  did-you-mean checks, and `bind:value`, `ref` and `disabled` reach a
+  forward form control. An empty fallthrough costs nothing on the live
+  wire. `asChild` runs the routing in reverse: the caller's single
+  element child becomes the root, carrying the component's classes and
+  handlers — a Button that is really a link needs no `Href` prop.
+- **Markup func literals.** A func literal bound at template level takes
+  markup as its body and is an ordinary `func(…) ui.Node` — called in a
+  hole, passed to a func prop, replacing a one-use slot. Bodies have the
+  file's full grammar, close over props and state, and events in them are
+  checked as the main markup's are.
+- **`ui.ModalOf[T]`.** A dialog over one `ui.State[*T]`: nil is closed, a
+  write of a value opens it, its content takes the value by `let` and is
+  never nil, closes are browser-instant with the fade kept, and each open
+  is a new versioned write so fields come up fresh with no key or
+  remount. `let` on a component tag fills its Children slot, and a `let`
+  named like the receiver no longer captures the markup's bare names.
+
+### Plain go commands
+
+- **`vuka shim install`** puts a `go` on PATH that runs vuka's
+  overlay-aware build, test, vet and run inside a vuka app — `go test
+  ./...` just works — and is the real go everywhere else and for every
+  other subcommand. macOS, Linux and Windows.
+
+### Faster
+
+- **A kit table's event skips its unchanged rows.** A context read a
+  render itself satisfies no longer marks the component unskippable: one
+  row's event on a 1000-row table with row menus went from 19.8ms and
+  1002 renders to 2.5ms and 3, with 11× fewer allocations. A render
+  benchmark suite and its profile report are in the ui repo.
+- **The language server answers at once on large modules.** The first
+  completion after opening a file no longer returns empty while the first
+  build runs: an attribute value's constants are answered from the
+  sources in about two seconds on a 216-package module.
+- **A model edit reruns the orm tool only where it can reach**, not
+  across the whole module.
+
 ## v2.24.0 — 2026-11-20
 
 ### Upgrading

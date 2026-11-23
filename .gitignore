@@ -10,3 +10,5 @@ docs/.vitepress/cache/
 docs/public/playground/vuka.wasm
 docs/public/playground/types.bin
 docs/public/playground/wasm_exec.js
+.claude/
+.DS_Store
