@@ -2,7 +2,7 @@
 package main
 
 // Page lists tasks with a scoped slot, its type arguments written and
-// inferred.
+// inferred; Show's default slot takes its value by a let on its tag.
 type Page struct{ Tasks []Task }
 </script>
 
@@ -24,6 +24,14 @@ type Page struct{ Tasks []Task }
   <Panel title="Numbers" n={2}>
     <slot:row let={n}><p>#{n}</p></slot:row>
   </Panel>
+  <Show value={&Tasks[0]} let={t}>
+    <b>{t.Title}</b>
+    <slot:empty>none</slot:empty>
+  </Show>
+  <Show[Task] let={t}>
+    <b>{t.Title}</b>
+    <slot:empty>none</slot:empty>
+  </Show[Task]>
   <Picker options={[]string{"a", "b"}}>
     <slot:option let={o, on}><b class:on={on}>{o}</b></slot:option>
   </Picker>

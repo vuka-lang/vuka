@@ -126,7 +126,7 @@ func (e *engine) slotArg(c *jsxComp, sl *jsxElem, t types.Type, kind byte, prev 
 	switch kind {
 	case slotNode:
 		if len(sl.lets) > 0 {
-			return nil, sl.lets[0].at.start, "<" + sl.tag + "> fills " + e.display(t) + ", which takes no values: let goes on a slot of a func type, such as Row func(T) " + c.target.q + "Node"
+			return nil, sl.lets[0].at.start, sl.slotLabel() + " fills " + e.display(t) + ", which takes no values: let goes on a slot of a func type, such as Row func(T) " + c.target.q + "Node"
 		}
 		return &compArg{slot: true, nodes: append([]jsxNode{}, sl.kids...), at: sl.start}, 0, ""
 	case slotFunc:
@@ -148,6 +148,15 @@ func (e *engine) slotArg(c *jsxComp, sl *jsxElem, t types.Type, kind byte, prev 
 	return prev, 0, ""
 }
 
+// slotLabel is how errors name a slot: <slot:x>, or for the content of a
+// tag with a let, <Tag>'s content.
+func (el *jsxElem) slotLabel() string {
+	if el.letOf != "" {
+		return "<" + el.letOf + ">'s content"
+	}
+	return "<" + el.tag + ">"
+}
+
 // letsFit says why a slot's let doesn't fit its function: more names than
 // the function takes values.
 func letsFit(sl *jsxElem, sig *types.Signature, e *engine) string {
@@ -161,11 +170,11 @@ func letsFit(sl *jsxElem, sig *types.Signature, e *engine) string {
 	}
 	switch n {
 	case 0:
-		return "<" + sl.tag + ">'s function takes no values: drop the let"
+		return sl.slotLabel() + "'s function takes no values: drop the let"
 	case 1:
-		return "<" + sl.tag + "> passes one value, " + ts[0] + ": let={" + sl.lets[0].name + "}"
+		return sl.slotLabel() + " passes one value, " + ts[0] + ": let={" + sl.lets[0].name + "}"
 	}
-	return "<" + sl.tag + "> passes " + strconv.Itoa(n) + " values (" + strings.Join(ts, ", ") + "); let names " + strconv.Itoa(len(sl.lets))
+	return sl.slotLabel() + " passes " + strconv.Itoa(n) + " values (" + strings.Join(ts, ", ") + "); let names " + strconv.Itoa(len(sl.lets))
 }
 
 // elemContent is the field a repeated slot's content fills: the element

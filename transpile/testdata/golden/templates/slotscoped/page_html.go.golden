@@ -11,7 +11,7 @@ import (
 )
 
 // Page lists tasks with a scoped slot, its type arguments written and
-// inferred.
+// inferred; Show's default slot takes its value by a let on its tag.
 //
 //line page.vuka.html:6
 type Page struct{ Tasks []Task }
@@ -19,16 +19,16 @@ type Page struct{ Tasks []Task }
 //line page.vuka.html:9
 func (pa Page) View() ui.Node {
 	list := List[Task]{Items: pa.Tasks, Row: func(t Task, i int) ui.Node {
-		var s ui.Node
+		var s2 ui.Node
 //line page.vuka.html:13
 		if t.Done {
-			s = ui.HTML(`<s>{t.Title}</s>`, t.Title)
+			s2 = ui.HTML(`<s>{t.Title}</s>`, t.Title)
 		} else {
-			s = ui.HTML(`{t.Title}`, t.Title)
+			s2 = ui.HTML(`{t.Title}`, t.Title)
 		}
 		return ui.HTML(`
 <b>{i + 1}.</b>
-{s}`, i+1, s)
+{s2}`, i+1, s2)
 	}}
 //line page.vuka.html:20
 	list2 := List[Task]{Items: pa.Tasks, Row: func(t Task, _ int) ui.Node {
@@ -38,6 +38,14 @@ func (pa Page) View() ui.Node {
 	panel := Panel("Numbers", 2, func(n int) ui.Node {
 		return ui.HTML(`<p>#{n}</p>`, n)
 	})
+	show := Show[Task]{Value: &pa.Tasks[0], Children: func(t *Task) ui.Node {
+		return ui.HTML(`<b>{t.Title}</b>`, t.Title)
+	}, Empty: ui.HTML(`none`)}
+//line page.vuka.html:31
+	show2 := Show[Task]{Children: func(t *Task) ui.Node {
+		return ui.HTML(`<b>{t.Title}</b>`, t.Title)
+	}, Empty: ui.HTML(`none`)}
+//line page.vuka.html:35
 	picker := &Picker{Options: []string{"a", "b"}, Option: func(o string, on bool) ui.Node {
 		return ui.HTML(`<b class:on={on}>{o}</b>`, on, o)
 	}}
@@ -47,9 +55,18 @@ func (pa Page) View() ui.Node {
   {list}
   {list2}
   {panel}
+  {show}
+  {show2}
   {picker}
-</main>`, list, list2, panel, picker)
+</main>`,
+		list,
+		list2,
+		panel,
+		show,
+		show2,
+		picker,
+	)
 }
 
-//line page.vuka.html:30
+//line page.vuka.html:38
 func (pa Page) Render(ctx context.Context, w io.Writer) error { return pa.View().Render(ctx, w) }

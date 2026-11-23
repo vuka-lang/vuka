@@ -723,6 +723,51 @@ on merged state as the conformance example — with §2's `ui.ActionOf` and a
 fresh-per-open overlay over two unified states, the ten-field page drops
 to two.
 
+### The dialog on one state: `ui.ModalOf` and `let` on a tag
+
+The conformance example lands as the kit's `ui.ModalOf[T]`: one
+`ui.State[*T]` is the whole dialog — nil closed, the payload open — and
+the content takes the payload by `let` on the tag, the default slot's
+scoped value (Vue's `v-slot` on a component):
+
+```vuka
+<tr onClick={sync = &SyncTarget{ID: r.ID, Name: r.Name}}>…</tr>
+
+<ui.ModalOf for={sync} let={t}>
+  <h2>Sync {t.Name}</h2>
+  <ui.Button on={RunSync(t.ID)}>Sync now</ui.Button>
+</ui.ModalOf>
+```
+
+- **`let` on a component tag** is `<slot:children let={…}>` around the
+  tag's content — one parser rewrite, no new semantics: the func field
+  Children takes it, a generic component's type arguments come from the
+  other attributes as for any scoped slot.
+- **Open** is any non-nil write. The modal's root follows the state in
+  the browser; its content is server-rendered from the payload, in a
+  `ui.Lazy` region rendering again each time it shows, so a browser-only
+  write rides the region's request and the reply carries the content.
+  Fresh-per-open is the state's versioned write; the modal adds no key.
+- **Close** — its X, backdrop, Escape — writes nil in the browser at
+  once and pops the focus; the server is told (`Reload` of the dialog's
+  region, or `OnClose`) only after the leave transition, which is what
+  holds the last payload's markup through the fade: nothing re-renders
+  it until then. That is today's machinery — `show=`/`transition=` on the
+  root, a `Debounce` step — not §11's keyed leave.
+- **Why a second type**: making `ui.Modal` generic would break every
+  `ui.Modal{…}` literal and every tag without a payload (Go has no
+  default type arguments); `ui.Modal` stays for a modal whose open state
+  isn't a value.
+- **Limits, recorded**: a handler's close (`p.sync = nil` after the
+  work) arrives as a patch, which shows a `show=` change at once — no
+  fade — and restores no focus; a button's own `sync = nil` fades but
+  restores no focus and leaves the previous payload's markup until the
+  page's next event, so a markup reopen shows it for a round trip; a
+  markup-write open needs a live page (a plain page's region request
+  carries no states). §11's keyed leave (awaited before a patch removes
+  the node) lifts the first; the runtime clearing a re-shown
+  `data-vk-each` region the second.
+
 ## 13. Sequencing and the kits
 
 Order, cheapest and highest-leverage first:
