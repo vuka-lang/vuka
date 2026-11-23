@@ -240,8 +240,9 @@ func TestLSPEnumPropAttr(t *testing.T) {
 }
 
 // A component tag whose props have an Attrs field completes attr:, the
-// attribute it passes on; one without doesn't. Both new forms leave the
-// spots after them attributes.
+// attribute it passes on, and so does one passing its tag's attributes on
+// to its forward element, with the element's attributes. Both new forms
+// leave the spots after them attributes.
 func TestLSPAttrPassthrough(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -258,7 +259,8 @@ func TestLSPAttrPassthrough(t *testing.T) {
 	}
 	page := strings.Replace(lspEnumPage, `<components.Button variant="" tone="" icon="">Save</components.Button>`,
 		`<components.Button attr:form={id} icon?={x} >Save</components.Button>
-  <components.Card icon?={x} >x</components.Card>`, 1)
+  <components.Card icon?={x} >x</components.Card>
+  <p data-x="1" >x</p>`, 1)
 	src := []byte(page)
 	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
 	vf := &vfile{source: filepath.Join(dir, "pages", "index.vuka.html"), from: src}
@@ -278,8 +280,19 @@ func TestLSPAttrPassthrough(t *testing.T) {
 	if !labels(`icon?={x} `)["attr:"] {
 		t.Error("no attr: on a component with Attrs")
 	}
-	if labels(`<components.Card icon?={x} `)["attr:"] {
-		t.Error("attr: on a component without Attrs")
+	// a template without Attrs passes its tag's attributes on to its
+	// forward element: attr:, class and the element's global attributes
+	cardAttrs := labels(`<components.Card icon?={x} `)
+	for _, want := range []string{"attr:", "class", "id", "title", "aria-label", "onClick", "data-"} {
+		if !cardAttrs[want] {
+			t.Errorf("no %s on a component passing its tag's attributes on", want)
+		}
+	}
+	if cardAttrs["fallthrough"] || cardAttrs["key"] {
+		t.Error("its Fallthrough field or key offered as an attribute")
+	}
+	if !labels(`<p data-x="1" `)["forward"] {
+		t.Error("no forward on an element of a template")
 	}
 	for _, needle := range []string{`attr:form={id}`, `icon?={x}`} {
 		off := strings.Index(page, needle) + len(needle) - 1

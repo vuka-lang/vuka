@@ -6,10 +6,12 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/htmldata"
 )
 
 // Fallthrough (RFC components-seamless §5): what a caller writes on a
@@ -566,17 +568,45 @@ func (fi *fallInfo) nowhere() (string, string) {
 
 func (fi *fallInfo) element() string { return "<" + fi.forward + ">" }
 
+// nearMiss is the prop name a misspelt attribute means, "" when none is
+// near: as unknownAttr's did-you-mean, but never for a name as short as
+// the edit (id isn't a misspelt Kind).
+func nearMiss(attr string, names []string) string {
+	n := closestName(attr, names)
+	if n == "" || editDistance(strings.ToLower(attr), strings.ToLower(n)) >= len(attr) {
+		return ""
+	}
+	return n
+}
+
 // fallthroughArg decides an attribute of c's tag no prop takes, on a
 // component with a Fallthrough: the attribute it passes on, or why it
-// can't, with the error's code. A caller's class merges into the forward
-// element's.
+// can't, with the error's code. The nearest-prop check comes first: a
+// misspelt prop is never an attribute. attr: skips it.
 func (e *engine) fallthroughArg(c *jsxComp, fi *fallInfo, a *jsxAttr, names []string) (*compArg, diag.Code, string) {
 	el := c.el
-	if a.pass || a.name != "class" && a.name != "className" {
-		return nil, "E0106", unknownAttr(el.tag, a.name, "fields", names)
+	name := passName(a)
+	switch {
+	case a.pass:
+	case a.name == "class" || a.name == "className":
+	default:
+		if near := nearMiss(a.name, names); near != "" {
+			return nil, "E0106", unknownAttr(el.tag, a.name, "fields", names)
+		}
+		if !isEvent(a.name) && !htmldata.IsAttr(a.name) {
+			msg := unknownAttr(el.tag, a.name, "fields", names) + "; an HTML attribute of " + fi.typ + "'s element is passed on to it by its tag, and " + a.name + " is none: attr:" + a.name + "={…} passes it on as written"
+			return nil, "E0106", msg
+		}
 	}
 	if why, help := fi.nowhere(); why != "" {
-		return nil, "E0138", "<" + el.tag + " " + a.name + "> passes " + a.name + " on, and " + why + "; " + help
+		return nil, "E0138", "<" + el.tag + " " + name + "> passes " + name + " on, and " + why + "; " + help
+	}
+	if own := strings.ToLower(name); slices.Contains(fi.own, own) {
+		what := name
+		return nil, "E0139", "<" + el.tag + " " + name + "> passes " + name + " on to " + fi.typ + "'s " + fi.element() + ", which sets " + what + " itself; declare a prop for it in " + fi.typ + ", or drop it here"
+	}
+	if a.kind == 'e' && isEvent(a.name) && !a.stmts {
+		a.event = true
 	}
 	return &compArg{attr: a, typ: types.Universe.Lookup("any").Type()}, "", ""
 }

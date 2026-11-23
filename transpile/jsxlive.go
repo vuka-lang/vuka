@@ -332,7 +332,7 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 	}
 	var extra []*compArg
 	for _, a := range attrs {
-		if fall != nil && (a.name == "class" || a.name == "className") && bindName(names, a.name) < 0 {
+		if fall != nil && a.name != "model" && a.name != "ref" && (a.pass || bindName(names, a.name) < 0) {
 			x, code, msg := e.fallthroughArg(c, fall, a, names)
 			if msg != "" {
 				c.failCode = code

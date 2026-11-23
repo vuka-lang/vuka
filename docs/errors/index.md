@@ -59,6 +59,7 @@ same page in the terminal.
 | [E0136](./E0136) | A prop's default that can't be |
 | [E0137](./E0137) | A forward marker that marks no one element |
 | [E0138](./E0138) | A tag passes an attribute on and the component has no forward element |
+| [E0139](./E0139) | An attribute the component's forward element can't take |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 | [E0142](./E0142) | A template file has no package clause, or another package's |
 | [E0143](./E0143) | An unknown element or template |
