@@ -43,7 +43,16 @@ type liveField struct {
 	attrs            fieldAttrs
 	tag              string
 	tagStart, tagEnd int // the tag literal; -1 without one
+	typeStart        int // where the field's type starts
 	typeEnd          int // where the field's type ends
+	written          []writtenAttr
+}
+
+// writtenAttr is an attribute written after a field: its tokens, the @
+// dropped, and where it is in the source, @ included.
+type writtenAttr struct {
+	toks       []wtok
+	start, end int
 }
 
 // liveTypes are the struct types of a .vuka file's source embedding Live.
@@ -98,6 +107,24 @@ func structTypes(src []byte) []liveType {
 
 func (lt *liveType) field(toks []wtok) {
 	_, attrs := cutAttrs(toks)
+	var written []writtenAttr
+	for _, a := range attrs {
+		for i, w := range a {
+			if w.tok == token.COMMENT {
+				a = a[:i]
+				break
+			}
+		}
+		if len(a) == 0 {
+			continue
+		}
+		last := a[len(a)-1]
+		end := last.off + len(last.lit)
+		if last.lit == "" || last.tok == token.SEMICOLON {
+			end = last.off + len(last.tok.String())
+		}
+		written = append(written, writtenAttr{toks: a, start: a[0].off - 1, end: end})
+	}
 	for i, t := range toks {
 		if t.tok == token.COMMENT || t.tok == token.ILLEGAL && t.lit == "@" {
 			toks = toks[:i]
@@ -107,7 +134,7 @@ func (lt *liveType) field(toks []wtok) {
 	if len(toks) == 0 {
 		return
 	}
-	f := liveField{attrs: readFieldAttrs(attrs), tagStart: -1, tagEnd: -1}
+	f := liveField{attrs: readFieldAttrs(attrs), tagStart: -1, tagEnd: -1, written: written}
 	if n := len(toks); toks[n-1].tok == token.STRING {
 		f.tag, _ = strconv.Unquote(toks[n-1].lit)
 		f.tagStart, f.tagEnd = toks[n-1].off, toks[n-1].off+len(toks[n-1].lit)
@@ -129,7 +156,7 @@ func (lt *liveType) field(toks []wtok) {
 		return
 	}
 	last := typ[len(typ)-1]
-	f.names, f.off, f.typeEnd = names, toks[0].off, last.off+len(last.lit)
+	f.names, f.off, f.typeStart, f.typeEnd = names, toks[0].off, typ[0].off, last.off+len(last.lit)
 	if last.lit == "" {
 		f.typeEnd = last.off + len(last.tok.String())
 	}
@@ -365,10 +392,26 @@ func fixAttributes(m *fixModule) ([]fixChange, error) {
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", relPath(m.root, path), err)
 			}
-			if n == 0 {
+			src, singles, notes := singleAttrTags(src)
+			for _, note := range notes {
+				m.notes = append(m.notes, relPath(m.root, path)+": "+note)
+			}
+			if singles > 0 {
+				if f, err := format.Source(src); err == nil {
+					src = f
+				}
+			}
+			if n == 0 && singles == 0 {
 				continue
 			}
-			changes = append(changes, fixChange{fmt.Sprintf("%s: %d field tag(s) as attributes", relPath(m.root, path), n), func() error {
+			var what []string
+			if n > 0 {
+				what = append(what, fmt.Sprintf("%d field tag(s) as attributes", n))
+			}
+			if singles > 0 {
+				what = append(what, fmt.Sprintf("%d field(s)' single attributes as tags (W0314)", singles))
+			}
+			changes = append(changes, fixChange{relPath(m.root, path) + ": " + strings.Join(what, ", "), func() error {
 				return os.WriteFile(path, src, 0o644)
 			}})
 		}

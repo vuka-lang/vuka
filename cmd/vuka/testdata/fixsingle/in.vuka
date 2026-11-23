@@ -1,0 +1,39 @@
+package app
+
+import (
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
+)
+
+// Signup is a form's fields, described by the single attributes.
+type Signup struct {
+	Email    string              @ui.Email("Enter a work address") @ui.Label("Work email") @ui.Autocomplete("email")
+	Password string              `json:"-"` @ui.Widget("password") @ui.Min(12) @ui.Msg("min", "At least {n} characters, max=no more")
+	Plan     string              @ui.Help("Pick one") @ui.OneOf("free", "pro plus")
+	Code     string              `validate:"len=6"` @ui.Required("Enter the code") @ui.Pattern("[A-Z0-9]+")
+	Seats    int                 @ui.Max(50) @ui.Required("Seats, please")
+	Rate     float64             @ui.Min(0.5) // a fractional bound
+	Referrer vuka.Option[string] @ui.Required
+	Terms    bool                @ui.Required("Accept the terms")
+	Count    int                 @ui.Required
+	Quote    string              @ui.Placeholder("say \"hi\"")
+}
+
+// Product is a model: its own attributes bound its fields.
+type Product struct {
+	orm.Model[Product]
+	Name  string @orm.Char{Max: 100} @ui.Label("Name") @ui.Max(60)
+	Notes string @orm.LongText @ui.Widget("textarea") @ui.Spec{Placeholder: "Anything else"}
+}
+
+// ProductForm words Product's fields its own way.
+type ProductForm struct {
+	ui.FormFor[Product]
+
+	Name ui.Meta @ui.Spec{
+		Required: "Name is required.",
+	} @ui.Placeholder("e.g. Blue mug") @ui.Max(60)
+	Notes ui.Meta @ui.Widget("textarea") @ui.Msg("max", "Too long")
+	Other ui.Meta @ui.Email
+}
