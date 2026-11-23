@@ -216,3 +216,9 @@ func TestTemplateMultilineHole(t *testing.T) {
 	want := "package p\n\ntype D struct{}\n<div>\n  {len(\"a\")}\n</div>\n"
 	check(t, src, "", want, Options{})
 }
+
+// TestTemplateAttrSugar: attr:name and name?={v} keep their form.
+func TestTemplateAttrSugar(t *testing.T) {
+	src := "<script lang=\"go\">\npackage p\n\ntype Card struct{ ID, Hint string }\n</script>\n\n<section>\n  <Button attr:form={\"rule-\" + ID} title?={Hint}>Save</Button>\n  <input id?={ID} attr:data-x=\"lit\" />\n</section>\n"
+	check(t, src, "", src, Options{})
+}

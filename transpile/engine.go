@@ -29,6 +29,8 @@ type engine struct {
 	imp             types.Importer
 	impFset         *token.FileSet // the default importer's, where its objects are declared
 	openEnums       map[*types.TypeName]bool
+	defaultsChecked bool               // the package's props' defaults are checked (defaults.go)
+	defaultErrs     map[token.Pos]bool // the fields whose defaults are reported
 	errs            *ErrorList
 	bare            bool
 	incompleteCalls bool
@@ -188,6 +190,7 @@ func (e *engine) run() {
 		if bound {
 			continue
 		}
+		e.checkDefaults()
 		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
@@ -212,6 +215,7 @@ func (e *engine) run() {
 			e.lowerJSX(f)
 			e.checkShows(f)
 			e.checkInnerHTML(f)
+			e.checkOmitZero(f)
 			e.checkEvents(f)
 			if !f.wrapped {
 				e.vetTries(f)

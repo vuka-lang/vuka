@@ -132,8 +132,22 @@
       "patterns": [
         { "include": "#hole" },
         {
-          "match": "([A-Za-z_][\\w:.-]*)(?=\\s*=|\\s|/?>)",
+          "comment": "attr:name sets the attribute name as written, whatever it means to the compiler.",
+          "match": "(attr)(:)([A-Za-z][\\w:.-]*)(?=\\s*\\??=|\\s|/?>)",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.namespace.html" },
+            "2": { "name": "punctuation.separator.namespace.html" },
+            "3": { "name": "entity.other.attribute-name.html" }
+          }
+        },
+        {
+          "match": "([A-Za-z_][\\w:.-]*)(?=\\s*\\??=|\\s|/?>)",
           "name": "entity.other.attribute-name.html"
+        },
+        {
+          "comment": "name?={v}: the attribute is left out when v is zero.",
+          "match": "\\?=",
+          "name": "punctuation.separator.key-value.omit.html"
         },
         {
           "begin": "\"",

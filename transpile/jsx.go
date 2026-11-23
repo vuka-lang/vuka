@@ -137,6 +137,8 @@ type jsxAttr struct {
 	of    bool     // form={Form} on a control outside its form: the form's element id
 	some  string   // a T given to an Option[T] prop: the vuka import's name, to wrap it in Some (wrapSome)
 	mfn   bool     // a component's attribute set to a markup func literal (markupfn.go)
+	omit  bool     // written name?={v}: left out when v is zero (omitzero.go)
+	pass  bool     // written attr:name: the attribute name, whatever the name means to the compiler (omitzero.go)
 }
 
 // attrPart is a piece of an attribute's text: text, or a hole's expression.
@@ -405,11 +407,17 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case isLetter(c) || c == '_':
 			a := &jsxAttr{off: i}
 			a.name, i = p.name(i)
-			if base, mods, ok := strings.Cut(a.name, "."); ok && (isEvent(base) || comp && base == "on" || base == "bind:value") {
+			a.pass = strings.HasPrefix(a.name, passPrefix)
+			if base, mods, ok := strings.Cut(a.name, "."); ok && !a.pass && (isEvent(base) || comp && base == "on" || base == "bind:value") {
 				a.emods = p.eventMods(a, base, mods)
 				a.name = base
 			}
 			i = p.space(i)
+			if p.at(i) == '?' && p.at(i+1) == '=' {
+				a.omit = true
+				i++
+			}
+			p.checkPass(el, a)
 			if p.at(i) != '=' {
 				a.kind = 'b'
 			} else {
@@ -458,6 +466,11 @@ func (p *jsxParser) element(off int) *jsxElem {
 				p.fail(a.off, "bind:value takes a field of the page, through its receiver: bind:value={p.%s}", strings.TrimSpace(string(p.src[a.expr.start:a.expr.end])))
 			case strings.HasPrefix(a.name, "style:") && (comp || a.kind == 'b' || len(a.name) == len("style:")):
 				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
+			}
+			p.checkOmit(el, a, comp)
+			if a.pass {
+				el.attrs = append(el.attrs, a)
+				continue
 			}
 			p.formAttr(el, a, comp)
 			if a.name == "let" && strings.HasPrefix(el.tag, "slot:") {

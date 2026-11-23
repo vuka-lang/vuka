@@ -223,6 +223,7 @@ type propField struct {
 	ambiguous string // the embedded fields it is in twice at the same depth
 	required  bool   // tagged vuka:"required"
 	pkg       *types.Package
+	tag       string // its struct tag: vuka:"default=…" (defaults.go)
 }
 
 // propFields is the fields of st an attribute can set, as Go's selectors see
@@ -254,7 +255,7 @@ func (e *engine) propFields(tg *jsxTarget, st *types.Struct, exported bool) []pr
 					if found[name] == nil {
 						order = append(order, name)
 					}
-					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest, required: required(lv.st.Tag(i)), pkg: fld.Pkg()})
+					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest, required: required(lv.st.Tag(i)), pkg: fld.Pkg(), tag: lv.st.Tag(i)})
 				}
 				if !fld.Embedded() {
 					continue
@@ -323,6 +324,15 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 	}
 	var extra []*compArg
 	for _, a := range attrs {
+		if a.pass {
+			// attr:form={…}: the attribute, for the props' Attrs whatever
+			// field it would name
+			if attrsAt < 0 {
+				return false, a.off, "<" + el.tag + "> takes no " + a.name + ": it has no Attrs []" + c.target.q + "Attr field passing attributes on to the element it spreads them on (<button {Attrs...}>)"
+			}
+			extra = append(extra, &compArg{attr: a, typ: types.Universe.Lookup("any").Type()})
+			continue
+		}
 		i := bindName(names, a.name)
 		if a.name == "model" && a.kind == 'e' && c.target != nil {
 			// model={Form.Email} on a component: its Model field, a
@@ -459,6 +469,7 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			c.unfilled = append(c.unfilled, fl.name)
 		}
 	}
+	e.bindDefaults(c, fields, used, stateful && !c.structComp)
 	if c.lazy != nil {
 		for _, a := range c.args {
 			if a.attr != nil && a.attr.name == "show" {

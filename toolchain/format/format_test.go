@@ -67,6 +67,8 @@ func TestConstructs(t *testing.T) {
 			"package p\n\nfunc f() vuka.Node {\n\treturn <div>\n\t\t{func() string {\n\t\t\treturn \"x\"\n\t\t}()}\n\t\t{g(<b>x</b>, 1)}\n\t\t{/* as   is */}\n\t</div>\n}\n"},
 		{"text lines", "package p\n\nfunc f() vuka.Node {\n\treturn <section className=\"a-long-class-name\">\n   Tom &amp; Jerry,   friends\n  forever and ever, in a sentence that runs on\n</section>\n}\n",
 			"package p\n\nfunc f() vuka.Node {\n\treturn <section className=\"a-long-class-name\">\n\t\tTom &amp; Jerry,   friends\n\t\tforever and ever, in a sentence that runs on\n\t</section>\n}\n"},
+		{"attr: and ?=", "package p\n\nfunc f() vuka.Node {\n\treturn <Button attr:form={ id+\"-f\" } title ?= { hint } attr:data-x=\"lit\"><input id?={id} /></Button>\n}\n",
+			"package p\n\nfunc f() vuka.Node {\n\treturn <Button attr:form={id + \"-f\"} title?={hint} attr:data-x=\"lit\">\n\t\t<input id?={id} />\n\t</Button>\n}\n"},
 		{"jsx in a one-line func that would not fit", "package p\n\nfunc Button(props ButtonProps) vuka.Node { return <button>{props.Variant}</button> }\n",
 			"package p\n\nfunc Button(props ButtonProps) vuka.Node {\n\treturn <button>{props.Variant}</button>\n}\n"},
 	}

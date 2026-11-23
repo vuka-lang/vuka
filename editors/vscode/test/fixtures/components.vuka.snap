@@ -509,3 +509,58 @@
 62:
   "}" punctuation.definition.end.bracket.curly.go
 63:
+64:
+  "func" keyword.function.go
+  "sugar" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "id" variable.parameter.go
+  "," punctuation.other.comma.go
+  "hint" variable.parameter.go
+  "string" storage.type.string.go
+  ")" punctuation.definition.end.bracket.round.go
+  "vuka" entity.name.type.go
+  "." punctuation.other.period.go
+  "Node" entity.name.type.go
+  "{" punctuation.definition.begin.bracket.curly.go
+65:
+  "return" keyword.control.go
+  "<" meta.tag.jsx.vuka punctuation.definition.tag.begin.jsx.vuka
+  "Button" meta.tag.jsx.vuka entity.name.type.component.vuka
+  "attr" meta.tag.jsx.vuka entity.other.attribute-name.namespace.jsx.vuka
+  ":" meta.tag.jsx.vuka punctuation.separator.namespace.jsx.vuka
+  "form" meta.tag.jsx.vuka entity.other.attribute-name.jsx.vuka
+  "=" meta.tag.jsx.vuka punctuation.separator.key-value.jsx.vuka
+  "{" meta.tag.jsx.vuka punctuation.section.embedded.begin.jsx.vuka
+  "\"" meta.tag.jsx.vuka meta.embedded.expression.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "rule-" meta.tag.jsx.vuka meta.embedded.expression.vuka string.quoted.double.vuka
+  "\"" meta.tag.jsx.vuka meta.embedded.expression.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "+" meta.tag.jsx.vuka meta.embedded.expression.vuka keyword.operator.arithmetic.go
+  "id" meta.tag.jsx.vuka meta.embedded.expression.vuka variable.other.go
+  "}" meta.tag.jsx.vuka punctuation.section.embedded.end.jsx.vuka
+  "title" meta.tag.jsx.vuka entity.other.attribute-name.jsx.vuka
+  "?=" meta.tag.jsx.vuka punctuation.separator.key-value.omit.jsx.vuka
+  "{" meta.tag.jsx.vuka punctuation.section.embedded.begin.jsx.vuka
+  "hint" meta.tag.jsx.vuka meta.embedded.expression.vuka variable.other.go
+  "}" meta.tag.jsx.vuka punctuation.section.embedded.end.jsx.vuka
+  ">" meta.tag.jsx.vuka punctuation.definition.tag.end.jsx.vuka
+  "<" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.definition.tag.begin.jsx.vuka
+  "input" meta.tag.jsx.vuka meta.tag.jsx.vuka entity.name.tag.vuka
+  "id" meta.tag.jsx.vuka meta.tag.jsx.vuka entity.other.attribute-name.jsx.vuka
+  "?=" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.separator.key-value.omit.jsx.vuka
+  "{" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.section.embedded.begin.jsx.vuka
+  "id" meta.tag.jsx.vuka meta.tag.jsx.vuka meta.embedded.expression.vuka variable.other.go
+  "}" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.section.embedded.end.jsx.vuka
+  "attr" meta.tag.jsx.vuka meta.tag.jsx.vuka entity.other.attribute-name.namespace.jsx.vuka
+  ":" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.separator.namespace.jsx.vuka
+  "data-x" meta.tag.jsx.vuka meta.tag.jsx.vuka entity.other.attribute-name.jsx.vuka
+  "=" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.separator.key-value.jsx.vuka
+  "\"" meta.tag.jsx.vuka meta.tag.jsx.vuka string.quoted.double.jsx.vuka punctuation.definition.string.begin.jsx.vuka
+  "lit" meta.tag.jsx.vuka meta.tag.jsx.vuka string.quoted.double.jsx.vuka
+  "\"" meta.tag.jsx.vuka meta.tag.jsx.vuka string.quoted.double.jsx.vuka punctuation.definition.string.end.jsx.vuka
+  "/>" meta.tag.jsx.vuka meta.tag.jsx.vuka punctuation.definition.tag.end.jsx.vuka
+  "</" meta.tag.jsx.vuka punctuation.definition.tag.begin.jsx.vuka
+  "Button" meta.tag.jsx.vuka entity.name.type.component.vuka
+  ">" meta.tag.jsx.vuka punctuation.definition.tag.end.jsx.vuka
+66:
+  "}" punctuation.definition.end.bracket.curly.go
+67:

@@ -56,6 +56,10 @@ type jsxComp struct {
 	lazyShow   *compArg      // the show attribute it follows
 	lazyLoad   *jsxElem      // a <slot:loading> no field takes: the ui.Lazy's Loading
 
+	// Defaults (defaults.go).
+	autoID      bool     // a ui.AutoID prop is its ui.NewAutoID(ctx): the call is in ui.Ctx
+	badDefaults []string // the defaults of another package's props that can't be (E0136)
+
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
 	consumed                      bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
@@ -112,6 +116,10 @@ type compArg struct {
 	elems    []*slotElem      // a repeated slot's elements, in order
 	sliceTyp string           // their slice's type, written
 	nodeText bool             // a quoted attribute setting a Node: ui.Text("…")
+
+	dflt  bool         // the prop's default, text: the tag leaves it out (defaults.go)
+	orDef *propDefault // name?={v}: the default v stands aside for when zero
+	or    string       // and the call taking v and it: "cmp.Or[T]"
 
 	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
 	uiAttrs    bool       // the props' Attrs ([]ui.Attr): its value with extra appended
@@ -178,6 +186,16 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	}
 	var value func(a *compArg, named bool)
 	value = func(a *compArg, named bool) {
+		if named && a.or != "" {
+			// name?={v} on a prop with a default: cmp.Or[T](v, default)
+			or := a.or
+			a.or = ""
+			w.gen(or + "(")
+			value(a, named)
+			w.gen(", " + a.orDef.text + ")")
+			a.or = or
+			return
+		}
 		switch {
 		case a.templAttrs:
 			w.gen(q + "TemplAttrs(ctx, ")
@@ -190,8 +208,8 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("nil")
 			}
 			for _, x := range a.extra {
-				w.gen(", " + q + "Attr{Name: " + strconv.Quote(x.attr.name) + ", Value: ")
-				value(x, false)
+				w.gen(", " + q + "Attr{Name: " + strconv.Quote(passName(x.attr)) + ", Value: ")
+				w.omitWrap(x.attr, func() { value(x, false) })
 				w.gen("}")
 			}
 			w.gen(")")
@@ -208,8 +226,8 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("[]" + q + "Attr{")
 			}
 			for _, x := range a.extra {
-				w.gen(q + "Attr{Name: " + strconv.Quote(x.attr.name) + ", Value: ")
-				value(x, false)
+				w.gen(q + "Attr{Name: " + strconv.Quote(passName(x.attr)) + ", Value: ")
+				w.omitWrap(x.attr, func() { value(x, false) })
 				w.gen("}, ")
 			}
 			if named && a.name != "" || a.attr != nil {
@@ -881,6 +899,30 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 		e.errs.add("E0158", f.at(at.start), "<%s> leaves out %s", at.tag, what).help("%s", fillHelp(fields[0]))
 		return
 	}
+	if len(c.badDefaults) > 0 {
+		c.dead = true
+		for _, p := range c.badDefaults {
+			e.errs.add("E0136", f.at(c.el.start), "<%s>'s prop %s", c.el.tag, p).
+				help("the default is declared on the props' field, in %s", e.display(c.propsTyp))
+		}
+		return
+	}
+	if !c.target.has("OmitZero") {
+		for _, a := range c.args {
+			for _, x := range a.extra {
+				if x.attr.omit {
+					c.dead = true
+					e.errs.add("E0135", f.at(x.attr.off), "<%s %s?={…}> needs %sOmitZero: update %s", c.el.tag, x.attr.name, c.target.q, c.target.path)
+					return
+				}
+			}
+		}
+	}
+	eachArg(c.args, func(a *compArg) {
+		if a.orDef != nil {
+			a.or = f.importName("cmp") + ".Or[" + e.typeTextAuto(f, a.typ) + "]"
+		}
+	})
 	eachArg(c.args, func(a *compArg) { e.wrapSome(f, a) })
 	eachArg(c.args, func(a *compArg) { e.checkEnumLit(f, c, a) })
 	if c.target.has("VukaState") {
@@ -946,6 +988,9 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 	}
 	if !c.ctxWrap && !c.stateful && !c.structComp && e.readsRenderCtx(f, c) {
 		c.ctxWrap = true
+	}
+	if c.autoID {
+		c.ctxWrap = true // ui.NewAutoID(ctx): the context the tag renders in
 	}
 	if c.withKids || c.propsTyp != nil {
 		kids := c.el.kids

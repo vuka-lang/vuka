@@ -111,6 +111,9 @@ func readTag(src []byte, i int) (jsxTag, bool) {
 			for k < len(src) && isSpace(src[k]) {
 				k++
 			}
+			if k+1 < len(src) && src[k] == '?' && src[k+1] == '=' {
+				k++ // name?={v}: a value as name={v} is
+			}
 			if k < len(src) && src[k] == '=' {
 				k++
 				for k < len(src) && isSpace(src[k]) {
@@ -683,6 +686,11 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			if enums[strings.ToLower(a.name)] {
 				last["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}
 			}
+		}
+		if html || p.tagTakesAttrs(vf.source, src, spot.tag.name) {
+			// attr:name, an attribute for the element it spreads its Attrs on
+			item("attr:", 5, "an attribute passed on to the element", "attr:${1:name}={$2}", 2, "5")
+			doc("`attr:form={id}` sets the attribute `form` on the element the component spreads its `Attrs` on, whatever its props call `form`.")
 		}
 		if html {
 			// props with an Attributes field take the other HTML attributes too

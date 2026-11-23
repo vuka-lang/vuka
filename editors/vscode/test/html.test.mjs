@@ -190,5 +190,14 @@ expect(shape, 'vuka-html', 'ui.Bind', 'entity.name.function.decorator');
 expect(shape, 'vuka-html', '500 *', 'constant.numeric');
 expect(shape, 'vuka-html', '}\n  for', 'punctuation.definition.block.end.go');
 
+// attr:name and name?={v}.
+const sugar = '<Button attr:form={id} title?={hint}><input id?={id} /></Button>\n';
+expect(sugar, 'vuka-html', 'attr:', 'entity.other.attribute-name.namespace');
+expect(sugar, 'vuka-html', 'form=', 'entity.other.attribute-name');
+expect(sugar, 'vuka-html', 'title?', 'entity.other.attribute-name');
+expect(sugar, 'vuka-html', '?={hint', 'punctuation.separator.key-value.omit');
+expect(sugar, 'vuka-html', 'hint}', 'source.go');
+expect(sugar, 'vuka-html', 'id?=', 'entity.other.attribute-name');
+
 if (failures) process.exit(1);
 console.log('ok html grammar');

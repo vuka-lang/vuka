@@ -161,6 +161,16 @@ export const assertions = [
   a('components.vuka', 57, '<', 'keyword.operator.comparison.go'),
   a('components.vuka', 57, '>', 'keyword.operator.comparison.go'),
   a('components.vuka', 61, '<-', 'keyword.operator.channel.go'),
+  // attr:name and name?={v}.
+  a('components.vuka', 65, 'attr', 'entity.other.attribute-name.namespace.jsx.vuka'),
+  a('components.vuka', 65, 'form', 'entity.other.attribute-name.jsx.vuka'),
+  a('components.vuka', 65, '"rule-"', 'string.quoted.double.vuka'),
+  a('components.vuka', 65, 'title', 'entity.other.attribute-name.jsx.vuka'),
+  a('components.vuka', 65, '?=', 'punctuation.separator.key-value.omit.jsx.vuka'),
+  a('components.vuka', 65, 'hint', 'variable.other.go'),
+  a('components.vuka', 65, 'id', 'entity.other.attribute-name.jsx.vuka', { nth: 2 }),
+  a('components.vuka', 65, 'data-x', 'entity.other.attribute-name.jsx.vuka'),
+  a('components.vuka', 65, '"lit"', 'string.quoted.double.jsx.vuka'),
   // The benchmark page: every token of a table typed from scratch.
   a('benchmark.vuka', 9, 'PetTable', 'entity.name.function.go'),
   a('benchmark.vuka', 9, 'Pet', 'entity.name.type.go', { nth: 2 }),

@@ -238,3 +238,53 @@ func TestLSPEnumPropAttr(t *testing.T) {
 		t.Errorf("tagEnumAttrs: %v", enums)
 	}
 }
+
+// A component tag whose props have an Attrs field completes attr:, the
+// attribute it passes on; one without doesn't. Both new forms leave the
+// spots after them attributes.
+func TestLSPAttrPassthrough(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	button := strings.Replace(lspEnumButton, "\tChildren ui.Node\n", "\tAttrs    []ui.Attr\n\tChildren ui.Node\n", 1)
+	card := strings.Replace(strings.Replace(lspEnumButton, "type Button struct", "type Card struct", 1), "<button>", "<section>", 1)
+	card = strings.Replace(card, "</button>", "</section>", 1)
+	for name, src := range map[string]string{
+		"components/button.vuka.html": button,
+		"components/card.vuka.html":   card,
+		"design/design.go":            lspEnumDesign,
+	} {
+		os.MkdirAll(filepath.Join(dir, filepath.Dir(name)), 0o755)
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
+	page := strings.Replace(lspEnumPage, `<components.Button variant="" tone="" icon="">Save</components.Button>`,
+		`<components.Button attr:form={id} icon?={x} >Save</components.Button>
+  <components.Card icon?={x} >x</components.Card>`, 1)
+	src := []byte(page)
+	p := &proxy{modRoot: dir, modPath: "example.com/app", importDirs: map[string]string{}}
+	vf := &vfile{source: filepath.Join(dir, "pages", "index.vuka.html"), from: src}
+	labels := func(needle string) map[string]bool {
+		t.Helper()
+		off := strings.Index(page, needle) + len(needle)
+		spot, ok := completionSpot(src, off)
+		if !ok || spot.kind != "attr" {
+			t.Fatalf("%s: spot %+v %v", needle, spot, ok)
+		}
+		out := map[string]bool{}
+		for _, it := range p.completeJSX(vf, "", spot, off).(map[string]any)["items"].([]any) {
+			out[it.(map[string]any)["label"].(string)] = true
+		}
+		return out
+	}
+	if !labels(`icon?={x} `)["attr:"] {
+		t.Error("no attr: on a component with Attrs")
+	}
+	if labels(`<components.Card icon?={x} `)["attr:"] {
+		t.Error("attr: on a component without Attrs")
+	}
+	for _, needle := range []string{`attr:form={id}`, `icon?={x}`} {
+		off := strings.Index(page, needle) + len(needle) - 1
+		if spot, ok := completionSpot(src, off); ok && spot.kind != "" && spot.kind != "value" {
+			t.Errorf("%s: the value is a %s spot", needle, spot.kind)
+		}
+	}
+}

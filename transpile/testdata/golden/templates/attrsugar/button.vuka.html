@@ -1,0 +1,26 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Tone is a Button's colour.
+type Tone string
+
+const (
+	ToneNeutral Tone = "neutral"
+	ToneDanger  Tone = "danger"
+)
+
+// Button takes its type and tone from its defaults when a tag leaves them
+// out, and passes the attributes its Attrs hold on to its element.
+type Button struct {
+	Type     string `vuka:"default=button"`
+	Tone     Tone   `vuka:"default=ToneNeutral"`
+	Size     int    `vuka:"default=2"`
+	Label    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+</script>
+
+<button type={Type} data-tone={string(Tone)} data-size={Size} {Attrs...}>{Children}</button>
