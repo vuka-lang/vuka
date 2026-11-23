@@ -3,6 +3,8 @@ package transpile_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // letSheet is a generic component over a state, its content a function
@@ -84,4 +86,42 @@ func (t *Transfer) Save(id int) {}
 			t.Errorf("no %s in\n%s", want, src.String())
 		}
 	}
+}
+
+// TestFieldRefNoFields: E0159 on a value with no fields says so, rather
+// than listing none.
+func TestFieldRefNoFields(t *testing.T) {
+	_, err := compileShapes(map[string]string{"page.vuka.html": `<script lang="go">
+package main
+
+import ui "vukatest.local/stateui"
+
+type Nothing struct{}
+
+type Profile struct {
+	ui.FormState
+	Extra Nothing
+}
+
+type Page struct {
+	ui.Live
+	Form Profile
+}
+</script>
+
+<form for={Form}><input model={Form.Extra.Note}/></form>
+`})
+	el, ok := err.(transpile.ErrorList)
+	if !ok {
+		t.Fatalf("not an error list: %v", err)
+	}
+	for _, e := range el {
+		if e.Code == "E0159" {
+			if e.Help != "it has no fields" {
+				t.Errorf("help %q, want \"it has no fields\"", e.Help)
+			}
+			return
+		}
+	}
+	t.Fatalf("no E0159 in %s", codes(err))
 }
