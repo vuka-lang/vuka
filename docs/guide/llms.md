@@ -59,7 +59,8 @@ further running it than reasoning about code it can't build:
 | `vuka vet ./...` | every error and warning, the ones a build stops before |
 | `vuka explain E0201` | an error code's page, offline |
 | `vuka explain file.vuka` | the Go a `.vuka` file becomes |
-| `vuka routes` | every route: method, path, page, file and line, guards, layouts |
+| `vuka routes` | every route: method, path, name, page, file and line, guards, layouts |
+| `vuka mv -n pages/a pages/b` | what moving a page folder renames and rewrites, before `vuka mv` does it |
 | `vuka graphql schema` | the GraphQL schema the app serves |
 | `vuka doctor` | whether Go, Node and the app's setup are what Vuka needs |
 

@@ -18,9 +18,9 @@ import (
 const routesUsage = `usage: vuka routes [-json]
 
 Routes prints the module's folder routes, the pages under pages/: each
-route's method, path, page or endpoint type, where it is declared and the
-middleware, guards and layouts over it, outermost first. -json prints them
-as a JSON array.
+route's method, path, name (what route("…") links by), page or endpoint
+type, where it is declared and the middleware, guards and layouts over it,
+outermost first. -json prints them as a JSON array.
 `
 
 // routesCmd is vuka routes.
@@ -102,13 +102,13 @@ func routeTable(root, modPath string) (routeTrees, *routesResult, error) {
 // writeRoutes prints the table.
 func writeRoutes(w io.Writer, routes []*folderRoute) {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "METHOD\tPATH\tPAGE\tFILE\tMIDDLEWARE\tGUARDS\tLAYOUTS")
+	fmt.Fprintln(tw, "METHOD\tPATH\tNAME\tPAGE\tFILE\tMIDDLEWARE\tGUARDS\tLAYOUTS")
 	for _, r := range routes {
 		page := r.Page
 		if r.Kind == "live" || r.Kind == "template" || r.Kind == "endpoint" {
 			page += " (" + r.Kind + ")"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", r.Method, r.Path, page, r.File+":"+strconv.Itoa(r.Line),
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", r.Method, r.Path, r.Name, page, r.File+":"+strconv.Itoa(r.Line),
 			strings.Join(r.Middleware, ", "), strings.Join(r.Guards, ", "), strings.Join(r.Layouts, ", "))
 	}
 	tw.Flush()

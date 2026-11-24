@@ -5,7 +5,6 @@ import (
 	"context"
 
 	"example.com/folder-routes/pages/private_parts"
-	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/web/v2"
@@ -31,14 +30,14 @@ func (p *New) Title() string { return "New employer" }
 
 func (p *New) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, error) {
 	e := p.store.AddEmployer(form)
-	return web.Redirect(urls.Employers.Employer(e.ID).Path()), nil
+	return web.Redirect(route("employers.employer", e.ID)), nil
 }
 </script>
 
 <section id="new">
   <h1>New employer</h1>
   {parts.TallyOf("employers so far", count)}
-  <form method="post" action={urls.Employers.New.Path()}>
+  <form method="post" action={route("employers.new")}>
     <label>Name <input name="name" required/></label>
     <label>City <input name="city" required/></label>
     <button>Add</button>

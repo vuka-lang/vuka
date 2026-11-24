@@ -64,8 +64,12 @@ Usage:
 	        (-debug keeps the debug information watch builds leave out)
 	vuka routes [-json]
 	        list the folder routes, the pages and endpoints under pages/:
-	        method, path, type, file:line and the middleware, guards and
-	        layouts over each
+	        method, path, route name, type, file:line and the middleware,
+	        guards and layouts over each
+	vuka mv [-n] <from> <to>
+	        move a folder or page file under pages/ and rewrite the links
+	        naming its routes (route(…), web.Route, urls chains) and the
+	        imports of its packages; -n prints the plan and writes nothing
 	vuka graphql schema [-check file] [-o file] [package]
 	        print the GraphQL schema the app serves (web.GraphQL) as SDL;
 	        -check compares it with a committed one and fails on a change
@@ -169,7 +173,7 @@ func main() {
 	var err error
 	cmd := os.Args[1]
 	switch cmd {
-	case "build", "run", "test", "vet", "install", "build-islands", "gen", "eject", "explain", "routes", "graphql", "lsp":
+	case "build", "run", "test", "vet", "install", "build-islands", "gen", "eject", "explain", "routes", "mv", "graphql", "lsp":
 		// For lsp too: the protocol runs over stdin and stdout, and the
 		// editor shows a server's stderr in its log.
 		warnCompilerAge(os.Stderr)
@@ -195,6 +199,8 @@ func main() {
 		err = gen(os.Args[2:], os.Stdout)
 	case "routes":
 		err = routesCmd(os.Args[2:], os.Stdout, os.Stderr)
+	case "mv":
+		err = mvCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "graphql":
 		err = graphqlCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "build-islands":

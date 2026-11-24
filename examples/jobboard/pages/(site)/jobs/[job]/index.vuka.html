@@ -8,7 +8,6 @@ import (
 	"github.com/vuka-lang/web/v2/auth"
 
 	"example.com/jobboard/modules/jobs"
-	"example.com/jobboard/pages/urls"
 )
 
 // Index is a job's page, /jobs/{job}.
@@ -42,12 +41,12 @@ func (p *Index) Opening(ctx context.Context) (jobs.Job, error) { return p.board.
     <p class="text-sm font-medium text-slate-500">This job takes no more applications.</p>
   } else if user == nil {
     <p class="text-sm"><a
-      href={urls.Login.Path() + "?next=" + urls.Jobs.Job(Job).Apply.Path()}
+      href={route("login") + "?next=" + routePath("jobs.apply", Job)}
       class="font-medium text-brand-700 hover:underline"
     >Sign in to apply</a></p>
   } else if perms.Has("jobs.apply") {
     <ui.Link
-      href={urls.Jobs.Job(Job).Apply.Path()}
+      href={route("jobs.apply", Job)}
       class="inline-flex rounded-lg bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
     >Apply</ui.Link>
   }

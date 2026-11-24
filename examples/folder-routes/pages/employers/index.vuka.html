@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui/v2"
 )
@@ -48,8 +47,8 @@ func (p *Index) label() string {
   <button id="sort" onClick={Sort}>{label()}</button>
   <ul>
     for _, e := range list() {
-      <li><a href={urls.Employers.Employer(e.ID).Path()}>{e.Name}</a>, {e.City}</li>
+      <li><a href={route("employers.employer", e.ID)}>{e.Name}</a>, {e.City}</li>
     }
   </ul>
-  <a id="new" href={urls.Employers.New.Path()}>New employer</a>
+  <a id="new" href={route("employers.new")}>New employer</a>
 </section>

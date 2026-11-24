@@ -2,7 +2,6 @@
 package console
 
 import (
-	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/ui/v2"
 )
 
@@ -15,6 +14,6 @@ type Shell struct {
 </script>
 
 <section id="console">
-  <nav id="admin"><a href={urls.Admin.Path()}>Dashboard</a></nav>
+  <nav id="admin"><a href={route("admin")}>Dashboard</a></nav>
   {Children}
 </section>

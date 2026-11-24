@@ -4,7 +4,6 @@ package employer
 import (
 	"context"
 
-	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/web/v2"
@@ -34,7 +33,7 @@ func (l *Layout) Load(ctx context.Context, s *store.Store) error {
   <header>
     <h1>{employer.Name}</h1>
     <p>{employer.City}</p>
-    <nav><a href={urls.Employers.Employer(Employer).Path()}>Overview</a> <a href={urls.Employers.Employer(Employer).Edit.Path()}>Edit</a></nav>
+    <nav><a href={route("employers.employer", Employer)}>Overview</a> <a href={route("employers.edit", Employer)}>Edit</a></nav>
   </header>
   {Children}
 </article>

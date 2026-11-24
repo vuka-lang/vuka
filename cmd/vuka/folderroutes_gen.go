@@ -53,13 +53,14 @@ func (t *routeTree) urlsNamable(diags []diag.Diagnostic) bool {
 // imports names the packages a generated file imports, none of them
 // taken by a name the file's package declares or by another import.
 type imports struct {
-	taken  map[string]bool
-	byPath map[string]string
-	self   string
+	taken    map[string]bool
+	byPath   map[string]string
+	declared map[string]string // a package's name, where its path's last element isn't it
+	self     string
 }
 
 func newImports(self string, scope []string, reserved ...string) *imports {
-	im := &imports{taken: map[string]bool{}, byPath: map[string]string{}, self: self}
+	im := &imports{taken: map[string]bool{}, byPath: map[string]string{}, declared: map[string]string{}, self: self}
 	for _, n := range scope {
 		if !strings.HasSuffix(n, "URL") {
 			im.taken[n] = true
@@ -96,7 +97,7 @@ func (im *imports) block() string {
 	var std, other []string
 	for path, n := range im.byPath {
 		line := fmt.Sprintf("%q", path)
-		if base := transpile.ImportName(path); base != n {
+		if base := transpile.ImportName(path); base != n || im.declared[path] != "" && im.declared[path] != n {
 			line = n + " " + line
 		}
 		if strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
@@ -203,6 +204,9 @@ func (t *routeTree) tree(routes []*folderRoute) []byte {
 		if len(seen[d.name]) > 1 && d.rel != "" {
 			name = strings.NewReplacer("/", "_", "-", "_", ".", "_", "[", "", "]", "", "(", "", ")", "").Replace(d.rel)
 		}
+		if d.name != transpile.ImportName(d.importPath) {
+			im.declared[d.importPath] = d.name
+		}
 		if n := im.name(d.importPath, name); n != "" {
 			return n + "."
 		}
@@ -292,7 +296,7 @@ func (t *routeTree) packageRoutes(d *routeDir, f *pkgFacts, routes []*folderRout
 		case r.fn != "":
 			// A scalar binds the path parameter of its name, spelt as the
 			// path spells it: id for [id] when the Go says ID.
-			args := []string{strconv.Quote(r.name), `"func"`, strconv.Quote(r.Method), strconv.Quote(r.Path), r.fn, "nil"}
+			args := []string{strconv.Quote(r.Name), `"func"`, strconv.Quote(r.Method), strconv.Quote(r.Path), r.fn, "nil"}
 			for _, n := range r.names {
 				for _, seg := range splitPath(r.Path) {
 					if p := strings.TrimSuffix(strings.Trim(seg, "{}"), "..."); strings.HasPrefix(seg, "{") && strings.EqualFold(p, n) {
@@ -303,11 +307,11 @@ func (t *routeTree) packageRoutes(d *routeDir, f *pkgFacts, routes []*folderRout
 			}
 			fmt.Fprintf(&body, "\troute(%s)\n", strings.Join(args, ", "))
 		case r.handler != "":
-			fmt.Fprintf(&body, "\troute(%q, \"handler\", %q, %q, (*%s).%s, %s)\n", r.name, r.Method, r.Path, r.typ, r.handler, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"handler\", %q, %q, (*%s).%s, %s)\n", r.Name, r.Method, r.Path, r.typ, r.handler, ctor)
 		case r.Kind == "live":
-			fmt.Fprintf(&body, "\troute(%q, \"live\", %q, %q, %s, nil)\n", r.name, r.Method, r.Path, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"live\", %q, %q, %s, nil)\n", r.Name, r.Method, r.Path, ctor)
 		default:
-			fmt.Fprintf(&body, "\troute(%q, \"page\", %q, %q, %s, nil)\n", r.name, r.Method, r.Path, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"page\", %q, %q, %s, nil)\n", r.Name, r.Method, r.Path, ctor)
 		}
 	}
 	where := "pages/"

@@ -11,7 +11,6 @@ import (
 
 	"example.com/jobboard/layouts"
 	"example.com/jobboard/modules/users"
-	"example.com/jobboard/pages/urls"
 )
 
 // Signup is /signup: a new account, signed in once it is made. The page
@@ -29,9 +28,9 @@ func (p *Signup) save(ctx context.Context, f users.Signup) error {
 	u := p.Users.Create(ctx, users.NewUser{Name: f.Name, Email: f.Email, Password: f.Password, Role: users.Role(f.Role)}).Get()?
 	auth.SignIn(ctx, strconv.FormatInt(u.ID, 10))?
 	if u.Role == users.Role.Employer {
-		return web.Redirect(urls.Employer.Path())
+		return web.Redirect(route("employer"))
 	}
-	return web.Redirect(urls.Root.Path())
+	return web.Redirect(route("index"))
 }
 </script>
 
@@ -42,7 +41,7 @@ func (p *Signup) save(ctx context.Context, f users.Signup) error {
   <ui.Form for={Form} onSubmit={save} submitLabel="Create account" />
   <p class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
     Have an account? <ui.Link
-      href={urls.Login.Path()}
+      href={route("login")}
       class="font-medium text-brand-700 hover:underline dark:text-brand-400"
     >Sign in</ui.Link>
   </p>

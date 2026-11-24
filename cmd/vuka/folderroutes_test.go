@@ -344,8 +344,8 @@ func TestPaths(t *testing.T) {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
 	for _, want := range []string{
-		`GET +/admin/auth +auth\.GET \(endpoint\)`, `POST +/admin/auth/logout `, `DELETE +/notes/\{note\} `, `GET +/reports `, `GET +/shop `,
-		`GET +/orgs +orgs\.Index`, `POST +/orgs +orgs\.POST \(endpoint\)`, `GET +/help +help\.Index `,
+		`GET +/admin/auth +\S+ +auth\.GET \(endpoint\)`, `POST +/admin/auth/logout `, `DELETE +/notes/\{note\} `, `GET +/reports `, `GET +/shop `,
+		`GET +/orgs +\S+ +orgs\.Index`, `POST +/orgs +\S+ +orgs\.POST \(endpoint\)`, `GET +/help +\S+ +help\.Index `,
 	} {
 		if !regexp.MustCompile(want).Match(out.Bytes()) {
 			t.Errorf("no route %s in:\n%s", want, out.Bytes())
@@ -459,7 +459,7 @@ func TestShapePages(t *testing.T) {
 	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	if !regexp.MustCompile(`GET +/about +pages\.Info `).MatchString(out.String()) || !strings.Contains(out.String(), "pages.Counter (live)") {
+	if !regexp.MustCompile(`GET +/about +\S+ +pages\.Info `).MatchString(out.String()) || !strings.Contains(out.String(), "pages.Counter (live)") {
 		t.Errorf("vuka routes:\n%s", out.Bytes())
 	}
 	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
@@ -492,7 +492,7 @@ func TestHelperStructs(t *testing.T) {
 	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	for _, want := range []string{`GET +/shop +shop\.Index `, `GET +/shop/order-row +shop\.OrderRow `, `GET +/shop/\{item\} +shop\.Item `, `GET +/shop/one-struct +shop\.Anything `} {
+	for _, want := range []string{`GET +/shop +\S+ +shop\.Index `, `GET +/shop/order-row +\S+ +shop\.OrderRow `, `GET +/shop/\{item\} +\S+ +shop\.Item `, `GET +/shop/one-struct +\S+ +shop\.Anything `} {
 		if !regexp.MustCompile(want).MatchString(out.String()) {
 			t.Errorf("no route %s:\n%s", want, out.Bytes())
 		}
@@ -649,7 +649,7 @@ func TestMainPages(t *testing.T) {
 	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	for _, want := range []string{`GET +/ +pages\.Home `, `GET +/pets/\{id\} +pets\.Pet `, `GET +/about +pages\.About `, `GET +/about +pages\.Info `} {
+	for _, want := range []string{`GET +/ +\S+ +pages\.Home `, `GET +/pets/\{id\} +\S+ +pets\.Pet `, `GET +/about +\S+ +pages\.About `, `GET +/about +\S+ +pages\.Info `} {
 		if !regexp.MustCompile(want).MatchString(out.String()) {
 			t.Errorf("vuka routes has no %s:\n%s", want, out.Bytes())
 		}
@@ -735,7 +735,7 @@ func TestPageHandlerDeps(t *testing.T) {
 		"pages/pets/index.vuka.html": "package pets\n\nimport \"context\"\n\n// Index lists the pets.\ntype Index struct{}\n\nfunc (p *Index) Post(ctx context.Context, s *Store, form PetForm) error { return nil }\n<form method=\"post\"><input name=\"name\"/></form>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`POST +/pets +\S+ +pets\.Index\.Post`).Match(out.Bytes()) {
 		t.Fatalf("vuka routes: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
 	writeFile(t, filepath.Join(app, "pages/pets/index.vuka.html"), "package pets\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Index lists the pets.\ntype Index struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")

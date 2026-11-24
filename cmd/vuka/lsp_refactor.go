@@ -73,11 +73,19 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 						} `json:"resolveSupport"`
 					} `json:"codeAction"`
 				} `json:"textDocument"`
+				Workspace struct {
+					WorkspaceEdit struct {
+						DocumentChanges    bool     `json:"documentChanges"`
+						ResourceOperations []string `json:"resourceOperations"`
+					} `json:"workspaceEdit"`
+				} `json:"workspace"`
 			} `json:"capabilities"`
 		}
 		_ = json.Unmarshal(m.Params, &params)
 		rs := params.Capabilities.TextDocument.CodeAction.ResolveSupport
 		editorResolves.Store(rs != nil && slicesContains(rs.Properties, "edit"))
+		we := params.Capabilities.Workspace.WorkspaceEdit
+		editorRenamesFiles.Store(we.DocumentChanges && slicesContains(we.ResourceOperations, "rename"))
 		return false
 	case "workspace/executeCommand":
 		var params struct {

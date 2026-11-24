@@ -84,23 +84,24 @@ pages. It shows each visitor the links their permissions open:
 
 ```html
 <nav class="flex items-center gap-1" aria-label="Main">
-  <ui.Link href={urls.Root.Path()} active="exact" class={navLink}>Jobs</ui.Link>
+  <ui.Link href={route("index")} active="exact" class={navLink}>Jobs</ui.Link>
   if perms.Has("jobs.apply") {
-    <ui.Link href={urls.Applications.Path()} active="prefix" class={navLink}>My applications</ui.Link>
+    <ui.Link href={route("applications")} active="prefix" class={navLink}>My applications</ui.Link>
   }
   if perms.Has("jobs.post") {
-    <ui.Link href={urls.Employer.Path()} active="prefix" class={navLink}>Employer</ui.Link>
+    <ui.Link href={route("employer")} active="prefix" class={navLink}>Employer</ui.Link>
   }
   if perms.Has("jobs.moderate") {
-    <ui.Link href={urls.Admin.Path()} active="prefix" class={navLink}>Admin</ui.Link>
+    <ui.Link href={route("admin")} active="prefix" class={navLink}>Admin</ui.Link>
   }
 </nav>
 ```
 
 `ui.Link` moves between pages without reloading the document, and `active`
-marks the link of the page shown ([Navigation](/web/navigation)). The
-links come from `pages/urls`, which vuka writes: a renamed page breaks the
-build, not the link ([Typed URLs](/web/folder-routes#typed-urls)).
+marks the link of the page shown ([Navigation](/web/navigation)). Each
+link names its route, `route("applications")`: a name no page has, or a
+parameter the path doesn't take, is a build error at the link, and `vuka mv`
+moves a folder with its links ([Linking by Name](/web/folder-routes#linking-by-name)).
 
 `jobs/[job]/` is a path parameter. Its layout loads the job once for both
 pages below it, and answers not found for an unknown one:
@@ -159,9 +160,9 @@ func (p *Signup) save(ctx context.Context, f users.Signup) error {
 	u := p.Users.Create(ctx, users.NewUser{Name: f.Name, Email: f.Email, Password: f.Password, Role: users.Role(f.Role)}).Get()?
 	auth.SignIn(ctx, strconv.FormatInt(u.ID, 10))?
 	if u.Role == users.Role.Employer {
-		return web.Redirect(urls.Employer.Path())
+		return web.Redirect(route("employer"))
 	}
-	return web.Redirect(urls.Root.Path())
+	return web.Redirect(route("index"))
 }
 </script>
 ```
@@ -419,7 +420,7 @@ func (p *Apply) save(ctx context.Context, f jobs.ApplyForm) error {
 	match p.board.Apply(ctx, job, users.Of(user), f.Letter, f.CV.Name(), cv) {
 	case Ok(_):
 		web.Flash(ctx, "success", "Your application to "+job.Title+" is on its way.")?
-		return web.Redirect(urls.Applications.Path())
+		return web.Redirect(route("applications"))
 	case Err(e) if errors.Is(e, jobs.ErrApplied) || errors.Is(e, jobs.ErrClosed):
 		return p.Form.Fail(e.Error())
 	case Err(e):

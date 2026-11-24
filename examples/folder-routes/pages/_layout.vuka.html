@@ -4,7 +4,6 @@ package pages
 import (
 	"context"
 
-	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/ui/v2"
 )
 
@@ -25,7 +24,7 @@ func (l Layout) Title(ctx context.Context) string {
 <html lang="en">
 <head><meta charset="utf-8"/><title>{Title(ctx)}</title></head>
 <body>
-  <nav id="site" data-path={request.Path}><a href={urls.Employers.Path()}>Employers</a> <a href={urls.Files.File("handbook/leave.txt").Path()}>Handbook</a> <a href={urls.About.Path()}>About</a> <a href={urls.App.Settings.Path()}>App</a></nav>
+  <nav id="site" data-path={request.Path}><a href={route("employers")}>Employers</a> <a href={route("files", "handbook/leave.txt")}>Handbook</a> <a href={route("about")}>About</a> <a href={route("app.settings")}>App</a></nav>
   <main>{Children}</main>
 </body>
 </html>

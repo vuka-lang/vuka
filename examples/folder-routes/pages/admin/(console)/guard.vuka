@@ -3,7 +3,6 @@ package console
 import (
 	"context"
 
-	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/web/v2"
 )
 
@@ -15,5 +14,5 @@ func (g *Guard) Load(ctx context.Context) error {
 	if c, err := web.Request(ctx).Cookie("admin"); err == nil && c.Value != "" {
 		return nil
 	}
-	return web.Redirect(urls.Admin.Auth.Login.Path())
+	return web.Redirect(route("admin.auth.login"))
 }

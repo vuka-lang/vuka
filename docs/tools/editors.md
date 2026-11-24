@@ -318,9 +318,10 @@ last build made, the one [`vuka routes`](/web/folder-routes#vuka-routes) prints:
   `pages/users/[id]` is `/users/{id}`, and a route group such as
   `(admin)` is left out. A `.go` file of no folder-route package keeps
   gopls's hover and lenses as they are.
-- **Links**: a `urls.Orgs.Org(7).Edit.Path()` chain and an `href="/orgs/new"`
-  literal naming a page are links to the page's file, and go to definition
-  on them opens the page at its struct — in `.go` files too, for chains.
+- **Links**: a `route("orgs.edit", 7)` link, a `urls.Orgs.Org(7).Edit.Path()`
+  chain and an `href="/orgs/new"` literal naming a page are links to the
+  page's file, and go to definition on them opens the page at its struct —
+  in `.go` files too, for `web.Route` and chains.
 - **References** on a page's struct name (or on the file's package clause)
   list the chains and literal `href`s naming the page, besides gopls's
   references to the type.
@@ -331,13 +332,28 @@ last build made, the one [`vuka routes`](/web/folder-routes#vuka-routes) prints:
 
 ### Renaming Pages {#renaming-pages}
 
-Renaming or moving a file or folder under `pages/` in the editor's explorer
-renames the `urls` chains naming its pages, before the rename: renaming
-`pages/orgs/new.vuka.html` to `create.vuka.html` makes `urls.Orgs.New` into
-`urls.Orgs.Create` across the module, and renaming the folder `pages/orgs`
-to `pages/teams` makes every `urls.Orgs.…` into `urls.Teams.…`, keeping
-their arguments. The generated `pages/urls` package follows at the next
-build.
+A route's name is its folders, so renaming a route is moving a folder.
+**Rename** (F2) on the name in a link — `route("orgs.org", id)`,
+`routePath("…")`, `web.Route(ctx, "…")` in Go — takes the new name and
+moves the folder or page file of the one part that changed: `orgs.org` to
+`teams.org` moves `pages/orgs` to `pages/teams`, `orgs.new` to
+`orgs.create` renames `new.vuka.html` to `create.vuka.html`. The edit is
+[`vuka mv`](/web/folder-routes#moving-a-folder)'s plan: every link naming
+a route the move renames, the `urls` chains, the imports of the moved
+packages, then the rename itself, in one undoable step. A move `vuka mv`
+would refuse — a clash, a link the new path doesn't fit, unsaved changes
+in a file to edit — is refused with its reason. It needs an editor that
+renames files in an edit (VS Code does); in another, the rename says to run
+`vuka mv`.
+
+Renaming or moving a file or folder under `pages/` in the editor's
+explorer rewrites the same links, before the rename: renaming
+`pages/orgs/new.vuka.html` to `create.vuka.html` makes `route("orgs.new")`
+into `route("orgs.create")` and `urls.Orgs.New` into `urls.Orgs.Create`
+across the module, and renaming the folder `pages/orgs` to `pages/teams`
+makes every `orgs.…` name `teams.…`, and every `urls.Orgs.…` chain
+`urls.Teams.…`, keeping their arguments. The generated `pages/urls`
+package follows at the next build.
 
 > [!WARNING]
 > Literal `href`s and paths in strings aren't rewritten: a rename changes
@@ -472,7 +488,7 @@ section — the script's in a shape:
 
 - an import nothing in the file uses goes. Uses are the file's Go, its
   markup's holes and attributes (`{strings.ToUpper(name)}`,
-  `href={urls.Root.Path()}`), component tags (`<components.Logo>`) and
+  `src={web.Asset("/static/logo.png")}`), component tags (`<components.Logo>`) and
   attributes (`@orm.PK`, `@graphql.Query`). Blank (`_`) and dot imports
   stay, and so does an import used only by code that doesn't type-check yet;
   a file whose code doesn't parse is left as it is;

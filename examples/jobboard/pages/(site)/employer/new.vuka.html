@@ -11,7 +11,6 @@ import (
 	"example.com/jobboard/components"
 	"example.com/jobboard/modules/jobs"
 	"example.com/jobboard/modules/users"
-	"example.com/jobboard/pages/urls"
 )
 
 // New is /employer/new: the form a job is posted with.
@@ -27,7 +26,7 @@ func (p *New) Title() string { return "Post a job" }
 func (p *New) Save(ctx context.Context, f jobs.PostJob) error {
 	job := p.board.Post(ctx, users.Of(user).ID, f).Get()?
 	web.Flash(ctx, "success", job.Title+" is open for applications.")?
-	return web.Redirect(urls.Employer.Path())
+	return web.Redirect(route("employer"))
 }
 </script>
 

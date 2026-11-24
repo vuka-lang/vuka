@@ -13,7 +13,6 @@ import (
 	"example.com/jobboard/components"
 	"example.com/jobboard/modules/jobs"
 	"example.com/jobboard/modules/users"
-	"example.com/jobboard/pages/urls"
 )
 
 // Index is the employer's dashboard, /employer: their jobs with the
@@ -58,7 +57,7 @@ func (p *Index) Close(ctx context.Context, id int64) error {
 
 <components.Header title="Your jobs" description="Applications appear here as they arrive.">
   <ui.Link
-    href={urls.Employer.New.Path()}
+    href={route("employer.new")}
     class="rounded-lg bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
   >Post a job</ui.Link>
 </components.Header>
@@ -81,7 +80,7 @@ if len(arrived) > 0 {
       for _, j := range postings {
         <tr key={j.ID} id={"posting-" + strconv.FormatInt(j.ID, 10)}>
           <td class="px-5 py-3.5"><ui.Link
-            href={urls.Employer.Job(j.ID).Path()}
+            href={route("employer.job", j.ID)}
             class="font-medium hover:underline"
           >{j.Title}</ui.Link></td>
           <td class="px-5 py-3.5 text-slate-500">{j.Closes.Format("2 Jan 2006")}</td>

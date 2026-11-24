@@ -63,9 +63,9 @@ func TestRouteGroups(t *testing.T) {
 	}
 	checkGolden(t, "groups_routes.txt", out.Bytes())
 	for _, want := range []string{
-		`GET +/admin +console\.Index +pages/admin/\(console\)/index\.vuka\.html:\d+ +console\.Guard +pages\.Layout, console\.Shell`,
-		`GET +/admin/users/\{id\} +users\.User .*console\.Guard +pages\.Layout, console\.Shell`,
-		`GET +/admin/auth/login +auth\.Login +pages/admin/auth/login\.vuka\.html:\d+ +pages\.Layout\n`,
+		`GET +/admin +\S+ +console\.Index +pages/admin/\(console\)/index\.vuka\.html:\d+ +console\.Guard +pages\.Layout, console\.Shell`,
+		`GET +/admin/users/\{id\} +\S+ +users\.User .*console\.Guard +pages\.Layout, console\.Shell`,
+		`GET +/admin/auth/login +\S+ +auth\.Login +pages/admin/auth/login\.vuka\.html:\d+ +pages\.Layout\n`,
 	} {
 		if !regexp.MustCompile(want).MatchString(out.String()) {
 			t.Errorf("vuka routes has no %s:\n%s", want, out.Bytes())
@@ -178,7 +178,7 @@ func TestRootLayouts(t *testing.T) {
 	if err := vukaIn(app, &out, &errOut, "routes"); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	for _, want := range []string{`GET +/ +site\.Home .* site\.Site\n`, `GET +/cart +shop\.Cart .* shop\.Shop\n`} {
+	for _, want := range []string{`GET +/ +\S+ +site\.Home .* site\.Site\n`, `GET +/cart +\S+ +shop\.Cart .* shop\.Shop\n`} {
 		if !regexp.MustCompile(want).MatchString(out.String()) {
 			t.Errorf("vuka routes has no %s:\n%s", want, out.Bytes())
 		}
@@ -232,7 +232,7 @@ func TestGoInRouteFolders(t *testing.T) {
 		}
 	}
 	out.Reset()
-	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`GET +/admin/stats +stats\.Index\.Get \(endpoint\) +pages/admin/\(console\)/stats/index\.go:11`).Match(out.Bytes()) {
+	if err := vukaIn(app, &out, &errOut, "routes"); err != nil || !regexp.MustCompile(`GET +/admin/stats +\S+ +stats\.Index\.Get \(endpoint\) +pages/admin/\(console\)/stats/index\.go:11`).Match(out.Bytes()) {
 		t.Errorf("vuka routes: %v\n%s", err, out.Bytes())
 	}
 

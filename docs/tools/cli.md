@@ -29,6 +29,7 @@ vuka mod why|vendor|graph|… [args]
 vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
+vuka mv [-n] <from> <to>
 vuka gen [-code-only] [-o build]
 vuka gen -check [dir | dir/...]
 vuka gen -inplace [-check] [dir | dir/...]
@@ -508,6 +509,35 @@ The other `go mod` commands — `vuka mod why`, `vuka mod vendor`,
 imports standing for each package's `.vuka` imports while they run.
 `vuka help mod` prints this in short.
 
+## Moving Pages {#mv}
+
+`vuka mv` moves a folder, a `[param]` folder or one page file under
+`pages/` and rewrites what names its routes, so the app serves the same
+pages at their new paths and every link still resolves:
+
+```sh
+vuka mv -n pages/orders pages/purchases   # the plan: routes renamed, every rewrite, file:line
+vuka mv pages/orders pages/purchases
+vuka mv pages/orders/new.vuka.html pages/orders/create.vuka.html
+```
+
+It renames the links by name — `route("…")` and `routePath("…")` in Vuka
+files, `web.Route`, `web.RouteURL` and `web.RoutePath` in Go — whose route
+the move renames, including a route it renames without moving
+(`orders.order` becomes `orders` when `/orders` moves away). It writes the
+`urls` chains naming them as the new chain (`vuka fix routes` writes a
+chain as `route(…)`), and the import paths of the moved packages. It lists
+the routes whose middleware, guards or layouts change with the move.
+
+Before writing, it checks the moved tree in a copy of the module, and it
+writes nothing when the target exists, either side is outside `pages/`,
+git's index has files at the target, or the moved routes fail their
+checks (a path or name taken twice, a link the new path doesn't fit). A
+tracked source moves with `git mv`. If a write fails partway, the files it
+wrote and the move are put back. The generated `pages/route.go`,
+`urls_gen.go` and `vuka_route_gen.go` are written again by the next build.
+See [Moving a Folder](/web/folder-routes#moving-a-folder).
+
 ## Ejecting to Go {#eject}
 
 `vuka eject` turns `.vuka` files into Go:
@@ -785,7 +815,7 @@ vuka fix routes ctx-vars     # two fixers
 | `graphql-params` | a GraphQL argument's attribute written before its parameter: `@graphql.AsInt("lastID")` above a function → `@graphql.AsInt lastID int` ([Arguments](/web/graphql#arguments), [W0803](/errors/W0803)) |
 | `graphql-args` | lists the GraphQL arguments of a value type, required since v2.14.0, to make pointers of those a client may leave out; changes nothing; only when named ([Nullability](/web/graphql#nullability)) |
 | `ctx-vars` | context processors' reads as their variables ([Processor Variables](#ctx-vars), [W0402](/errors/W0402)) |
-| `routes` | a `pages/` tree's `Routes()` passed to `web.New` ([Serving the Pages](#add-page-routes), [W0701](/errors/W0701)) |
+| `routes` | a `pages/` tree's `Routes()` passed to `web.New` ([Serving the Pages](#add-page-routes), [W0701](/errors/W0701)); when named, the `urls` chains it can name written as `route(…)` ([Linking by Name](/web/folder-routes#linking-by-name), [W0706](/errors/W0706)) |
 | `shape-script` | Go-header shapes in the `<script lang="go">` form ([Converting Shapes](#shape-script)) |
 | `templates-package` | a package clause at the start of each `.vuka.html` file |
 | `hooks` | a live page's hook methods marked `@ui.Mount`, `@ui.OnChange`, `@ui.Loads` |
@@ -848,7 +878,7 @@ released, or main's built against vuka's main as above. Use it, not `go install
 fix merged there reaches `cmd/vuka`'s go.mod pin only in a later commit. It prints the
 command's version and the vuka it compiles with; `-n` prints the go commands instead.
 `vuka version` shows the vuka the command compiles with, and the commands that compile
-an app (build, run, test, vet, install, gen, eject, explain, routes, graphql,
+an app (build, run, test, vet, install, gen, eject, explain, routes, mv, graphql,
 build-islands, lsp) warn once, on stderr, when it is older than the vuka the app's go.mod
 requires ([The command's compiler](/project/versions#command-compiler)).
 
