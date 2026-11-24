@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -284,6 +286,61 @@ func status(r Result[int]) int {
 	s.finish(s.build(context.Background(), 1, &app{}), time.Time{})
 	if want := out + "● build failed; waiting for a change\n"; !strings.HasSuffix(stderr.String(), want) {
 		t.Errorf("run -watch says:\n%s\nwant:\n%s", stderr.String(), want)
+	}
+}
+
+// TestReportOneGoList: a failed build's report lists export data once for
+// the whole report, not once per failing package it checks. Before this,
+// each of several culprits made its own go list; the report now primes one
+// listing for all of them.
+func TestReportOneGoList(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("counts go commands through a shell shim")
+	}
+	files := map[string]string{
+		"main.go": "package main\n\nimport \"example.com/app/pages\"\n\nfunc main() { _ = pages.All }\n",
+	}
+	var all strings.Builder
+	for _, b := range []string{"b0", "b1", "b2", "b3"} {
+		// Each broken package imports a distinct compiling package and has a
+		// type error of its own, so all four are culprits the pages import.
+		files["lib/"+b+"/"+b+".go"] = "package " + b + "\n\nfunc V() int { return 0 }\n"
+		files["broken/"+b+"/"+b+".vuka"] = "package " + b + "\n\nimport \"example.com/app/lib/" + b + "\"\n\nfunc Good() int { return " + b + ".V() }\n\nfunc Bad() int { return \"nope\" }\n"
+		files["pages/use"+b+"/index.vuka.html"] = "<script lang=\"go\">\npackage use" + b + "\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"example.com/app/broken/" + b + "\"\n)\n\ntype Index struct{}\n\nfunc (Index) G() int { return " + b + ".Good() }\n</script>\n\n<section>use" + b + "</section>\n"
+		fmt.Fprintf(&all, "\t_ = use%s.Index{}\n", b)
+	}
+	files["pages/pages.go"] = "package pages\n\nimport (\n\tuseb0 \"example.com/app/pages/useb0\"\n\tuseb1 \"example.com/app/pages/useb1\"\n\tuseb2 \"example.com/app/pages/useb2\"\n\tuseb3 \"example.com/app/pages/useb3\"\n)\n\nfunc All() {\n" + all.String() + "}\n"
+	root := localModule(t, webCheckout(t), files)
+	t.Chdir(root)
+	slow := slowPhase
+	slowPhase = time.Hour
+	defer func() { slowPhase = slow }()
+	s := &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: os.Environ(), stderr: io.Discard}
+	r := s.build(context.Background(), 1, &app{})
+	if r.err == nil && len(r.out) == 0 {
+		t.Fatal("the build passed")
+	}
+	// Count go list invocations with a shim first on PATH. The build already
+	// ran, so only the report that follows lists.
+	real, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	count := filepath.Join(bin, "lists")
+	writeFile(t, filepath.Join(bin, "go"), "#!/bin/sh\nif [ \"$1\" = list ]; then echo list >> \""+count+"\"; fi\nexec \""+real+"\" \"$@\"\n")
+	os.Chmod(filepath.Join(bin, "go"), 0o755)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	plain, _ := s.failure(r)
+	if !strings.Contains(plain, "error[") {
+		t.Fatalf("no report:\n%s", plain)
+	}
+	b, _ := os.ReadFile(count)
+	if n := strings.Count(string(b), "list"); n > 1 {
+		t.Errorf("the report ran go list %d times, want at most 1:\n%s", n, plain)
 	}
 }
 

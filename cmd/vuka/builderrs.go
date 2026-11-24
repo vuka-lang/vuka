@@ -241,6 +241,77 @@ type buildInput struct {
 	overlay       string
 	gens          []load.Generated
 	imports       map[string][]string // the module's packages' imports, by import path; nil: read from the overlay
+	rs            *reportState        // one report's shared state; prepared() sets it
+}
+
+// reportState is what one report's passes share, so the go command is asked
+// once for the whole report rather than by each pass: the overlay and its
+// build context, and one importer whose single listing feeds every check.
+type reportState struct {
+	im    *load.Importer
+	ov    map[string]string
+	ovErr error
+	ctx   *build.Context
+}
+
+// prepared gives the input the report's shared state, once; the copies the
+// value-receiver methods pass around all see the same state.
+func (in buildInput) prepared() buildInput {
+	if in.rs == nil {
+		in.rs = &reportState{}
+	}
+	return in
+}
+
+// buildContext is the overlay's files and the build context seeing them.
+func (in buildInput) buildContext() (*build.Context, map[string]string, error) {
+	rs := in.rs
+	if rs == nil {
+		rs = &reportState{}
+	}
+	if rs.ctx == nil {
+		rs.ov, rs.ovErr = readOverlay(in.overlay)
+		rs.ctx = overlayContext(rs.ov)
+	}
+	return rs.ctx, rs.ov, rs.ovErr
+}
+
+// importer is the report's one importer: every check reads export data
+// listed once, instead of each running go list for itself.
+func (in buildInput) importer() *load.Importer {
+	rs := in.rs
+	if rs == nil {
+		rs = &reportState{}
+	}
+	if rs.im == nil {
+		rs.im = load.NewOverlayImporter(in.root, in.overlay)
+	}
+	return rs.im
+}
+
+// prime looks up, in one go command, the export data every package the
+// report will type-check needs — the imports of all of them — rather than
+// each check's importer filling itself one go list at a time.
+func (in buildInput) prime(checked ...[]string) {
+	ctx, _, err := in.buildContext()
+	if err != nil {
+		return
+	}
+	var imports []string
+	seen := map[string]bool{}
+	for _, p := range slices.Concat(checked...) {
+		if bp, _ := ctx.ImportDir(in.dirOf(p), 0); bp != nil {
+			for _, imp := range bp.Imports {
+				if !seen[imp] {
+					seen[imp] = true
+					imports = append(imports, imp)
+				}
+			}
+		}
+	}
+	if len(imports) > 0 {
+		_ = in.importer().Prefetch(imports)
+	}
 }
 
 // transpileReport is the report of a transpile that failed with err; nil
@@ -262,12 +333,15 @@ func transpileReport(in buildInput, err error) *buildReport {
 			culprits = append(culprits, c)
 		}
 	}
+	in = in.prepared()
+	deps, candidates := in.failingDeps(ds, culprits)
+	in.prime(culprits, candidates)
 	own, follow := in.check(culprits, in.dropped(ds))
 	known := map[string]bool{} // culprits failing themselves
 	for c, ds := range own {
 		known[c] = slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Code != "E0005" && d.Severity != diag.Warning })
 	}
-	roots, blamed := in.rootCauses(ds, known)
+	roots, blamed := in.rootCauses(known, deps, candidates)
 	byPkg := map[string][]diag.Diagnostic{}
 	goErrs := map[string]int{} // how many of byPkg's are Go's, after Vuka's
 	var order []string
@@ -390,12 +464,10 @@ func transpileReport(in buildInput, err error) *buildReport {
 	return r
 }
 
-// rootCauses are the module's packages that fail themselves, by import
-// path with their errors, that the packages ds has transpile errors in
-// import, directly or not, and the packages whose errors follow from them
-// (by the failing package): their types are invalid in those, so what they
-// report says little about the packages' own code.
-func (in buildInput) rootCauses(ds []diag.Diagnostic, known map[string]bool) (map[string][]diag.Diagnostic, map[string]string) {
+// failingDeps is, by package ds has errors in, the module's packages it
+// imports all the way down (deps), and those of them that may be unreported
+// root causes (candidates): not failing themselves, and not culprits.
+func (in buildInput) failingDeps(ds []diag.Diagnostic, culprits []string) (map[string][]string, []string) {
 	failing := map[string]bool{}
 	for _, d := range ds {
 		if p := in.pkgOf(d.Span.File); p != "" && d.Code != "E0005" && d.Severity != diag.Warning {
@@ -405,9 +477,8 @@ func (in buildInput) rootCauses(ds []diag.Diagnostic, known map[string]bool) (ma
 	if len(failing) == 0 {
 		return nil, nil
 	}
-	ov, _ := readOverlay(in.overlay)
-	ctx := overlayContext(ov)
-	deps := map[string][]string{} // a package → the module's packages it imports, all the way down
+	ctx, _, _ := in.buildContext()
+	deps := map[string][]string{}
 	var closure func(p string, seen map[string]bool)
 	closure = func(p string, seen map[string]bool) {
 		imports, ok := in.imports[p]
@@ -430,11 +501,22 @@ func (in buildInput) rootCauses(ds []diag.Diagnostic, known map[string]bool) (ma
 		closure(p, seen)
 		deps[p] = slices.Sorted(maps.Keys(seen))
 		for _, d := range deps[p] {
-			if _, ok := known[d]; !ok && !failing[d] && !have[d] {
+			if !slices.Contains(culprits, d) && !failing[d] && !have[d] {
 				have[d] = true
 				candidates = append(candidates, d)
 			}
 		}
+	}
+	return deps, candidates
+}
+
+// rootCauses are the candidates that fail themselves, by import path with
+// their errors, and the failing packages whose errors follow from a dep
+// that fails (by that dep): their types are invalid in those, so what they
+// report says little about the packages' own code.
+func (in buildInput) rootCauses(known map[string]bool, deps map[string][]string, candidates []string) (map[string][]diag.Diagnostic, map[string]string) {
+	if len(deps) == 0 {
+		return nil, nil
 	}
 	own, _ := in.check(in.depOrder(candidates), nil)
 	roots := map[string][]diag.Diagnostic{}
@@ -653,8 +735,7 @@ func (in buildInput) depOrder(paths []string) []string {
 	if len(paths) < 2 {
 		return paths
 	}
-	ov, _ := readOverlay(in.overlay)
-	ctx := overlayContext(ov)
+	ctx, _, _ := in.buildContext()
 	want := map[string]bool{}
 	for _, p := range paths {
 		want[p] = true
@@ -699,6 +780,7 @@ func goReport(in buildInput, out []byte) *buildReport {
 }
 
 func blocksReport(in buildInput, blocks []goBlock, rest []string) *buildReport {
+	in = in.prepared()
 	r := &buildReport{raw: rest}
 	var paths []string
 	for _, b := range blocks {
@@ -744,20 +826,22 @@ func (in buildInput) check(paths []string, missing map[string]map[string]string)
 	if len(paths) == 0 {
 		return out, nil
 	}
-	ov, err := readOverlay(in.overlay)
+	in = in.prepared()
+	ctx, ov, err := in.buildContext()
 	if err != nil {
 		return out, nil
 	}
-	c := &checker{in: in, ov: ov, ctx: overlayContext(ov), gens: map[string]*load.Generated{}, knock: map[string][]diag.Diagnostic{}, missing: missing, follow: map[string][]followed{}}
+	c := &checker{in: in, ov: ov, ctx: ctx, gens: map[string]*load.Generated{}, knock: map[string][]diag.Diagnostic{}, missing: missing, follow: map[string][]followed{}}
 	for i := range in.gens {
 		c.gens[realPathOf(in.gens[i].Target)] = &in.gens[i]
 	}
-	c.im = load.NewOverlayImporter(in.root, in.overlay)
+	c.im = in.importer()
 	if v, err := load.ModuleGoVersion(in.root); err == nil {
 		if parts := strings.SplitN(v, ".", 3); len(parts) >= 2 {
 			c.goVersion = "go" + parts[0] + "." + parts[1]
 		}
 	}
+	in.prime(paths)
 	for _, p := range paths {
 		out[p] = c.pkg(p)
 		if len(out[p]) == 0 && len(c.knock[p]) > 0 {
