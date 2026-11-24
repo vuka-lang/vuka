@@ -161,8 +161,8 @@ func main() {
 
 `vuka build`, `run`, `test` and `vet` keep `pages/route.go` registering
 every page of every folder. A new folder is served on the next build with
-nothing else to edit, and `pages/urls` holds a typed link to every page
-([below](#typed-urls)).
+nothing else to edit, and a page links to every other by its name,
+`route("employers.edit", id)` ([below](#linking-by-name)).
 
 > [!WARNING]
 > A module with pages whose `main` never calls `pages.Routes()` serves none
@@ -281,7 +281,6 @@ looks its employer up in a method its markup and `Title` call:
 package employer
 
 import "example.com/app/store"
-import "example.com/app/pages/urls"
 
 type Edit struct {
 	Employer int
@@ -298,7 +297,7 @@ func (p *Edit) employer() store.Employer {
 func (p *Edit) Title() string { return "Edit " + p.employer().Name }
 </script>
 
-<form method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>
+<form method="post" action={route("employers.edit", Employer)}>
   <input name="name" value={employer().Name}/>
   <button>Save</button>
 </form>
@@ -534,7 +533,6 @@ import "github.com/vuka-lang/ui/v2"
 import "context"
 import "github.com/vuka-lang/web/v2"
 import "example.com/app/store"
-import "example.com/app/pages/urls"
 
 type Layout struct {
 	Employer int
@@ -554,7 +552,7 @@ func (l *Layout) Load(ctx context.Context, s *store.Store) error {
 
 <article>
   <h1>{name}</h1>
-  <nav><a href={urls.Employers.Employer(Employer).Path()}>Overview</a> <a href={urls.Employers.Employer(Employer).Edit.Path()}>Edit</a></nav>
+  <nav><a href={route("employers.employer", Employer)}>Overview</a> <a href={route("employers.edit", Employer)}>Edit</a></nav>
   {Children}
 </article>
 ```
@@ -872,7 +870,6 @@ package employer
 import "context"
 import "github.com/vuka-lang/web/v2"
 import "example.com/app/store"
-import "example.com/app/pages/urls"
 
 type Edit struct {
 	Employer int
@@ -883,7 +880,7 @@ func NewEdit(s *store.Store) *Edit { return &Edit{db: s} }
 
 func (p *Edit) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, error) {
 	p.db.UpdateEmployer(p.Employer, form)
-	return web.Redirect(urls.Employers.Employer(p.Employer).Path()), nil
+	return web.Redirect(route("employers.employer", p.Employer)), nil
 }
 
 func (p *Edit) Delete(ctx context.Context) error {
@@ -892,7 +889,7 @@ func (p *Edit) Delete(ctx context.Context) error {
 }
 </script>
 
-<form method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>…</form>
+<form method="post" action={route("employers.edit", Employer)}>…</form>
 ```
 
 Each request builds its own receiver with the page's constructor and binds
@@ -1149,7 +1146,63 @@ An attribute only a `web.WrapRoutes` function gives a meaning to (a
 `web.RouteAttr`, what auth's gates are) reaches that function with the
 page's route, live or not.
 
+## Linking by Name
+
+Every route has a name: its folders under `pages/` with dots. Parameter and
+group folders add nothing, and a page file adds its segment. When two paths
+differ only by their parameters, as a list and its items do, each keeps the
+parameters it has:
+
+| Folder | Path | Name |
+|---|---|---|
+| `pages/index.vuka.html` | `/` | `index` |
+| `pages/employers/index.vuka.html` | `/employers` | `employers` |
+| `pages/employers/new.vuka.html` | `/employers/new` | `employers.new` |
+| `pages/employers/[employer]/index.vuka.html` | `/employers/{employer}` | `employers.employer` (beside `employers`) |
+| `pages/employers/[employer]/edit.vuka.html` | `/employers/{employer}/edit` | `employers.edit` |
+| `pages/(admin)/settings/index.vuka.html` | `/settings` | `settings` |
+| `pages/api/employers/[employer].vuka` | `/api/employers/{employer}` | `api.employers.employer` |
+
+In markup and in a `.vuka` file's Go, `route` is the link: the name, then
+the path's parameters in its order, then an optional `query{…}` for the
+page's [`@ui.URL`](/web/url-state) fields. `routePath` is the same path
+without the app's mount prefix. The ctx is the one in scope, the render's
+in markup:
+
+```html
+<a href={route("employers.edit", employer.ID)}>Edit</a>
+<a href={route("employers", query{"page": 2})}>Next page</a>
+<form method="post" action={route("employers.edit", Employer)}>…</form>
+<button onClick={ui.JS.Navigate(route("employers.employer", 7))}>Open</button>
+```
+
+A link is checked when its page is transpiled: a name no route has is
+[E0725](/errors/E0725), with the closest name; parameters the path doesn't
+take, too many, too few or of the wrong type, are [E0726](/errors/E0726),
+which names the path and its parameters in order (`employers.edit
+(/employers/[employer]/edit) takes employer int`); a query key the page keeps
+no field under is [E0727](/errors/E0727). A route whose parameters change
+checks its links again, and a new page compiles its own package and
+`pages/route.go` only: no page imports a generated package to link.
+
+`route` carries the request's mount prefix — `X-Forwarded-Prefix` from a
+trusted proxy, else what `http.StripPrefix` removed — exactly once, in an
+`href`, a form's `action`, a `web.Redirect` or a `ui.JS.Navigate`/`Patch`;
+without a request (a job, a cron) it is the path alone. In hand-written Go,
+`web.Route(ctx, "employers.edit", 7)` and `web.RoutePath` link the same way,
+checked when they run: a name no route has panics, naming the closest one,
+under `vuka run` and in tests, and is logged and gives `"#"` in production.
+
+`vuka lsp` completes the names inside the string, shows a link's parameters
+as you type them and its path on hover, and goes to the page.
+
 ## Typed URLs
+
+> [!NOTE]
+> The `urls` package keeps working, and is generated as before, until the
+> next major version. Link by [name](#linking-by-name) in new code; the
+> chains a tool can name are rewritten to `route(…)`, the others are
+> [W0706](/errors/W0706).
 
 vuka writes one more package, `pages/urls`, with a link to every page,
 shaped like the tree: a folder is a value, a fixed child folder or a page

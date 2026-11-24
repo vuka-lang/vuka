@@ -39,6 +39,8 @@ type folderRoute struct {
 	mws     []*routeDir
 	wraps   []wrap
 	facts   *typeFact // the page's or endpoint's
+	params  []string  // the keys of its path parameters, in order
+	name    string    // its route name
 }
 
 // wrap is a guard or a layout over a folder's routes.
@@ -113,8 +115,11 @@ func (t *routeTree) check(res *routesResult) {
 	c.typeParams()
 	c.urlParams()
 	c.conflicts()
+	c.names()
+	c.checkLinks()
 	t.info = c.info
 	t.urls = c.urlTree()
+	t.attrs.save()
 	traceStep("route check: %d page packages assembled %v", len(t.dirs), time.Since(t0))
 }
 
@@ -469,12 +474,12 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				}
 				c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m.Name), Path: path, Page: d.name + "." + name + "." + m.Name,
 					Kind: "endpoint", File: m.Pos.File, Line: m.Pos.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: tf.Ctor,
-					handler: m.Name, node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf})
+					handler: m.Name, node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf, params: params})
 			}
 			continue
 		}
 		r := &folderRoute{Method: "GET", Path: path, Page: d.name + "." + name, Kind: "page", File: tf.Pos.File, Line: tf.Pos.Line,
-			Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: tf.Ctor, node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf}
+			Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: tf.Ctor, node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf, params: params}
 		if tf.Live {
 			r.Kind = "live"
 		}
@@ -509,7 +514,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			}
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",
 				File: fm.Pos.File, Line: fm.Pos.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: r.ctor, handler: m,
-				node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf})
+				node: node, leaf: leaf, mws: in.mws, wraps: in.wraps, facts: tf, params: params})
 		}
 	}
 	for _, mf := range d.funcs {
@@ -533,7 +538,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 		}
 		c.res.routes = append(c.res.routes, &folderRoute{Method: mf.method, Path: path, Page: d.name + "." + mf.method, Kind: "endpoint",
 			File: ff.Pos.File, Line: ff.Pos.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, fn: mf.goName, names: ff.Names,
-			node: node, mws: in.mws, wraps: in.wraps})
+			node: node, mws: in.mws, wraps: in.wraps, params: params})
 	}
 }
 

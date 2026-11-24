@@ -764,6 +764,7 @@ type Typed struct {
 	Fset   *token.FileSet
 	Files  []*ast.File
 	Uses   map[*ast.Ident]types.Object
+	Types  map[ast.Expr]types.TypeAndValue
 	Import func(path string) (*types.Package, error)
 }
 

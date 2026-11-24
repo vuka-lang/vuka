@@ -16,6 +16,7 @@ import (
 //line shadow.vuka.html:4
 type Shadow struct{ request uigen.Assign[string] }
 
+//go:noinline
 //line shadow.vuka.html:5
 func (s Shadow) View() ui.Node {
 //line shadow.vuka.html:5

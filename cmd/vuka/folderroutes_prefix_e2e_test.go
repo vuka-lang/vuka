@@ -33,6 +33,9 @@ func main() {
 	a := web.New(pages.Routes(), web.Provide(store.New), web.WrapRoutes("no-store", noStore),
 		web.ContextProcessors(web.RequestContext), web.TrustedProxies("127.0.0.1"))
 	a.Get("/", func() web.Redirect { return "/employers" })
+	a.Get("/where", func(ctx context.Context) string {
+		return web.Route(ctx, "employers.edit", 1) + " " + web.RoutePath(ctx, "employers.edit", 1)
+	})
 	if err := a.Start(context.Background()); err != nil {
 		log.Fatal(err)
 	}
@@ -58,18 +61,35 @@ func noStore(info web.RouteInfo) web.Middleware {
 const prefixLinks = `<script lang="go">
 package links
 
-import "example.com/app/pages/urls"
+import (
+	"context"
+
+	"example.com/app/pages/urls"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
 
 // Index links to an employer's edit page.
 type Index struct{}
 
 func (p *Index) Edit() string { return urls.Employers.Employer(1).Edit.Path() }
+
+func (p *Index) Post(ctx context.Context) web.Redirect {
+	return web.Redirect(route("employers.employer", 1))
+}
+
+var _ = ui.JS
 </script>
 
 <section id="links">
   <a id="url" href={urls.Employers.Employer(1).Edit.URL(ctx)}>Edit</a>
   <a id="path" href={p.Edit()}>Edit</a>
   <a id="employers" href={urls.Employers.URL(ctx)}>Employers</a>
+  <a id="route" href={route("employers.edit", 1)}>Edit</a>
+  <a id="routepath" href={routePath("employers.edit", 1)}>Edit</a>
+  <form id="form" method="post" action={route("employers.employer", 1)}></form>
+  <button id="nav" onClick={ui.JS.Navigate(route("employers.employer", 1))}>Open</button>
+  <button id="patch" onClick={ui.JS.Patch(route("employers"))}>All</button>
 </section>
 `
 
@@ -172,7 +192,15 @@ func TestFolderRoutesUnderPrefix(t *testing.T) {
 			}
 			// URL(ctx) carries the prefix once, Path() never; the runtime's
 			// script is the app's, under the prefix.
-			page("/links", `<a id="url" href="/gateway/employers/1/edit">`, `<a id="path" href="/employers/1/edit">`, `<a id="employers" href="/gateway/employers">`)
+			page("/links", `<a id="url" href="/gateway/employers/1/edit">`, `<a id="path" href="/employers/1/edit">`, `<a id="employers" href="/gateway/employers">`,
+				`<a id="route" href="/gateway/employers/1/edit">`, `<a id="routepath" href="/employers/1/edit">`, `action="/gateway/employers/1"`,
+				`/gateway/employers/1&#34;`, `/gateway/employers&#34;`)
+			if code, _, body := do("GET", "/where", nil, false); code != http.StatusOK || !strings.Contains(body, "/gateway/employers/1/edit /employers/1/edit") {
+				t.Errorf("web.Route in Go: %d %q", code, body)
+			}
+			if code, loc, _ := do("POST", "/links", url.Values{}, false); code != http.StatusSeeOther || loc != "/gateway/employers/1" {
+				t.Errorf("a redirect to route(…): %d %q, want /gateway/employers/1", code, loc)
+			}
 			page("/employers", `<a href="/employers/1">Acme Logistics</a>`, `<script src="/gateway/_vuka/live.js`)
 			page("/employers/1", `<a href="/employers/1/edit">Edit</a>`, `<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="api" href="/api/employers/1">`)
 			page("/employers/1/permits/2", `<a id="back" href="/employers/1">`, `<script src="/gateway/_vuka/live.js`)

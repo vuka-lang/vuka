@@ -254,6 +254,7 @@ type fileState struct {
 	tracked      map[string]bool // those fields
 	writeDone    map[int]bool    // the state writes lowered or refused, by offset (writes.go)
 	readsVars    bool            // the file names a context processor's variable (contextvars.go)
+	mayRoute     bool            // it may call route or routePath (routes.go)
 	readsDirect  bool            // and may read one's value directly: auth.Can (contextvet.go)
 	varReads     []VarRead       // the reads lowered
 
@@ -692,6 +693,7 @@ func compile(files []File, opts Options, h *compileHints) (*Result, *compileHint
 			continue
 		}
 		f.readsVars = f.vuka && e.ctx.mayRead(f.src)
+		f.mayRoute = f.vuka && mayRoute(f.src)
 		f.readsDirect = f.vuka && e.ctx != nil && mayReadDirect(f.src)
 		if f.vuka {
 			f.scan(&errs)

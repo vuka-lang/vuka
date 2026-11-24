@@ -2,14 +2,14 @@
 
 package pets
 
-// VukaRoutes gives route each page and endpoint of pages/api/pets/: its kind, method,
-// path, handler, the constructor of a handler's page, and a method func's
-// parameters' names. pages.Routes registers them.
+// VukaRoutes gives route each page and endpoint of pages/api/pets/: its name, kind,
+// method, path, handler, the constructor of a handler's page, and a method
+// func's parameters' names. pages.Routes registers them.
 //
 //go:noinline
-func VukaRoutes(route func(kind, method, path string, fn, ctor any, params ...string)) {
-	route("func", "GET", "/api/pets", GET_index, nil, "ctx")
-	route("func", "POST", "/api/pets", POST, nil, "ctx", "p")
-	route("func", "GET", "/api/pets/{id}", GET_id, nil, "ctx", "id")
-	route("func", "DELETE", "/api/pets/{id}", DELETE, nil, "ctx", "id")
+func VukaRoutes(route func(name, kind, method, path string, fn, ctor any, params ...string)) {
+	route("api.pets", "func", "GET", "/api/pets", GET_index, nil, "ctx")
+	route("api.pets", "func", "POST", "/api/pets", POST, nil, "ctx", "p")
+	route("api.pets.id", "func", "GET", "/api/pets/{id}", GET_id, nil, "ctx", "id")
+	route("api.pets.id", "func", "DELETE", "/api/pets/{id}", DELETE, nil, "ctx", "id")
 }

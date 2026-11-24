@@ -387,7 +387,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.ReloadLayout", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New", "web.MountPath", "web.RouteOption":
+			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.ReloadLayout", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New", "web.MountPath", "web.RouteOption", "web.Route":
 			default:
 				out = append(out, "names "+sel+name)
 			}
@@ -466,7 +466,7 @@ func TestShapePages(t *testing.T) {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	b, _ := os.ReadFile(filepath.Join(app, "pages", "vuka_route_gen.go"))
-	if !strings.Contains(string(b), `route("live", "GET", "/counter", func() *Counter { return &Counter{} }`) || !strings.Contains(string(b), `route("page", "GET", "/about", func() *Info { return &Info{} }`) {
+	if !strings.Contains(string(b), `route("counter", "live", "GET", "/counter", func() *Counter { return &Counter{} }`) || !strings.Contains(string(b), `route("about", "page", "GET", "/about", func() *Info { return &Info{} }`) {
 		t.Errorf("vuka_route_gen.go:\n%s", b)
 	}
 	if u, _ := os.ReadFile(filepath.Join(app, "pages", "urls", "urls_gen.go")); !regexp.MustCompile(`About += Root\.About`).Match(u) {
@@ -563,7 +563,7 @@ func TestGeneratedConstructors(t *testing.T) {
 	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	for f, want := range map[string]string{"pages/files/vuka_route_gen.go": `route("page", "GET", "/files/{file...}", NewFile,`, "pages/api/orgs/vuka_route_gen.go": `(*Index).Get, func() *Index { return &Index{} })`} {
+	for f, want := range map[string]string{"pages/files/vuka_route_gen.go": `route("files", "page", "GET", "/files/{file...}", NewFile,`, "pages/api/orgs/vuka_route_gen.go": `(*Index).Get, func() *Index { return &Index{} })`} {
 		if b, _ := os.ReadFile(filepath.Join(app, f)); !strings.Contains(string(b), want) {
 			t.Errorf("%s has no %s:\n%s", f, want, b)
 		}

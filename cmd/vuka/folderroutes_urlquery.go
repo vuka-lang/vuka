@@ -49,7 +49,7 @@ func (n *urlNode) addQuery(leaf string, d *routeDir, typ string) {
 		return
 	}
 	q := &urlQuery{dir: d, typ: typ}
-	for _, a := range structURLAttrs(d.dir, typ) {
+	for _, a := range d.attrs.structURLAttrs(d.dir, typ) {
 		name := upperFirst(a.field)
 		if a.bare || a.key == "" || slices.ContainsFunc(q.fields, func(f queryField) bool { return f.name == name }) {
 			continue
@@ -211,7 +211,7 @@ func (s *factsSource) queries() map[string][]queryFact {
 			continue
 		}
 		var defaults map[string]ast.Expr
-		for _, a := range structURLAttrs(s.d.dir, typ) {
+		for _, a := range s.t.attrs.structURLAttrs(s.d.dir, typ) {
 			if a.bare || a.key == "" || slices.ContainsFunc(out[typ], func(f queryFact) bool { return f.Field == a.field }) {
 				continue
 			}

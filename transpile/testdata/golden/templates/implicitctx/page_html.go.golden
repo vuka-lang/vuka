@@ -22,6 +22,7 @@ func (p Page) Title(ctx context.Context) string { return "Shop" }
 
 func (p Page) Explicit(ctx context.Context) string { return "explicit" }
 
+//go:noinline
 //line page.vuka.html:14
 func (p Page) View() ui.Node {
 //line page.vuka.html:14

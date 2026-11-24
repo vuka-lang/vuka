@@ -1449,6 +1449,11 @@ func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, rep
 			reply(h())
 			return
 		}
+		if h := p.routeNameRequest(m.Method, vf.source, src, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.urlRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())

@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -80,6 +81,13 @@ type routeTree struct {
 	urls       *urlNode
 	result     *routesResult // the last finish's
 	factsStore
+	depMu   sync.Mutex
+	depDirs map[string]string // the directories of the dependencies' packages the checks read
+	attrs   *urlAttrMemo
+	named   map[string]*namedRoute // the last check's route names
+	// ownsLinks: the links of the packages outside pages/ are checked
+	// against its names (the module's tree, else the first).
+	ownsLinks bool
 }
 
 // routeTrees are the module's page trees: its pages/ directory's, and
@@ -193,6 +201,7 @@ type routeDir struct {
 	funcs      []methodFunc        // its method funcs: GET, POST… declared by a file
 	clashes    []diag.Diagnostic   // found before the transpile, which they would derail
 	vuka       bool                // it has .vuka, .vuka.html or .templ files
+	attrs      *urlAttrMemo        // its tree's
 }
 
 // methodFunc is an endpoint written as a function named for its HTTP
@@ -243,6 +252,9 @@ func scanRoutes(root, modPath string, read load.ReadFunc) routeTrees {
 			ts = append(ts, t)
 		}
 	}
+	if len(ts) > 0 {
+		ts[0].ownsLinks = true
+	}
 	return ts
 }
 
@@ -291,7 +303,7 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 		return nil
 	}
 	rel, _ := filepath.Rel(root, base)
-	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}}
+	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}, attrs: &urlAttrMemo{root: root}}
 	t.declared = declaredRoutes(dir, t.registered)
 	load.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
@@ -330,7 +342,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, attrs: t.attrs, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
 	if rel != "" {
 		d.importPath += "/" + load.GoRel(rel)
 	}
@@ -893,7 +905,7 @@ func (t *routeTree) root0() *routeDir {
 			return d
 		}
 	}
-	return &routeDir{dir: t.pages, goDir: t.pages, name: pagesDirName, importPath: t.pagesPath}
+	return &routeDir{dir: t.pages, goDir: t.pages, name: pagesDirName, importPath: t.pagesPath, attrs: t.attrs}
 }
 
 // stubbed reports whether a generated file is a stub or a placeholder's.
@@ -910,6 +922,17 @@ type routesResult struct {
 	routes []*folderRoute
 	files  []load.Generated
 	diags  []diag.Diagnostic
+	named  map[string]*namedRoute // the route names, of every tree
+}
+
+// treeErr is err without the links' errors, which are their pages': the
+// tree's files are written all the same.
+func (r *routesResult) treeErr() error {
+	cp := *r
+	cp.diags = slices.DeleteFunc(slices.Clone(r.diags), func(d diag.Diagnostic) bool {
+		return d.Code == "E0725" || d.Code == "E0726" || d.Code == "E0727"
+	})
+	return cp.err()
 }
 
 // err is the result's errors, nil when it has none.
@@ -952,6 +975,14 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 		res.routes = append(res.routes, r.routes...)
 		res.files = append(res.files, r.files...)
 		res.diags = append(res.diags, r.diags...)
+		for n, nr := range t.named {
+			if res.named == nil {
+				res.named = map[string]*namedRoute{}
+			}
+			if _, ok := res.named[n]; !ok {
+				res.named[n] = nr
+			}
+		}
 	}
 	if len(drop) == 0 && len(res.files) == 0 {
 		return gens, overlay, res, nil
@@ -989,7 +1020,7 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 func (t *routeTree) checked() *routesResult {
 	r := &routesResult{}
 	t.check(r)
-	if r.err() == nil {
+	if r.treeErr() == nil {
 		r.files = t.generate(r.routes)
 	} else if t.urlsNamable(r.diags) {
 		// The paths come from the files under pages/: other packages keep

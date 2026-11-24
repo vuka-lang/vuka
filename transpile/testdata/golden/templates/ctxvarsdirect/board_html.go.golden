@@ -48,7 +48,7 @@ func held(ctx context.Context) bool {
 	return perms > 0 && auth.Can(ctx, "orders.hold")
 }
 
-//line board.vuka.html:47
+//go:noinline
 func (b *Board) Render() ui.Node {
 //line board.vuka.html:47
 	return ui.Ctx(func(ctx context.Context) ui.Node {

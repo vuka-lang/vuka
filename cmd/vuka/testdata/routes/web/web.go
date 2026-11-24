@@ -35,6 +35,8 @@ func (a *App) Put(path string, fn any, opts ...RouteOption) *App    { return a }
 func (a *App) Patch(path string, fn any, opts ...RouteOption) *App  { return a }
 func (a *App) Delete(path string, fn any, opts ...RouteOption) *App { return a }
 func (a *App) Live(path string, page any, opts ...RouteOption) *App { return a }
+func RouteName(name string) RouteOption                             { return option{} }
+
 func (a *App) Handle(method, path string, fn any, opts ...RouteOption) *App {
 	return a
 }
@@ -67,3 +69,9 @@ func Request(ctx context.Context) *http.Request { return nil }
 func UseOf(mw any) RouteOption                  { return option{} }
 
 func MountPath(ctx context.Context, p string) string { return p }
+
+type RouteQuery map[string]any
+
+func Route(ctx context.Context, name string, args ...any) string     { return "" }
+func RouteURL(ctx context.Context, name string, args ...any) string  { return "" }
+func RoutePath(ctx context.Context, name string, args ...any) string { return "" }

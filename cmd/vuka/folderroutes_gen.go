@@ -212,6 +212,10 @@ func (t *routeTree) tree(routes []*folderRoute) []byte {
 	for i := 2; slices.Contains(scope, register); i++ {
 		register = fmt.Sprintf("vukaRoute%d", i)
 	}
+	named := "vukaRouteName"
+	for i := 2; slices.Contains(scope, named); i++ {
+		named = fmt.Sprintf("vukaRouteName%d", i)
+	}
 	routed := map[*routeDir]*folderRoute{}
 	funcs := false
 	for _, r := range routes {
@@ -254,12 +258,14 @@ func (t *routeTree) tree(routes []*folderRoute) []byte {
 		"// Routes registers every page and endpoint under pages/ on the app, with\n// its middleware, guards and layouts: web.New(pages.Routes(), …).\n" +
 		"func Routes() " + web + ".Option {\n\treturn " + web + ".OptionFunc(func(app *" + web + ".App) {\n" + body.String() + "\t})\n}\n\n" +
 		"// " + register + " registers on app each route a page package's " + pageRoutesFunc + " gives,\n// with opts after the route's own.\n//\n//go:noinline\n" +
-		"func " + register + "(app *" + web + ".App, opts ..." + web + ".RouteOption) func(kind, method, path string, fn, ctor any, params ...string) {\n" +
-		"\treturn func(kind, method, path string, fn, ctor any, params ...string) {\n" +
+		"func " + register + "(app *" + web + ".App, opts ..." + web + ".RouteOption) func(name, kind, method, path string, fn, ctor any, params ...string) {\n" +
+		"\treturn func(name, kind, method, path string, fn, ctor any, params ...string) {\n" +
 		"\t\topt := " + web + ".PageRoute()\n\t\tswitch kind {\n" +
-		"\t\tcase \"live\":\n\t\t\tapp.Live(path, fn, append([]" + web + ".RouteOption{opt}, opts...)...)\n\t\t\treturn\n" +
+		"\t\tcase \"live\":\n\t\t\tapp.Live(path, fn, append([]" + web + ".RouteOption{opt, " + named + "(name)}, opts...)...)\n\t\t\treturn\n" +
 		"\t\tcase \"handler\":\n\t\t\topt = " + web + ".Receiver(ctor)\n" + params +
-		"\t\t}\n\t\tapp.Handle(method, path, fn, append([]" + web + ".RouteOption{opt}, opts...)...)\n\t}\n}\n"
+		"\t\t}\n\t\tapp.Handle(method, path, fn, append([]" + web + ".RouteOption{opt, " + named + "(name)}, opts...)...)\n\t}\n}\n\n" +
+		"// " + named + " names a route for " + web + ".Route.\ntype " + named + " string\n\n" +
+		"func (n " + named + ") Attrs() []any      { return []any{n} }\nfunc (n " + named + ") RouteName() string { return string(n) }\n"
 	return gofmtKept(src)
 }
 
@@ -286,7 +292,7 @@ func (t *routeTree) packageRoutes(d *routeDir, f *pkgFacts, routes []*folderRout
 		case r.fn != "":
 			// A scalar binds the path parameter of its name, spelt as the
 			// path spells it: id for [id] when the Go says ID.
-			args := []string{`"func"`, strconv.Quote(r.Method), strconv.Quote(r.Path), r.fn, "nil"}
+			args := []string{strconv.Quote(r.name), `"func"`, strconv.Quote(r.Method), strconv.Quote(r.Path), r.fn, "nil"}
 			for _, n := range r.names {
 				for _, seg := range splitPath(r.Path) {
 					if p := strings.TrimSuffix(strings.Trim(seg, "{}"), "..."); strings.HasPrefix(seg, "{") && strings.EqualFold(p, n) {
@@ -297,20 +303,20 @@ func (t *routeTree) packageRoutes(d *routeDir, f *pkgFacts, routes []*folderRout
 			}
 			fmt.Fprintf(&body, "\troute(%s)\n", strings.Join(args, ", "))
 		case r.handler != "":
-			fmt.Fprintf(&body, "\troute(\"handler\", %q, %q, (*%s).%s, %s)\n", r.Method, r.Path, r.typ, r.handler, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"handler\", %q, %q, (*%s).%s, %s)\n", r.name, r.Method, r.Path, r.typ, r.handler, ctor)
 		case r.Kind == "live":
-			fmt.Fprintf(&body, "\troute(\"live\", %q, %q, %s, nil)\n", r.Method, r.Path, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"live\", %q, %q, %s, nil)\n", r.name, r.Method, r.Path, ctor)
 		default:
-			fmt.Fprintf(&body, "\troute(\"page\", %q, %q, %s, nil)\n", r.Method, r.Path, ctor)
+			fmt.Fprintf(&body, "\troute(%q, \"page\", %q, %q, %s, nil)\n", r.name, r.Method, r.Path, ctor)
 		}
 	}
 	where := "pages/"
 	if d.rel != "" {
 		where += d.rel + "/"
 	}
-	src := head + "// " + pageRoutesFunc + " gives route each page and endpoint of " + where + ": its kind, method,\n// path, handler, the constructor of a handler's page, and a method func's\n// parameters' names. pages.Routes registers them.\n" +
+	src := head + "// " + pageRoutesFunc + " gives route each page and endpoint of " + where + ": its name, kind,\n// method, path, handler, the constructor of a handler's page, and a method\n// func's parameters' names. pages.Routes registers them.\n" +
 		"//\n//go:noinline\n" +
-		"func " + pageRoutesFunc + "(route func(kind, method, path string, fn, ctor any, params ...string)) {\n" + body.String() + "}\n"
+		"func " + pageRoutesFunc + "(route func(name, kind, method, path string, fn, ctor any, params ...string)) {\n" + body.String() + "}\n"
 	return gofmtKept(src)
 }
 

@@ -25,6 +25,8 @@ type semState struct {
 	decl    uint32 // the declaration modifier's bit, 0 when the legend has none
 	routes  []*folderRoute
 	modRoot string
+	named   map[string]*namedRoute // the last build's route names
+	scanned map[string]*namedRoute // read from the folders before a build gave them
 }
 
 // extendCaps adds, to initialize's capabilities, the markup token types, code

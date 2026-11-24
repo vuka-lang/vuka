@@ -19,6 +19,7 @@ type Card struct{ N int }
 //line card.vuka.html:9
 func (c Card) Count(ctx context.Context) (int, error) { return c.N, nil }
 
+//go:noinline
 //line card.vuka.html:10
 func (c Card) View() ui.Node {
 //line card.vuka.html:10

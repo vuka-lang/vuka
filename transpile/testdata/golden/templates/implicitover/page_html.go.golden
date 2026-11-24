@@ -23,6 +23,7 @@ func (p Page) CountInt(ctx context.Context, n int) int { return n }
 
 func (p Page) CountString(s string) int { return len(s) }
 
+//go:noinline
 //line page.vuka.html:15
 func (p Page) View() ui.Node {
 //line page.vuka.html:15

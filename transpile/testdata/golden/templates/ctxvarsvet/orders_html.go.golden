@@ -30,6 +30,7 @@ func (o *Orders) Delete(ctx context.Context) error {
 	return nil
 }
 
+//go:noinline
 //line orders.vuka.html:25
 func (o *Orders) Render() ui.Node {
 //line orders.vuka.html:25

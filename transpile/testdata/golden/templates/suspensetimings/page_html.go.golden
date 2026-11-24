@@ -31,7 +31,7 @@ func (d *Dashboard) loadBoard(ctx context.Context) error {
 	return nil
 }
 
-//line page.vuka.html:30
+//go:noinline
 func (d *Dashboard) Render() ui.Node {
 //line page.vuka.html:30
 	return ui.Ctx(func(ctx context.Context) ui.Node {

@@ -912,6 +912,11 @@ func (p *proxy) publish(path string) {
 		ds = append(ds, static...)
 	}
 	ds = append(ds, p.ts.Load().diagsFor(path)...)
+	if open {
+		ds = append(ds, p.routeLinkDiags(path, cur)...)
+	} else {
+		ds = append(ds, p.routeLinkDiags(path, islandText)...)
+	}
 	if ds == nil {
 		ds = []any{}
 	}

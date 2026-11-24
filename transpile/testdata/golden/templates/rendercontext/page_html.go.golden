@@ -17,6 +17,7 @@ type Page struct {
 	Title string
 }
 
+//go:noinline
 //line page.vuka.html:10
 func (pa *Page) Render() ui.Node {
 //line page.vuka.html:10

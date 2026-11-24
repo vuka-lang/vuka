@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -49,6 +50,7 @@ func (p *proxy) setRoutes(modRoot string, res *routesResult, gens []load.Generat
 	}
 	p.sem.routes = routes
 	p.sem.modRoot = modRoot
+	p.setNamed(res.named, routes)
 }
 
 // sourceLine is the line of the source a line of its generated Go declaring
@@ -442,15 +444,23 @@ func (p *proxy) withRouteLinks(v any, vf *vfile) any {
 	return links
 }
 
-// goRouteRequest answers go to definition on a urls chain in a .go file.
+// goRouteRequest answers go to definition on a urls chain in a .go file,
+// and requests on a web.Route(ctx, "name") link's name.
 func (p *proxy) goRouteRequest(m *rpcMsg, path string) bool {
-	if m.Method != "textDocument/definition" {
-		return false
-	}
 	var params struct {
 		Position lspPosition `json:"position"`
 	}
-	if json.Unmarshal(m.Params, &params) != nil {
+	if !m.isRequest() || json.Unmarshal(m.Params, &params) != nil {
+		return false
+	}
+	if bytes.Contains(p.sourceText(path), []byte("web.Route")) {
+		src := p.sourceText(path)
+		if h := p.routeNameRequest(m.Method, path, src, offsetOf(src, params.Position)); h != nil {
+			go func() { _ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": h()}) }()
+			return true
+		}
+	}
+	if m.Method != "textDocument/definition" {
 		return false
 	}
 	src, err := os.ReadFile(path)

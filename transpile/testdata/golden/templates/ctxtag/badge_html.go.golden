@@ -15,6 +15,7 @@ import (
 //line badge.vuka.html:4
 type Badge struct{}
 
+//go:noinline
 //line badge.vuka.html:5
 func (ba Badge) View() ui.Node {
 //line badge.vuka.html:5

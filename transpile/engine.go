@@ -128,6 +128,13 @@ func (e *engine) run() {
 			continue
 		}
 		e.resolveSelfTargets()
+		routed := false
+		for _, f := range e.vuka {
+			routed = e.lowerRoutes(f) || routed
+		}
+		if routed {
+			continue
+		}
 		for _, f := range e.vuka {
 			f.touched = nil
 			for _, t := range f.tries {
@@ -491,7 +498,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || len(f.attrs) > 0 || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || len(e.genericEmbeds) > 0 || f.readsVars || f.readsDirect || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
+		if f.rt != "" || len(f.attrs) > 0 || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || len(e.genericEmbeds) > 0 || f.readsVars || f.readsDirect || f.mayRoute || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
 			return true
 		}
 	}

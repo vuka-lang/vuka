@@ -21,6 +21,7 @@ func (p Page) BadgeInt(ctx context.Context, n int) string { return "badge" }
 
 func (p Page) BadgeString(s string) string { return s }
 
+//go:noinline
 //line page.vuka.html:13
 func (p Page) View() ui.Node {
 //line page.vuka.html:13
