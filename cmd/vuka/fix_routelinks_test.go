@@ -39,3 +39,29 @@ func TestFixRouteLinks(t *testing.T) {
 		t.Errorf("vuka fix routes again: %v\n%s", err, out.Bytes())
 	}
 }
+
+// TestFixRouteLinksShadowed: where a template's Go names a variable route,
+// the builtin is hidden, so its links are written as web.RouteURL.
+func TestFixRouteLinksShadowed(t *testing.T) {
+	t.Parallel()
+	links, err := os.ReadFile(filepath.Join("testdata", "fixroutes", "links.vuka.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := strings.Replace(string(links), "func (l *Links) Kept()", "func (l *Links) Doc(ctx context.Context, route string) string { return route + urls.Orgs.Org(l.ID).URL(ctx) }\n\nfunc (l *Links) Kept()", 1)
+	app := routesModuleAt(t, map[string]string{"pages/links.vuka.html": src})
+	var out bytes.Buffer
+	if err := vukaIn(app, &out, &out, "fix", "routes"); err != nil {
+		t.Fatalf("vuka fix routes: %v\n%s", err, out.Bytes())
+	}
+	b, _ := os.ReadFile(filepath.Join(app, "pages/links.vuka.html"))
+	got := string(b)
+	for _, w := range []string{`return route + web.RouteURL(ctx, "orgs.org", l.ID)`, `"github.com/vuka-lang/web/v2"`, "pages/links.vuka.html:25: W0706"} {
+		if !strings.Contains(got+out.String(), w) {
+			t.Errorf("want %q in:\n%s\n%s", w, got, out.Bytes())
+		}
+	}
+	if err := vukaIn(app, &out, &out, "vet"); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, out.Bytes())
+	}
+}

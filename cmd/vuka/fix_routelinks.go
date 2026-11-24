@@ -5,6 +5,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -60,6 +61,8 @@ func fixRouteLinks(m *fixModule) ([]fixChange, error) {
 // source, how many it rewrote and a W0706 note for each it left.
 func rewriteRouteLinks(src []byte, goFile, html bool, routes []*folderRoute, byPath map[string]*namedRoute) ([]byte, int, []string) {
 	script := scriptSpan(src, html)
+	shadowed := namesRoute(src[script[0]:script[1]])
+	needWeb := goFile
 	var edits []spliceEdit
 	var notes []string
 	leave := func(c urlChain, why string) {
@@ -127,10 +130,18 @@ func rewriteRouteLinks(src []byte, goFile, html bool, routes []*folderRoute, byP
 		case mode == "Path" && inScript:
 			leave(c, "Path() in a template's Go: routePath(…) needs a ctx in scope")
 			continue
+		case mode == "Path" && shadowed["routePath"]:
+			leave(c, "routePath is a name of this file's own: rename it, then run vuka fix routes again")
+			continue
 		case mode == "Path":
 			call = "routePath(" + strconv.Quote(nr.Name)
 		case ctx != "ctx":
 			leave(c, "its URL is given "+ctx+", not ctx")
+			continue
+		case shadowed["route"] && inScript:
+			call, needWeb = "web.RouteURL(ctx, "+strconv.Quote(nr.Name), true
+		case shadowed["route"]:
+			leave(c, "route is a name of this file's own: rename it, then run vuka fix routes again")
 			continue
 		default:
 			call = "route(" + strconv.Quote(nr.Name)
@@ -147,13 +158,28 @@ func rewriteRouteLinks(src []byte, goFile, html bool, routes []*folderRoute, byP
 		return src, 0, notes
 	}
 	out := spliceEdits(src, edits)
-	out = fixLinkImports(out, goFile)
+	out = fixLinkImports(out, needWeb)
 	if goFile {
 		if b, err := format.Source(out); err == nil {
 			out = b
 		}
 	}
 	return out, len(edits), notes
+}
+
+var routeIdent = regexp.MustCompile(`\b(routePath|route)\b(\s*\()?`)
+
+// namesRoute reports which of route and routePath a template's Go uses as
+// a name of its own (a parameter, a variable), hiding the builtin.
+func namesRoute(src []byte) map[string]bool {
+	names := map[string]bool{}
+	for _, m := range routeIdent.FindAllSubmatchIndex(src, -1) {
+		if m[4] >= 0 || (m[0] > 0 && strings.ContainsRune(`."'`+"`", rune(src[m[0]-1]))) {
+			continue
+		}
+		names[string(src[m[2]:m[3]])] = true
+	}
+	return names
 }
 
 // scriptSpan is the span of a template's Go: its script, or the header
