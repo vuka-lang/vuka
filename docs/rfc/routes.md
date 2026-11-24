@@ -119,6 +119,20 @@ A page's input key carries the facts of the routes it names, and only
 theirs: a route whose parameters change sends its linkers through the check
 again; their Go is usually the same, and go build then compiles nothing.
 
+### The mount prefix
+
+An app served under a prefix keeps its links inside it, as the `urls` chain's
+`URL(ctx)` does today through `web.MountPath`: `route` returns the path with
+the request's mount prefix in front — `X-Forwarded-Prefix` from a trusted
+proxy, else what `http.StripPrefix` removed — and the path alone at the root
+or without a request (a job, a cron). `routePath("users.edit", id)` (in Go
+files `web.RoutePath`) is the path without the prefix, as `Path()` is today,
+for matching and for building an absolute URL with another base. A redirect,
+a form's action, `ui.JS.Navigate` and `PushPatch` given a `route(...)` must
+carry the prefix exactly once, as they do given `URL(ctx)` today; tests
+serving the app under a prefix pin each of them, for `route` and the `urls`
+chain alike.
+
 ### Moving a folder
 
 `vuka mv <from> <to>` moves a folder and rewrites every `route(...)` naming
