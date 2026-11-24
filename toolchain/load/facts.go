@@ -53,13 +53,13 @@ func typedOf(p *Package, imp types.Importer, sess *Session, replace map[string]s
 		if len(files) == 0 {
 			return nil
 		}
-		uses := map[*ast.Ident]types.Object{}
+		uses, typs := map[*ast.Ident]types.Object{}, map[ast.Expr]types.TypeAndValue{}
 		conf := types.Config{Importer: imp, GoVersion: goVersion, Sizes: sizes, Error: func(error) {}}
-		pkg, _ := conf.Check(p.ImportPath, fset, files, &types.Info{Uses: uses})
+		pkg, _ := conf.Check(p.ImportPath, fset, files, &types.Info{Uses: uses, Types: typs})
 		if pkg == nil {
 			return nil
 		}
-		return &Typed{Pkg: pkg, Fset: fset, Files: files, Uses: uses, Import: imp.Import}
+		return &Typed{Pkg: pkg, Fset: fset, Files: files, Uses: uses, Types: typs, Import: imp.Import}
 	}
 }
 

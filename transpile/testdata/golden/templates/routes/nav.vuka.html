@@ -1,0 +1,17 @@
+<script lang="go">
+package main
+
+import "context"
+
+type Nav struct {
+	ID int64
+}
+
+func (n *Nav) Next(ctx context.Context) string { return route("users.edit", n.ID+1) }
+</script>
+
+<nav>
+  <a href={route("users.edit", ID)}>Edit</a>
+  <a href={routePath("users", query{"page": 2})}>Users</a>
+  <a href={route("index")}>Home</a>
+</nav>

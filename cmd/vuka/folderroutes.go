@@ -84,6 +84,10 @@ type routeTree struct {
 	depMu   sync.Mutex
 	depDirs map[string]string // the directories of the dependencies' packages the checks read
 	attrs   *urlAttrMemo
+	named   map[string]*namedRoute // the last check's route names
+	// ownsLinks: the links of the packages outside pages/ are checked
+	// against its names (the module's tree, else the first).
+	ownsLinks bool
 }
 
 // routeTrees are the module's page trees: its pages/ directory's, and
@@ -247,6 +251,9 @@ func scanRoutes(root, modPath string, read load.ReadFunc) routeTrees {
 		if t := scanRouteTree(root, modPath, dir, read); t != nil {
 			ts = append(ts, t)
 		}
+	}
+	if len(ts) > 0 {
+		ts[0].ownsLinks = true
 	}
 	return ts
 }
@@ -915,6 +922,17 @@ type routesResult struct {
 	routes []*folderRoute
 	files  []load.Generated
 	diags  []diag.Diagnostic
+	named  map[string]*namedRoute // the route names, of every tree
+}
+
+// treeErr is err without the links' errors, which are their pages': the
+// tree's files are written all the same.
+func (r *routesResult) treeErr() error {
+	cp := *r
+	cp.diags = slices.DeleteFunc(slices.Clone(r.diags), func(d diag.Diagnostic) bool {
+		return d.Code == "E0725" || d.Code == "E0726" || d.Code == "E0727"
+	})
+	return cp.err()
 }
 
 // err is the result's errors, nil when it has none.
@@ -957,6 +975,14 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 		res.routes = append(res.routes, r.routes...)
 		res.files = append(res.files, r.files...)
 		res.diags = append(res.diags, r.diags...)
+		for n, nr := range t.named {
+			if res.named == nil {
+				res.named = map[string]*namedRoute{}
+			}
+			if _, ok := res.named[n]; !ok {
+				res.named[n] = nr
+			}
+		}
 	}
 	if len(drop) == 0 && len(res.files) == 0 {
 		return gens, overlay, res, nil
@@ -994,7 +1020,7 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 func (t *routeTree) checked() *routesResult {
 	r := &routesResult{}
 	t.check(r)
-	if r.err() == nil {
+	if r.treeErr() == nil {
 		r.files = t.generate(r.routes)
 	} else if t.urlsNamable(r.diags) {
 		// The paths come from the files under pages/: other packages keep

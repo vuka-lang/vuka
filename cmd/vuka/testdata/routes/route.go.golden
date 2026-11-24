@@ -32,12 +32,12 @@ func Routes() web.Option {
 // with opts after the route's own.
 //
 //go:noinline
-func vukaRoute(app *web.App, opts ...web.RouteOption) func(kind, method, path string, fn, ctor any, params ...string) {
-	return func(kind, method, path string, fn, ctor any, params ...string) {
+func vukaRoute(app *web.App, opts ...web.RouteOption) func(name, kind, method, path string, fn, ctor any, params ...string) {
+	return func(name, kind, method, path string, fn, ctor any, params ...string) {
 		opt := web.PageRoute()
 		switch kind {
 		case "live":
-			app.Live(path, fn, append([]web.RouteOption{opt}, opts...)...)
+			app.Live(path, fn, append([]web.RouteOption{opt, web.RouteName(name)}, opts...)...)
 			return
 		case "handler":
 			opt = web.Receiver(ctor)
@@ -46,6 +46,6 @@ func vukaRoute(app *web.App, opts ...web.RouteOption) func(kind, method, path st
 				vuka.RegisterParams(fn, params...)
 			}
 		}
-		app.Handle(method, path, fn, append([]web.RouteOption{opt}, opts...)...)
+		app.Handle(method, path, fn, append([]web.RouteOption{opt, web.RouteName(name)}, opts...)...)
 	}
 }

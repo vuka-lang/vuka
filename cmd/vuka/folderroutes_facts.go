@@ -40,6 +40,7 @@ type pkgFacts struct {
 	// Readers are its exported functions, each reading the request or
 	// calling another page package's that may.
 	Readers map[string]readFact
+	Links   []linkFact // its Vuka files' route(…) and routePath(…) calls
 }
 
 // wrapFact is a folder's Middleware, Guard or layout.
@@ -174,7 +175,18 @@ func (ts routeTrees) options(opts load.Options) load.Options {
 	opts.Facts = func(p *load.Package, check func(skip ...string) *load.Typed) []byte {
 		t, d := ts.dirOf(p.ImportPath)
 		if d == nil {
-			return nil
+			if !mayLink(p) {
+				return nil
+			}
+			ty := check()
+			if ty == nil {
+				return nil
+			}
+			var buf bytes.Buffer
+			if gob.NewEncoder(&buf).Encode(&pkgFacts{Links: linksOf(ty)}) != nil {
+				return nil
+			}
+			return buf.Bytes()
 		}
 		var skip []string
 		if d.rel == "" {
@@ -194,11 +206,22 @@ func (ts routeTrees) options(opts load.Options) load.Options {
 	}
 	opts.Got = func(p *load.Package, data []byte) {
 		t, d := ts.dirOf(p.ImportPath)
-		if d == nil || data == nil {
+		if data == nil {
 			return
 		}
 		f := &pkgFacts{}
 		if gob.NewDecoder(bytes.NewReader(data)).Decode(f) != nil {
+			return
+		}
+		if d == nil {
+			for _, t := range ts {
+				t.factsMu.Lock()
+				if t.links == nil {
+					t.links = map[string][]linkFact{}
+				}
+				t.links[p.ImportPath] = f.Links
+				t.factsMu.Unlock()
+			}
 			return
 		}
 		t.factsMu.Lock()
@@ -272,6 +295,7 @@ func (t *routeTree) factsOf(d *routeDir, ty *load.Typed) *pkgFacts {
 	s.types(f, names)
 	s.funcs(f, names)
 	f.Queries = s.queries()
+	f.Links = linksOf(ty)
 	return f
 }
 
@@ -499,7 +523,8 @@ func (s *factsSource) called(obj types.Object) bool {
 // they transpile.
 type factsStore struct {
 	factsMu sync.Mutex
-	facts   map[string]*pkgFacts // by import path
+	facts   map[string]*pkgFacts  // by import path
+	links   map[string][]linkFact // the links of the module's packages outside pages/, by import path
 }
 
 // layoutBad is why a folder's layout, the struct its _layout.vuka.html

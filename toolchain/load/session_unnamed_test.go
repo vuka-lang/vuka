@@ -195,6 +195,7 @@ parts.go f.html.recvType
 parts.go h.recvType
 parts.go sel
 push.go name
+routes.go id.Name
 schema.go n
 schema.go sel
 schema.go sel.Sel.Name
