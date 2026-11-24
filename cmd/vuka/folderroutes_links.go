@@ -139,10 +139,26 @@ func (c *routeChecker) checkLinks() {
 }
 
 func (c *routeChecker) checkLink(l linkFact) {
-	nr := c.t.named[l.Name]
+	for _, pr := range linkProblems(c.t.named, l, true) {
+		c.reportAt(pr.d, c.linkSpan(l, pr.key))
+	}
+}
+
+// linkProblem is a diagnostic of a link: at its name, or at its query's
+// key'th key.
+type linkProblem struct {
+	d   *diag.Diagnostic
+	key int
+}
+
+// linkProblems are what is wrong with the link l given the route names;
+// typed, its arguments' types are checked too.
+func linkProblems(named map[string]*namedRoute, l linkFact, typed bool) []linkProblem {
+	var out []linkProblem
+	nr := named[l.Name]
 	if nr == nil {
 		names := slices.Sorted(func(yield func(string) bool) {
-			for n := range c.t.named {
+			for n := range named {
 				if !yield(n) {
 					return
 				}
@@ -150,27 +166,25 @@ func (c *routeChecker) checkLink(l linkFact) {
 		})
 		d := diag.New("E0725", "%s(%q): no route is named %s", l.Fn, l.Name, l.Name)
 		if s := closest(l.Name, names); s != "" {
-			d = d.WithHelp("a route is named by its folders under pages/, with dots: %s is %s", s, bracketPath(c.t.named[s].Path)).WithSuggest(s)
+			d = d.WithHelp("a route is named by its folders under pages/, with dots: %s is %s", s, bracketPath(named[s].Path)).WithSuggest(s)
 		} else {
 			d = d.WithHelp("a route is named by its folders under pages/, with dots: pages/users/[user]/edit is users.edit (vuka routes lists the paths)")
 		}
-		c.reportAt(d, c.linkSpan(l, -1))
-		return
+		return append(out, linkProblem{d, -1})
 	}
 	if len(l.Args) != len(nr.Params) {
 		d := diag.New("E0726", "%s(%q, …) gives %d path %s: %s", l.Fn, l.Name, len(l.Args), countWord(len(l.Args), "argument", "arguments"), nr.signature())
-		c.reportAt(d.WithHelp("give the path's parameters in its order%s", queryHelp(nr)), c.linkSpan(l, -1))
-		return
+		return append(out, linkProblem{d.WithHelp("give the path's parameters in its order%s", queryHelp(nr)), -1})
 	}
 	for i, a := range l.Args {
 		p := nr.Params[i]
-		if argFits(a, p) {
+		if !typed || argFits(a, p) {
 			continue
 		}
 		d := diag.New("E0726", "%s(%q, …): its %s argument is %s, and %s", l.Fn, l.Name, ordinalWord(i+1), articled(shortType(a.Type)), nr.signature())
-		c.reportAt(d.WithHelp("convert it, or give the path parameter %s another value", p.Name), c.linkSpan(l, -1))
+		out = append(out, linkProblem{d.WithHelp("convert it, or give the path parameter %s another value", p.Name), -1})
 	}
-	for _, k := range l.Keys {
+	for ki, k := range l.Keys {
 		if slices.ContainsFunc(nr.Query, func(q routeQuery) bool { return q.Key == k }) {
 			continue
 		}
@@ -187,8 +201,9 @@ func (c *routeChecker) checkLink(l linkFact) {
 		default:
 			d = d.WithHelp("the page keeps nothing in its query: mark a field of it @ui.URL(%q) to read ?%s", k, k)
 		}
-		c.reportAt(d, c.linkSpan(l, slices.Index(l.Keys, k)))
+		out = append(out, linkProblem{d, ki})
 	}
+	return out
 }
 
 func ordinalWord(n int) string {

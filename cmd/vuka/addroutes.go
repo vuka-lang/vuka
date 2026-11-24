@@ -216,6 +216,13 @@ func fixRoutes(m *fixModule) ([]fixChange, error) {
 			apply: func() error { return os.WriteFile(path, src, 0o644) },
 		})
 	}
+	if m.named["routes"] {
+		links, err := fixRouteLinks(m)
+		if err != nil {
+			return changes, err
+		}
+		changes = append(changes, links...)
+	}
 	return changes, nil
 }
 

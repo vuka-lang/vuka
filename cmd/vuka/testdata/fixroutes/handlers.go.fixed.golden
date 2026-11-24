@@ -1,0 +1,14 @@
+package main
+
+import (
+	"context"
+
+	"example.com/app/pages/urls"
+	"github.com/vuka-lang/web/v2"
+)
+
+func next(ctx context.Context, id int) string {
+	orgs := urls.Orgs
+	_ = orgs
+	return web.Route(ctx, "orgs.org", id)
+}

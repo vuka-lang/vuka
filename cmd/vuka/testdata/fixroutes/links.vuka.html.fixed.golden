@@ -1,0 +1,24 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/app/pages/urls"
+)
+
+// Links links to the other pages.
+type Links struct {
+	ID int
+}
+
+func (l *Links) Next(ctx context.Context) string { return route("orgs.org", l.ID) }
+
+func (l *Links) Kept() string { return urls.Orgs.New.Path() }
+</script>
+
+<nav>
+  <a href={route("orgs.team-settings", ID)}>Team</a>
+  <a href={routePath("orgs.new")}>New</a>
+  <a href={route("about")}>About</a>
+</nav>

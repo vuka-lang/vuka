@@ -42,6 +42,8 @@ type fixModule struct {
 	genErr        error
 	// notes are what a fixer left alone and why, printed after the changes.
 	notes []string
+	// named are the fixers named on the command line.
+	named map[string]bool
 }
 
 var fixers = []fixer{
@@ -118,7 +120,7 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 	if r, err := filepath.EvalSymlinks(root); err == nil {
 		root = r // Discover reports real paths
 	}
-	m := &fixModule{root: root, modPath: modPath}
+	m := &fixModule{root: root, modPath: modPath, named: selected}
 	if m.pkgs, err = load.Discover(root, modPath, root, true, nil); err != nil {
 		return 0, err
 	}
