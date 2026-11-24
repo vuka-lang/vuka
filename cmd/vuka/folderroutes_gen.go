@@ -212,6 +212,10 @@ func (t *routeTree) tree(routes []*folderRoute) []byte {
 	for i := 2; slices.Contains(scope, register); i++ {
 		register = fmt.Sprintf("vukaRoute%d", i)
 	}
+	named := "vukaRouteName"
+	for i := 2; slices.Contains(scope, named); i++ {
+		named = fmt.Sprintf("vukaRouteName%d", i)
+	}
 	routed := map[*routeDir]*folderRoute{}
 	funcs := false
 	for _, r := range routes {
@@ -257,9 +261,11 @@ func (t *routeTree) tree(routes []*folderRoute) []byte {
 		"func " + register + "(app *" + web + ".App, opts ..." + web + ".RouteOption) func(name, kind, method, path string, fn, ctor any, params ...string) {\n" +
 		"\treturn func(name, kind, method, path string, fn, ctor any, params ...string) {\n" +
 		"\t\topt := " + web + ".PageRoute()\n\t\tswitch kind {\n" +
-		"\t\tcase \"live\":\n\t\t\tapp.Live(path, fn, append([]" + web + ".RouteOption{opt, " + web + ".RouteName(name)}, opts...)...)\n\t\t\treturn\n" +
+		"\t\tcase \"live\":\n\t\t\tapp.Live(path, fn, append([]" + web + ".RouteOption{opt, " + named + "(name)}, opts...)...)\n\t\t\treturn\n" +
 		"\t\tcase \"handler\":\n\t\t\topt = " + web + ".Receiver(ctor)\n" + params +
-		"\t\t}\n\t\tapp.Handle(method, path, fn, append([]" + web + ".RouteOption{opt, " + web + ".RouteName(name)}, opts...)...)\n\t}\n}\n"
+		"\t\t}\n\t\tapp.Handle(method, path, fn, append([]" + web + ".RouteOption{opt, " + named + "(name)}, opts...)...)\n\t}\n}\n\n" +
+		"// " + named + " names a route for " + web + ".Route.\ntype " + named + " string\n\n" +
+		"func (n " + named + ") Attrs() []any      { return []any{n} }\nfunc (n " + named + ") RouteName() string { return string(n) }\n"
 	return gofmtKept(src)
 }
 

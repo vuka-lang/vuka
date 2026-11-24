@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // vuka fix routes also writes the urls chains it can name statically as
@@ -62,7 +64,8 @@ func rewriteRouteLinks(src []byte, goFile, html bool, routes []*folderRoute, byP
 	var notes []string
 	leave := func(c urlChain, why string) {
 		line, _ := lineCol(src, c.start)
-		notes = append(notes, fmt.Sprintf("%d: W0706 %s: %s", line, string(src[c.start:c.end]), why))
+		d := diag.Warn("W0706", "%s: %s", string(src[c.start:c.end]), why)
+		notes = append(notes, fmt.Sprintf("%d: %s %s", line, d.Code, d.Message))
 	}
 	for _, c := range findChains(src) {
 		text := string(src[c.start:c.end])
