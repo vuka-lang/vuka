@@ -15,6 +15,7 @@ import (
 //line who.vuka.html:4
 type Who struct{}
 
+//go:noinline
 //line who.vuka.html:5
 func (w Who) View() ui.Node {
 //line who.vuka.html:5

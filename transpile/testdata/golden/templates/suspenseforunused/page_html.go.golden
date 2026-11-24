@@ -19,6 +19,7 @@ type Page struct {
 	More bool
 }
 
+//go:noinline
 //line page.vuka.html:4
 func (p Page) View() ui.Node {
 //line page.vuka.html:4

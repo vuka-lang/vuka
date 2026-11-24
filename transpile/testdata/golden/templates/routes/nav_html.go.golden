@@ -18,7 +18,7 @@ type Nav struct {
 
 func (n *Nav) Next(ctx context.Context) string { return web.RouteURL(ctx, "users.edit", n.ID+1) }
 
-//line nav.vuka.html:13
+//go:noinline
 func (n *Nav) View() ui.Node {
 //line nav.vuka.html:13
 	return ui.Ctx(func(ctx context.Context) ui.Node {

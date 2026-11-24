@@ -26,7 +26,7 @@ func (p *proxy) lateCompletion(params json.RawMessage) any {
 		return nil
 	}
 	path := uriToPath(cp.TextDocument.URI)
-	if !strings.HasSuffix(path, ".vuka.html") {
+	if !isVuka(path) {
 		return nil
 	}
 	path = p.real(path)
@@ -47,6 +47,13 @@ func (p *proxy) lateCompletion(params json.RawMessage) any {
 		src = b
 	}
 	off := offsetOf(src, cp.Position)
+	if h := p.routeNameRequest("textDocument/completion", path, src, off); h != nil {
+		// A route name: the names come from the folders until a build gives them.
+		return h()
+	}
+	if !strings.HasSuffix(path, ".vuka.html") {
+		return nil
+	}
 	spot, ok := completionSpot(src, off)
 	if !ok || spot.kind != "value" || !isComponentTag(spot.tag.name) {
 		return nil

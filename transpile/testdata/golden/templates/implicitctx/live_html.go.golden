@@ -17,6 +17,7 @@ type Live struct {
 	Store Store
 }
 
+//go:noinline
 //line live.vuka.html:10
 func (l *Live) Render() ui.Node {
 //line live.vuka.html:10

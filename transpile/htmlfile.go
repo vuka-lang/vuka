@@ -536,6 +536,11 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
 		}
+		if contextual {
+			// Its body holds the markup: kept out of the package's export
+			// data, so an edit to the markup changes no importer's build.
+			open = "//go:noinline\n" + open
+		}
 		open = "\n\n" + open // after the header's last declaration
 		add(off[first], open)
 		// The markup's function ends after its last line.

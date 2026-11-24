@@ -36,7 +36,7 @@ func (d *Dashboard) loadBoard(ctx context.Context) error {
 //line page.vuka.html:32
 func (d *Dashboard) loadNotes(ctx context.Context) error { return errors.New("notes are down") }
 
-//line page.vuka.html:35
+//go:noinline
 func (d *Dashboard) Render() ui.Node {
 //line page.vuka.html:35
 	return ui.Ctx(func(ctx context.Context) ui.Node {

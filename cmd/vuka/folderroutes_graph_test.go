@@ -13,9 +13,10 @@ import (
 // routeGraphApp is an app of folder routes: a root layout and home page,
 // and areas, each with a layout, a guard, an index, a [item] parameter
 // folder with its page and an edit page, and sections with an index each.
-// Every page reads a shared package, and with links links home through urls.
+// Every page reads a shared package, and links home: by a path, or by
+// links, "urls" (the urls chain) or "route" (the route name).
 // A page's markup is more than the compiler inlines, as most are.
-func routeGraphApp(areas, sections int, links bool) map[string]string {
+func routeGraphApp(areas, sections int, links string) map[string]string {
 	files := map[string]string{
 		"main.go":                 "package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc main() {\n\tif err := web.New(pages.Routes()).Run(\"\"); err != nil {\n\t\tpanic(err)\n\t}\n}\n",
 		"shared/shared.go":        "package shared\n\nimport \"strings\"\n\n// Title is a page's title.\nfunc Title(s string) string { return s + \" - Orders\" }\n\n// Words are a text's words.\nfunc Words(s string) []string { return strings.Fields(s) }\n",
@@ -38,10 +39,13 @@ func routeGraphApp(areas, sections int, links bool) map[string]string {
 	return files
 }
 
-func graphPage(pkg, typ, field, text string, links bool) string {
+func graphPage(pkg, typ, field, text string, links string) string {
 	imports, home := "import \"example.com/app/shared\"\n", `"/"`
-	if links {
+	switch links {
+	case "urls":
 		imports, home = "import (\n\t\"example.com/app/pages/urls\"\n\t\"example.com/app/shared\"\n)\n", "urls.Root.Path()"
+	case "route":
+		home = `route("index")`
 	}
 	return "<script lang=\"go\">\npackage " + pkg + "\n\n" + imports + "\n// " + typ + " is a page.\ntype " + typ + " struct {\n\t" + field + "\n}\n\nfunc (p *" + typ + ") Title() string { return shared.Title(" + fmt.Sprintf("%q", text) + ") }\n</script>\n\n<h1>{p.Title()}</h1>\n<p>" + text + "</p>\n<ul>\n  for i, w := range shared.Words(p.Title()) {\n    <li data-i={i}>{w}</li>\n  }\n</ul>\n<a href={" + home + "}>home</a>\n"
 }
@@ -80,7 +84,14 @@ func TestRouteBuildGraph(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds an app three times")
 	}
-	app := localModule(t, webCheckout(t), routeGraphApp(2, 2, false))
+	t.Run("paths", func(t *testing.T) { routeBuildGraph(t, "") })
+	t.Run("route names", func(t *testing.T) { routeBuildGraph(t, "route") })
+}
+
+// routeBuildGraph is TestRouteBuildGraph with the pages linking home as
+// links says.
+func routeBuildGraph(t *testing.T, links string) {
+	app := localModule(t, webCheckout(t), routeGraphApp(2, 2, links))
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(traceEnv, "1")
 	read := func(rel string) string {
@@ -120,12 +131,13 @@ func TestRouteBuildGraph(t *testing.T) {
 		t.Errorf("an edit to a page's markup recorded %d packages' route facts:\n%s", facts, log)
 	}
 
-	writeFile(t, filepath.Join(app, "pages/area0/section9/index.vuka.html"), graphPage("section9", "Index", "", "new", false))
+	writeFile(t, filepath.Join(app, "pages/area0/section9/index.vuka.html"), graphPage("section9", "Index", "", "new", links))
 	got, _ = build()
 	if read("pages/route.go") == route {
 		t.Error("a new page left route.go as it was")
 	}
-	// main imports route.go's package; no page imports urls here.
+	// main imports route.go's package; no page imports urls here, and a
+	// page linking by route name names no generated package.
 	want := []string{"example.com/app", "example.com/app/pages", "example.com/app/pages/area0/section9"}
 	if !slices.Equal(got, want) && !slices.Equal(got, slices.Delete(slices.Clone(want), 0, 1)) {
 		t.Errorf("a new page compiled %v, want %v", got, want)

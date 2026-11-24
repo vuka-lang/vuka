@@ -19,6 +19,7 @@ type Page struct{ Store Store }
 
 func (p Page) Link(ctx context.Context) (ResetLink, error) { return p.Store.Link(ctx) }
 
+//go:noinline
 //line page.vuka.html:10
 func (p Page) View() ui.Node {
 //line page.vuka.html:10

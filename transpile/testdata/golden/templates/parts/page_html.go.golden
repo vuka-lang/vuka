@@ -24,6 +24,7 @@ func (p *Page) Stats(ctx context.Context) (Figures, error) { return p.Store.Stat
 //line page.vuka.html:14
 func (p *Page) Recent(ctx context.Context) ([]string, error) { return p.Store.Recent(ctx) }
 
+//go:noinline
 //line page.vuka.html:15
 func (p *Page) View() ui.Node {
 //line page.vuka.html:15

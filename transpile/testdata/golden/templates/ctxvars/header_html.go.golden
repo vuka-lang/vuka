@@ -17,6 +17,7 @@ import (
 //line header.vuka.html:4
 type Header struct{ Title string }
 
+//go:noinline
 //line header.vuka.html:5
 func (h Header) View() ui.Node {
 //line header.vuka.html:5

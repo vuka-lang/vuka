@@ -16,6 +16,7 @@ import (
 //line valpage.vuka.html:4
 type ValPage struct{ Store Store }
 
+//go:noinline
 //line valpage.vuka.html:5
 func (v ValPage) View() ui.Node {
 //line valpage.vuka.html:5

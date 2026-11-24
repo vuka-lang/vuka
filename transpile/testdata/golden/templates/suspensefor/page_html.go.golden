@@ -22,6 +22,7 @@ type Page struct {
 
 func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p.Store.Categories(ctx) }
 
+//go:noinline
 //line page.vuka.html:9
 func (p *Page) View() ui.Node {
 //line page.vuka.html:9

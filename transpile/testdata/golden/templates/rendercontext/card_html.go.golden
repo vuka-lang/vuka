@@ -15,6 +15,7 @@ import (
 //line card.vuka.html:4
 type Card struct{ Title string }
 
+//go:noinline
 //line card.vuka.html:5
 func (c Card) View() ui.Node {
 //line card.vuka.html:5

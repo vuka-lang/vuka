@@ -26,6 +26,7 @@ func (p Page) BadgeInt2(n int) string { return "plain badge" }
 
 func (p Page) BadgeString(s string) string { return s }
 
+//go:noinline
 //line page.vuka.html:18
 func (p Page) View() ui.Node {
 //line page.vuka.html:18

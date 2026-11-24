@@ -332,11 +332,15 @@ same page in the terminal.
 | [E0722](./E0722) | Two routes on one URL through a route group |
 | [E0723](./E0723) | A name in parentheses that names no route group |
 | [E0724](./E0724) | The home page outside the root layouts |
+| [E0725](./E0725) | A link names no route |
+| [E0726](./E0726) | A link gives a route the wrong parameters |
+| [E0727](./E0727) | A link gives a query key its page does not keep |
 | [W0701](./W0701) | No main package serves the folder routes |
 | [W0702](./W0702) | A hand-written folder-route option |
 | [W0703](./W0703) | A layout reading the request |
 | [W0704](./W0704) | A page's Load that never runs |
 | [W0705](./W0705) | A query field urls can't name |
+| [W0706](./W0706) | A urls chain vuka fix routes can't name |
 
 ## GraphQL
 

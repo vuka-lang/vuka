@@ -20,6 +20,7 @@ func (p Page) Items0() string { return "every item" }
 
 func (p Page) ItemsContext(ctx context.Context) string { return "items for the request" }
 
+//go:noinline
 //line page.vuka.html:12
 func (p Page) View() ui.Node {
 //line page.vuka.html:12

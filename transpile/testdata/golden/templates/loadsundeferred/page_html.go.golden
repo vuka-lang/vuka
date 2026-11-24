@@ -40,7 +40,7 @@ func (d *Dashboard) loadOther(ctx context.Context) error {
 	return nil
 }
 
-//line page.vuka.html:40
+//go:noinline
 func (d *Dashboard) Render() ui.Node {
 //line page.vuka.html:40
 	return ui.Ctx(func(ctx context.Context) ui.Node {

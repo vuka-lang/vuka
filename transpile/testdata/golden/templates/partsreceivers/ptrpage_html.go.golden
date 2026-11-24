@@ -17,6 +17,7 @@ import (
 //line ptrpage.vuka.html:5
 type PtrPage struct{ Store Store }
 
+//go:noinline
 //line ptrpage.vuka.html:6
 func (pt PtrPage) View() ui.Node {
 //line ptrpage.vuka.html:6

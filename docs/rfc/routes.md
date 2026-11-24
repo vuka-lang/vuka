@@ -167,7 +167,11 @@ and `urls` unwritten and uncompiled; an added route compiles its page and
    (`vuka routes -json`) byte-identical on the fixtures; conformance (as
    Vuka and ejected) and the E07xx/E0340 goldens unchanged.
 2. **`route`.** The builtin, `web.Route`/`web.RouteURL`, E0725–E0727, the
-   language server's names, `vuka fix routes`, W0706.
+   language server's names, `vuka fix routes`, W0706. *Shipped.* Two paths
+   that differ only by parameters each keep theirs (`orders`,
+   `orders.order`). The links are recorded with the route facts and checked
+   by the assembler, so a target's change re-checks its linkers without
+   transpiling them again, and the input keys stay as they were.
 3. **`vuka mv`**, and docs teaching `route`.
 
 The concurrent transpile (`transpileRun` as a scheduler) waits for step 1,

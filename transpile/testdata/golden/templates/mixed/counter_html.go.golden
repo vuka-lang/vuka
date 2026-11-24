@@ -35,6 +35,7 @@ func (c *Counter) Reset(ctx context.Context, to int) error {
 	return ctx.Err()
 }
 
+//go:noinline
 //line counter.vuka.html:31
 func (c *Counter) Render() ui.Node {
 //line counter.vuka.html:31
