@@ -46,11 +46,13 @@ import (
 // listed again on every run that LocalSources doesn't say they are as they
 // were, and a change in their export data starts the session over too.
 //
-// Errors in Vuka source, imports the go command can't resolve, and Go
-// packages of the module whose own files don't compile are reported as
-// Transpile reports them. A run that fails in any other way (Go generated
-// for a Vuka package that doesn't type-check, cgo, an import cycle) is done
-// again by Transpile, so errors read exactly as Transpile reports them.
+// Errors in Vuka source, imports the go command can't resolve, and packages
+// of the module whose files don't compile — hand-written Go, or the user's
+// Go in a .vuka file that only the Go compiler reports — are reported as
+// Transpile reports them. A run that fails in any other way (generated Go
+// with an error at a position no line directive maps to the source, cgo, an
+// import cycle) is done again by Transpile, so errors read exactly as
+// Transpile reports them.
 // A session is not safe for concurrent use.
 type Session struct {
 	root, modPath string
@@ -121,8 +123,8 @@ type checkedPkg struct {
 	// that was: usable to keep editing against, never cached as an API.
 	partial bool
 
-	// Some of its files are Go the run generated (a Vuka package's).
-	generated bool
+	// Its files that are Go the run generated (a Vuka package's), by path.
+	genFiles map[string]bool
 }
 
 // pkgOut is what a run generated for a package.
@@ -341,11 +343,15 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	fmt.Fprintf(h, "%s %s\n", path, s.goVersion)
 	fmt.Fprintf(ah, "%s %s\n", path, s.goVersion)
 	srcs := make([][]byte, len(bp.GoFiles))
-	generated := false
+	var genFiles map[string]bool
 	for i, name := range bp.GoFiles {
 		file := filepath.Join(dir, name)
-		_, gen := s.gen[file]
-		generated = generated || gen
+		if _, gen := s.gen[file]; gen {
+			if genFiles == nil {
+				genFiles = map[string]bool{}
+			}
+			genFiles[file] = true
+		}
 		if srcs[i], err = s.read(file); err != nil {
 			return nil, err
 		}
@@ -380,7 +386,7 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		s.now[path] = c
 		return c, nil
 	}
-	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs, generated: generated}
+	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs, genFiles: genFiles}
 	for _, imp := range imports {
 		c.imports = append(c.imports, imp.path)
 	}
