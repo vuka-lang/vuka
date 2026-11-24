@@ -178,11 +178,16 @@ func TestSession(t *testing.T) {
 		t.Errorf("an error in lib: %+v %v", s.ran, errs)
 	}
 	// Go's type error in lib's Vuka source, which only the Go compiler
-	// reports: main's import of lib fails as go build says, so Transpile
-	// does the run.
+	// reports: the directives place it in lib.vuka, so it is the user's own,
+	// main's import of lib fails as go build says, and the session keeps
+	// the run.
 	edit(t, lib, "func helper() int { return 1? }", "func helper() int { return \"x\" }")
-	if _, errs := sessionRun(t, s, root); !s.ran.fellBack || len(errs) == 0 {
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) == 0 {
 		t.Errorf("a type error in lib: %+v %v", s.ran, errs)
+	}
+	// A run with the error still standing reuses every package.
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 0 || len(errs) == 0 {
+		t.Errorf("a type error in lib, again: %+v %v", s.ran, errs)
 	}
 	edit(t, lib, "func helper() int { return \"x\" }", "func helper() int { return 2 }")
 	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) != 0 {
