@@ -58,36 +58,57 @@ func TestWatchRouteTypes(t *testing.T) {
 		}
 		writeFile(t, path, strings.Replace(string(src), old, new, 1))
 	}
-	// lastFacts are the packages whose facts the last build recorded.
-	lastFacts := func() []string {
-		log := r.log.String()
-		log = log[:strings.LastIndex(log, "page packages assembled")]
-		log = log[strings.LastIndex(log, "prepare routes"):]
-		var out []string
-		for _, m := range regexp.MustCompile(`route facts of example\.com/app/(\S+) `).FindAllStringSubmatch(log, -1) {
-			out = append(out, m[1])
+	// settle waits until the watch has started no build for a while: it
+	// never builds again on what it writes itself.
+	settle := func() {
+		t.Helper()
+		n := -1
+		for end := time.Now().Add(time.Minute); time.Now().Before(end); time.Sleep(1500 * time.Millisecond) {
+			m := strings.Count(r.log.String(), "prepare routes")
+			if m == n {
+				return
+			}
+			n = m
 		}
-		return out
+		t.Fatalf("the watch kept building:\n%s", r.log.String())
 	}
-	get("/a", "a one")
+	// since are the packages whose facts the builds after the log's offset
+	// recorded, and how many builds those were.
+	since := func(offset int) (pkgs []string, builds int) {
+		log := r.log.String()[offset:]
+		for _, m := range regexp.MustCompile(`route facts of example\.com/app/(\S+) `).FindAllStringSubmatch(log, -1) {
+			pkgs = append(pkgs, m[1])
+		}
+		slices.Sort(pkgs)
+		return slices.Compact(pkgs), strings.Count(log, "prepare routes")
+	}
 	a := filepath.Join(root, "pages", "a", "index.vuka.html")
-	for i, s := range []string{"a two", "a three"} {
-		edit(a, []string{"a one", "a two"}[i], s)
+	// The watch builds again soon after it starts, the go command having
+	// completed the module's go.sum, which keys its transpile: an edit then
+	// may land in that build. One edit first, and the watch settled.
+	get("/a", "a one")
+	edit(a, "a one", "a two")
+	get("/a", "a two")
+	settle()
+	for i, s := range []string{"a three", "a four"} {
+		offset := len(r.log.String())
+		edit(a, []string{"a two", "a three"}[i], s)
 		get("/a", s)
 		get("/b", "b one")
 		get("/", "home one")
-		r.waitLog("● rebuilt in ", i+1)
-		if got := lastFacts(); !slices.Equal(got, []string{"pages/a"}) {
-			t.Errorf("a body edit recorded the facts of %v:\n%s", got, r.log.String())
+		settle()
+		if got, builds := since(offset); !slices.Equal(got, []string{"pages/a"}) || builds != 1 {
+			t.Errorf("a body edit ran %d builds recording the facts of %v:\n%s", builds, got, r.log.String())
 		}
 	}
+	offset := len(r.log.String())
 	edit(filepath.Join(root, "pages", "b", "index.vuka.html"), "func (p *Index) Text()", "func (p *Index) More() int { return 1 }\n\nfunc (p *Index) Text()")
 	edit(filepath.Join(root, "pages", "b", "index.vuka.html"), "b one", "b two")
 	get("/b", "b two")
-	get("/a", "a three")
-	r.waitLog("● rebuilt in ", 3)
-	if got := lastFacts(); !slices.Contains(got, "pages/b") || slices.Contains(got, "pages/a") {
-		t.Errorf("a declaration in b recorded the facts of %v:\n%s", got, r.log.String())
+	get("/a", "a four")
+	settle()
+	if got, builds := since(offset); !slices.Contains(got, "pages/b") || slices.Contains(got, "pages/a") || builds > 2 {
+		t.Errorf("a declaration in b ran %d builds recording the facts of %v:\n%s", builds, got, r.log.String())
 	}
 	if strings.Contains(r.log.String(), "page packages typed") {
 		t.Errorf("the route check type-checked page packages:\n%s", r.log.String())
