@@ -17,9 +17,12 @@ import (
 
 // typedOf is Options.Facts' check of p: its Go as the run has it, its
 // imports through imp. It tolerates type errors, as a package with some
-// still declares what it declares.
-func typedOf(p *Package, imp types.Importer, sess *Session, replace map[string]string, root string) func(skip ...string) *Typed {
-	return func(skip ...string) *Typed {
+// still declares what it declares. Its files are read when it is called,
+// the package type-checked when what that returns is: a concurrent run
+// reads them under its lock and checks outside it.
+func typedOf(p *Package, imp types.Importer, sess *Session, replace map[string]string, root string) func(skip ...string) func() *Typed {
+	none := func() *Typed { return nil }
+	return func(skip ...string) func() *Typed {
 		ctx := replaceContext(replace)
 		goVersion := goDirective(root)
 		var sizes types.Sizes
@@ -29,7 +32,7 @@ func typedOf(p *Package, imp types.Importer, sess *Session, replace map[string]s
 		dir := p.BuildDir()
 		bp, err := ctx.ImportDir(dir, 0)
 		if bp == nil || err != nil && len(bp.GoFiles) == 0 {
-			return nil
+			return none
 		}
 		fset := token.NewFileSet()
 		var files []*ast.File
@@ -51,15 +54,17 @@ func typedOf(p *Package, imp types.Importer, sess *Session, replace map[string]s
 			}
 		}
 		if len(files) == 0 {
-			return nil
+			return none
 		}
-		uses, typs := map[*ast.Ident]types.Object{}, map[ast.Expr]types.TypeAndValue{}
-		conf := types.Config{Importer: imp, GoVersion: goVersion, Sizes: sizes, Error: func(error) {}}
-		pkg, _ := conf.Check(p.ImportPath, fset, files, &types.Info{Uses: uses, Types: typs})
-		if pkg == nil {
-			return nil
+		return func() *Typed {
+			uses, typs := map[*ast.Ident]types.Object{}, map[ast.Expr]types.TypeAndValue{}
+			conf := types.Config{Importer: imp, GoVersion: goVersion, Sizes: sizes, Error: func(error) {}}
+			pkg, _ := conf.Check(p.ImportPath, fset, files, &types.Info{Uses: uses, Types: typs})
+			if pkg == nil {
+				return nil
+			}
+			return &Typed{Pkg: pkg, Fset: fset, Files: files, Uses: uses, Types: typs, Import: imp.Import}
 		}
-		return &Typed{Pkg: pkg, Fset: fset, Files: files, Uses: uses, Types: typs, Import: imp.Import}
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -750,6 +751,9 @@ type Options struct {
 	// RouteGoName left out. A session keeps the answer with the output, in
 	// memory and on disk, so a package taken from it is asked again only
 	// when its output has none. Got is given each package's, kept or new.
+	// Facts is asked on the run's workers, of several packages at once, and
+	// must be safe for that; Got is given them once every package is done,
+	// one by one in import order.
 	Facts func(p *Package, check func(skip ...string) *Typed) []byte
 	Got   func(p *Package, facts []byte)
 }
@@ -862,7 +866,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	imports = append(imports, moduleImports(mod, modPath, roots, seen)...)
 	more := generatedImports(modPath, seen)
 	var imp pkgImporter
-	current := 0 // the package being transpiled; those after it have no Go in the overlay yet
+	st := &runState{sess: sess, overlay: overlay, replace: replace, tmp: tmp, files: opts.Files, root: moduleRoot, completed: map[string]bool{}}
 	switch {
 	case sess != nil:
 		imp = sess
@@ -874,24 +878,11 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		}
 		im := newCachedImporter(root, overlay)
 		defer im.cache.save()
-		at := map[string]int{}
-		for i, p := range pkgs {
-			at[p.ImportPath] = i
-		}
-		im.pending = func(path string) bool { i, ok := at[path]; return ok && i >= current }
+		im.pending = func(path string) bool { return vukaPkgs[path] && !st.completed[path] }
 		_ = im.prefetch(imports, more) // a failure shows up where the import is used
 		imp = im
 	}
-	flush := func() error {
-		if sess != nil {
-			return nil // written once, at the end: the session reads generated files from memory
-		}
-		if err := writeOverlay(overlay, replace); err != nil {
-			return err
-		}
-		imp.OverlayChanged()
-		return nil
-	}
+	st.imp = imp
 	templ := TemplFinder(pkgs)
 	registry := ""
 	if len(pkgs) > 0 {
@@ -899,113 +890,108 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			registry = TemplRegistry(root)
 		}
 	}
-	var errs transpile.ErrorList
+	// The packages transpile concurrently: the driver walks them in import
+	// order, preparing each (its folder's Go, the session's key and reuse,
+	// its templ files) once the packages it depends on are done, and hands
+	// the transpile itself to a worker. Results are read back in the same
+	// order, so output and errors read exactly as a package-by-package
+	// run's; everything shared is serialized under st.mu.
+	runs := make([]*pkgRun, len(pkgs))
 	for i, p := range pkgs {
-		current = i
-		if opts.Stop != nil && opts.Stop() {
-			return nil, "", ErrStopped
+		runs[i] = &pkgRun{i: i, p: p}
+	}
+	deps := runDeps(pkgs)
+	waits := make([]int, len(pkgs))
+	children := make([][]int, len(pkgs))
+	var ready []int
+	for i := range pkgs {
+		waits[i] = len(deps[i])
+		if waits[i] == 0 {
+			ready = append(ready, i)
 		}
-		add := func(goName string, src []byte) error {
-			target := filepath.Join(p.BuildDir(), goName)
-			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+goName)
-			if opts.Files != "" {
-				file = contentFile(opts.Files, goName, src)
-			}
-			if err := writeOnce(file, src, opts.Files != ""); err != nil {
-				return err
-			}
-			replace[target] = file
-			if sess != nil {
-				sess.gen[target] = src
-			}
-			return nil
+		for _, j := range deps[i] {
+			children[j] = append(children[j], i)
 		}
-		if p.GoDir != "" {
-			// The folder's own .go files: copied where the go command sees
-			// the package, a line directive naming the source, and gone
-			// from the folder it can't build.
-			for _, f := range p.Files {
-				if f.IsVuka() || !strings.HasSuffix(f.Name, ".go") || slices.ContainsFunc(p.Templ, func(t *Templ) bool { return t.GoName == f.Name }) {
-					continue
-				}
-				source := filepath.Join(p.Dir, f.Name)
-				g := Generated{Target: filepath.Join(p.GoDir, f.Name), Source: source, From: f.Src}
-				line := ""
-				if !opts.Bare {
-					line = "//line " + filepath.ToSlash(source) + ":1:1\n"
-				}
-				g.Src = append([]byte(line), f.Src...)
-				g.Map = transpile.CopyMap(len(line), len(f.Src))
-				if err := add(f.Name, g.Src); err != nil {
-					return nil, "", err
-				}
-				replace[source] = ""
-				out = append(out, g)
-			}
+	}
+	locked := &lockedImporter{mu: &st.mu, imp: imp}
+	// Before the first package transpiles, read every listed dependency's
+	// export data, serialized: reading one later would mutate packages the
+	// concurrent type-checks share (a dependency's imports are filled in
+	// when it is read itself). A run that reuses every package never pays
+	// for it.
+	warm := sync.OnceFunc(func() {
+		var listed []string
+		switch im := imp.(type) {
+		case *Importer:
+			listed = im.Loaded()
+		case *Session:
+			listed = im.imp.Loaded()
 		}
-		if sc := opts.Scopes[p.Dir]; len(sc) > 0 {
-			p.scopeTempl(sc)
+		for _, path := range listed {
+			_, _ = locked.Import(path)
 		}
-		cc, err := compiles.of(p.Dir)
-		if err != nil {
-			return nil, "", err
-		}
-		key := ""
-		if sess != nil {
-			if key = sess.inputKey(p, pkgs, registry, opts, cc); key == "" {
-				return nil, "", sess.failed // the session gives up on this run
-			}
-			if o, ok := sess.reuse(p, key); ok {
-				for _, g := range o.gens {
-					if err := add(filepath.Base(g.Target), g.Src); err != nil {
-						return nil, "", err
-					}
-				}
-				out = append(out, o.gens...)
-				if opts.Facts != nil {
-					if !o.hasFacts {
-						o.facts, o.hasFacts = opts.Facts(p, typedOf(p, imp, sess, replace, moduleRoot)), true
-						sess.saveOut(p.ImportPath, o)
-					}
-					if opts.Got != nil {
-						opts.Got(p, o.facts)
-					}
-				}
-				continue
+	})
+	st.workers = make(chan struct{}, max(1, runtime.GOMAXPROCS(0)))
+	finished := make(chan int, len(pkgs))
+	var wg sync.WaitGroup
+	var failed error
+	todo := len(pkgs)
+	complete := func(i int) {
+		todo--
+		for _, c := range children[i] {
+			if waits[c]--; waits[c] == 0 {
+				ready = append(ready, c)
 			}
 		}
-		first := len(out)
-		templOK := true
-		for _, t := range p.Templ {
-			if t.Err != nil {
-				errs = append(errs, t.Err)
-				templOK = false
-				continue
-			}
-			g := Generated{Target: filepath.Join(p.BuildDir(), t.GoName), Source: filepath.Join(p.Dir, t.Name), From: t.Src}
-			if opts.Bare {
-				g.Src, g.TemplMap = t.Go, t.Map
-			} else {
-				g.Src = t.Build()
-			}
-			if err := add(t.GoName, g.Src); err != nil {
-				return nil, "", err
-			}
-			out = append(out, g)
-		}
-		if !templOK {
-			// The package's Go is incomplete without it; type-checking its
-			// .vuka files would only report what the .templ error explains.
-			imp.Broken(p.ImportPath)
-			if err := flush(); err != nil {
-				return nil, "", err
-			}
+	}
+	for todo > 0 {
+		if len(ready) == 0 {
+			complete(<-finished)
 			continue
 		}
+		// The ready package first in import order: closest to the
+		// package-by-package run.
+		at := 0
+		for k := range ready {
+			if ready[k] < ready[at] {
+				at = k
+			}
+		}
+		i := ready[at]
+		ready = slices.Delete(ready, at, at+1)
+		r := runs[i]
+		if opts.Stop != nil && opts.Stop() {
+			failed = ErrStopped
+			break
+		}
+		st.mu.Lock()
+		dispatch, err := st.prep(r, pkgs, registry, opts, compiles)
+		st.mu.Unlock()
+		if err != nil {
+			failed = err
+			break
+		}
+		if !dispatch {
+			complete(i)
+			continue
+		}
+		if r.reused != nil {
+			warm()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				st.workers <- struct{}{}
+				defer func() { <-st.workers }()
+				st.reusedFacts(r, opts, locked)
+				finished <- r.i
+			}()
+			continue
+		}
+		p := r.p
 		topts := transpile.Options{
 			Templ:         templ,
 			TemplRegistry: registry,
-			Importer:      imp,
+			Importer:      locked,
 			Path:          func(name string) string { return filepath.Join(p.Dir, name) },
 			Bare:          opts.Bare,
 			Dir:           p.Dir,
@@ -1013,91 +999,34 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			ImportPath:    p.ImportPath,
 			Scopes:        opts.Scopes[p.Dir],
 			Contexts:      opts.Contexts[p.ImportPath],
-			NoImplicitCtx: cc.NoImplicitCtx,
-			WrapErrors:    cc.WrapErrors,
+			NoImplicitCtx: r.cc.NoImplicitCtx,
+			WrapErrors:    r.cc.WrapErrors,
 		}
-		res, err := transpile.Package(p.Files, topts)
-		if e := unreadable(imp); e != nil {
-			return nil, "", e // not the type errors of each import it fails
+		warm()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			st.workers <- struct{}{}
+			defer func() { <-st.workers }()
+			st.run(r, topts, opts, locked)
+			finished <- r.i
+		}()
+	}
+	wg.Wait()
+	if failed != nil {
+		return nil, "", failed
+	}
+	var errs transpile.ErrorList
+	for _, r := range runs {
+		if r.err != nil {
+			return nil, "", r.err
 		}
-		partial := false
-		if err != nil {
-			var list transpile.ErrorList
-			if !errors.As(err, &list) {
-				return nil, "", fmt.Errorf("%s: %w", p.ImportPath, err)
-			}
-			errs = append(errs, list...)
-			if opts.Bare {
-				// The language server: the package's other files still
-				// type-check without those with errors.
-				for _, d := range list {
-					if d.Code == "E0162" {
-						recovery := topts
-						recovery.IncompleteCalls = true
-						res, _ = transpile.Package(p.Files, recovery)
-						break
-					}
-				}
-				if res == nil {
-					res = transpileWithout(p, topts, list)
-				}
-			}
-			if res == nil {
-				imp.Broken(p.ImportPath)
-				continue
-			}
-			partial = true
+		if r.hasFacts && opts.Got != nil {
+			opts.Got(r.p, r.facts)
 		}
-		for _, f := range res.Files {
-			target := filepath.Join(p.BuildDir(), f.GoName)
-			if err := add(f.GoName, f.Src); err != nil {
-				return nil, "", err
-			}
-			var from []byte
-			for _, in := range p.Files {
-				if in.Name == f.Name {
-					from = in.Src
-				}
-			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit, Lets: f.Lets, VariantMethods: f.VariantMethods, Matches: f.Matches, GraphQLArgs: f.GraphQLArgs})
-		}
-		if res.Calls != nil {
-			// The call adapters: a file of the package's, no source's.
-			if err := add(transpile.CallsGoName, res.Calls); err != nil {
-				return nil, "", err
-			}
-			out = append(out, Generated{Target: filepath.Join(p.BuildDir(), transpile.CallsGoName), Src: res.Calls})
-		}
-		if AfterPackage != nil {
-			if err := writeOverlay(overlay, replace); err != nil {
-				return nil, "", err
-			}
-			for _, g := range AfterPackage(p.BuildDir(), overlay, out[first:]) {
-				if err := add(filepath.Base(g.Target), g.Src); err != nil {
-					return nil, "", err
-				}
-				out = append(out, g)
-			}
-		}
-		var facts []byte
-		if opts.Facts != nil {
-			if sess == nil {
-				if err := writeOverlay(overlay, replace); err != nil {
-					return nil, "", err
-				}
-				imp.OverlayChanged()
-			}
-			facts = opts.Facts(p, typedOf(p, imp, sess, replace, moduleRoot))
-			if opts.Got != nil {
-				opts.Got(p, facts)
-			}
-		}
-		if sess != nil && !partial {
-			sess.store(p, key, out[first:], facts, opts.Facts != nil)
-		}
-		if err := flush(); err != nil {
-			return nil, "", err
-		}
+		out = append(out, r.pre...)
+		out = append(out, r.gens...)
+		errs = append(errs, r.errs...)
 	}
 	if sess != nil {
 		if err := writeOverlay(overlay, replace); err != nil {
@@ -1108,6 +1037,471 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		return out, overlay, onceEach(errs)
 	}
 	return out, overlay, nil
+}
+
+// runState is what one run's driver and workers share, under mu: the
+// importer, the overlay's replacements, and the Vuka packages whose Go the
+// run has (completed), which the importer's pending asks about.
+type runState struct {
+	mu         sync.Mutex
+	workers    chan struct{} // the transpile slots, GOMAXPROCS of them
+	imp        pkgImporter
+	sess       *Session
+	overlay    string
+	replace    map[string]string
+	tmp, files string
+	root       string // the module's, for Options.Facts' check
+	completed  map[string]bool
+}
+
+// pkgRun is one package's part of a run.
+type pkgRun struct {
+	i    int
+	p    *Package
+	cc   Compile
+	key  string      // the session's inputKey; "" without one
+	pre  []Generated // the folder's own .go files, copied
+	gens []Generated // what the run generated for the package
+	errs transpile.ErrorList
+	err  error // a hard error: the run returns it
+	// facts are Options.Facts' answer, when asked (hasFacts); reused is the
+	// session's output the package was taken from, when it was.
+	facts    []byte
+	hasFacts bool
+	reused   *pkgOut
+}
+
+// add writes one generated file of r's package where the go command sees it.
+// st.mu is held.
+func (st *runState) add(r *pkgRun, goName string, src []byte) error {
+	target := filepath.Join(r.p.BuildDir(), goName)
+	file := filepath.Join(st.tmp, strconv.Itoa(r.i)+"_"+goName)
+	if st.files != "" {
+		file = contentFile(st.files, goName, src)
+	}
+	if err := writeOnce(file, src, st.files != ""); err != nil {
+		return err
+	}
+	st.replace[target] = file
+	if st.sess != nil {
+		st.sess.gen[target] = src
+	}
+	return nil
+}
+
+// flush writes the overlay so the go command sees the packages done so far.
+// st.mu is held.
+func (st *runState) flush() error {
+	if st.sess != nil {
+		return nil // written once, at the end: the session reads generated files from memory
+	}
+	if err := writeOverlay(st.overlay, st.replace); err != nil {
+		return err
+	}
+	st.imp.OverlayChanged()
+	return nil
+}
+
+// prep is the driver's part of one package — its folder's own Go, the
+// session's key and reuse, its templ outputs — and reports whether the
+// package still needs a worker: transpile.Package, or Options.Facts for
+// output the session kept without them. st.mu is held.
+func (st *runState) prep(r *pkgRun, pkgs []*Package, registry string, opts Options, compiles compileSettings) (bool, error) {
+	p := r.p
+	if p.GoDir != "" {
+		// The folder's own .go files: copied where the go command sees
+		// the package, a line directive naming the source, and gone
+		// from the folder it can't build.
+		for _, f := range p.Files {
+			if f.IsVuka() || !strings.HasSuffix(f.Name, ".go") || slices.ContainsFunc(p.Templ, func(t *Templ) bool { return t.GoName == f.Name }) {
+				continue
+			}
+			source := filepath.Join(p.Dir, f.Name)
+			g := Generated{Target: filepath.Join(p.GoDir, f.Name), Source: source, From: f.Src}
+			line := ""
+			if !opts.Bare {
+				line = "//line " + filepath.ToSlash(source) + ":1:1\n"
+			}
+			g.Src = append([]byte(line), f.Src...)
+			g.Map = transpile.CopyMap(len(line), len(f.Src))
+			if err := st.add(r, f.Name, g.Src); err != nil {
+				return false, err
+			}
+			st.replace[source] = ""
+			r.pre = append(r.pre, g)
+		}
+	}
+	if sc := opts.Scopes[p.Dir]; len(sc) > 0 {
+		p.scopeTempl(sc)
+	}
+	cc, err := compiles.of(p.Dir)
+	if err != nil {
+		return false, err
+	}
+	r.cc = cc
+	if st.sess != nil {
+		if r.key = st.sess.inputKey(p, pkgs, registry, opts, cc); r.key == "" {
+			return false, st.sess.failed // the session gives up on this run
+		}
+		if o, ok := st.sess.reuse(p, r.key); ok {
+			for _, g := range o.gens {
+				if err := st.add(r, filepath.Base(g.Target), g.Src); err != nil {
+					return false, err
+				}
+			}
+			r.gens = append(r.gens, o.gens...)
+			st.completed[p.ImportPath] = true
+			r.reused = o
+			if opts.Facts != nil {
+				r.facts, r.hasFacts = o.facts, true
+			}
+			// Output kept without facts is asked for them on a worker.
+			return opts.Facts != nil && !o.hasFacts, nil
+		}
+	}
+	templOK := true
+	for _, t := range p.Templ {
+		if t.Err != nil {
+			r.errs = append(r.errs, t.Err)
+			templOK = false
+			continue
+		}
+		g := Generated{Target: filepath.Join(p.BuildDir(), t.GoName), Source: filepath.Join(p.Dir, t.Name), From: t.Src}
+		if opts.Bare {
+			g.Src, g.TemplMap = t.Go, t.Map
+		} else {
+			g.Src = t.Build()
+		}
+		if err := st.add(r, t.GoName, g.Src); err != nil {
+			return false, err
+		}
+		r.gens = append(r.gens, g)
+	}
+	if !templOK {
+		// The package's Go is incomplete without it; type-checking its
+		// .vuka files would only report what the .templ error explains.
+		st.imp.Broken(p.ImportPath)
+		st.completed[p.ImportPath] = true
+		if err := st.flush(); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// run transpiles one package on a worker and registers what it generated.
+func (st *runState) run(r *pkgRun, topts transpile.Options, opts Options, imp *lockedImporter) {
+	p := r.p
+	res, err := transpile.Package(p.Files, topts)
+	st.mu.Lock()
+	if e := unreadable(st.imp); e != nil {
+		r.err = e // not the type errors of each import it fails
+		st.completed[p.ImportPath] = true
+		st.mu.Unlock()
+		return
+	}
+	st.mu.Unlock()
+	partial := false
+	if err != nil {
+		var list transpile.ErrorList
+		if !errors.As(err, &list) {
+			r.err = fmt.Errorf("%s: %w", p.ImportPath, err)
+			st.mu.Lock()
+			st.completed[p.ImportPath] = true
+			st.mu.Unlock()
+			return
+		}
+		r.errs = append(r.errs, list...)
+		if opts.Bare {
+			// The language server: the package's other files still
+			// type-check without those with errors.
+			for _, d := range list {
+				if d.Code == "E0162" {
+					recovery := topts
+					recovery.IncompleteCalls = true
+					res, _ = transpile.Package(p.Files, recovery)
+					break
+				}
+			}
+			if res == nil {
+				res = transpileWithout(p, topts, list)
+			}
+		}
+		if res == nil {
+			st.mu.Lock()
+			st.imp.Broken(p.ImportPath)
+			st.completed[p.ImportPath] = true
+			st.mu.Unlock()
+			return
+		}
+		partial = true
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, f := range res.Files {
+		target := filepath.Join(p.BuildDir(), f.GoName)
+		if r.err = st.add(r, f.GoName, f.Src); r.err != nil {
+			st.completed[p.ImportPath] = true
+			return
+		}
+		var from []byte
+		for _, in := range p.Files {
+			if in.Name == f.Name {
+				from = in.Src
+			}
+		}
+		r.gens = append(r.gens, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit, Lets: f.Lets, VariantMethods: f.VariantMethods, Matches: f.Matches, GraphQLArgs: f.GraphQLArgs})
+	}
+	if res.Calls != nil {
+		// The call adapters: a file of the package's, no source's.
+		if r.err = st.add(r, transpile.CallsGoName, res.Calls); r.err != nil {
+			st.completed[p.ImportPath] = true
+			return
+		}
+		r.gens = append(r.gens, Generated{Target: filepath.Join(p.BuildDir(), transpile.CallsGoName), Src: res.Calls})
+	}
+	if AfterPackage != nil {
+		// Its own snapshot of the overlay, read outside the lock: the orm
+		// tool's go commands take seconds, and the run's own overlay may be
+		// written again meanwhile.
+		snap := filepath.Join(st.tmp, "after-"+strconv.Itoa(r.i)+"-overlay.json")
+		if r.err = writeOverlay(snap, st.replace); r.err != nil {
+			st.completed[p.ImportPath] = true
+			return
+		}
+		st.mu.Unlock()
+		gens := AfterPackage(p.BuildDir(), snap, r.gens)
+		st.mu.Lock()
+		for _, g := range gens {
+			if r.err = st.add(r, filepath.Base(g.Target), g.Src); r.err != nil {
+				st.completed[p.ImportPath] = true
+				return
+			}
+			r.gens = append(r.gens, g)
+		}
+	}
+	if r.err = st.flush(); r.err != nil {
+		st.completed[p.ImportPath] = true
+		return
+	}
+	if opts.Facts != nil {
+		st.mu.Unlock()
+		r.facts, r.hasFacts = opts.Facts(p, st.typed(p, imp)), true
+		st.mu.Lock()
+	}
+	if st.sess != nil && !partial {
+		st.sess.store(p, r.key, r.gens, r.facts, r.hasFacts)
+	}
+	st.completed[p.ImportPath] = true
+}
+
+// reusedFacts asks Options.Facts of a package taken from the session whose
+// output was kept without them, and keeps the answer with it.
+func (st *runState) reusedFacts(r *pkgRun, opts Options, imp *lockedImporter) {
+	facts := opts.Facts(r.p, st.typed(r.p, imp))
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	r.facts = facts
+	r.reused.facts, r.reused.hasFacts = facts, true
+	st.sess.saveOut(r.p.ImportPath, r.reused)
+}
+
+// typed is Options.Facts' check of p on a worker: p's files are read under
+// st.mu, as the overlay's replacements and the session's generated files
+// change while other packages transpile, and the type-check runs outside
+// it, its imports through imp.
+func (st *runState) typed(p *Package, imp *lockedImporter) func(skip ...string) *Typed {
+	return func(skip ...string) *Typed {
+		st.mu.Lock()
+		check := typedOf(p, imp, st.sess, st.replace, st.root)(skip...)
+		st.mu.Unlock()
+		return check()
+	}
+}
+
+// runDeps is, for each of pkgs, the indexes of the earlier packages it
+// must follow: the Vuka packages its imports reach (through the module's
+// own Go packages), its context processors' and its embeds'. pkgs are in
+// import order, so an edge only points backwards.
+func runDeps(pkgs []*Package) [][]int {
+	byPath := map[string]*Package{}
+	byDir := map[string]*Package{}
+	index := map[*Package]int{}
+	for i, p := range pkgs {
+		byPath[p.ImportPath] = p
+		index[p] = i
+		if !strings.HasSuffix(p.Name, "_test") {
+			byDir[p.Dir] = p
+		}
+	}
+	via := throughGo(pkgs, byPath)
+	deps := make([][]int, len(pkgs))
+	for i, p := range pkgs {
+		seen := map[int]bool{}
+		dep := func(q *Package) {
+			if j, ok := index[q]; ok && j < i && !seen[j] {
+				seen[j] = true
+				deps[i] = append(deps[i], j)
+			}
+		}
+		paths := slices.Concat(p.Imports, p.After)
+		if strings.HasSuffix(p.ImportPath, "_test") {
+			paths = append(paths, strings.TrimSuffix(p.ImportPath, "_test"))
+		}
+		for _, d := range paths {
+			for _, q := range via(d) {
+				dep(q)
+			}
+		}
+		for _, d := range p.Embeds {
+			if q := byDir[d]; q != nil {
+				dep(q)
+			}
+		}
+	}
+	return deps
+}
+
+// lockedImporter serializes a run's importer for the packages transpiling
+// concurrently: the session and the go list importer are not safe for
+// concurrent use, and a look-up is cheap once cached. Every package it
+// returns is expanded first, while still serialized: types read from
+// export data load lazily on first use, which concurrent type-checks of
+// the importing packages must not trigger.
+type lockedImporter struct {
+	mu       *sync.Mutex
+	imp      types.Importer
+	expanded map[*types.Package]bool
+	types    map[types.Type]bool
+}
+
+func (l *lockedImporter) Import(path string) (*types.Package, error) {
+	return l.ImportFrom(path, "", 0)
+}
+
+// Position is the transpiler's Positioner: where an imported object is
+// declared, for the doc comment there.
+func (l *lockedImporter) Position(obj types.Object) token.Position {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if p, ok := l.imp.(interface {
+		Position(obj types.Object) token.Position
+	}); ok {
+		return p.Position(obj)
+	}
+	return token.Position{}
+}
+
+func (l *lockedImporter) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var pkg *types.Package
+	var err error
+	if from, ok := l.imp.(types.ImporterFrom); ok {
+		pkg, err = from.ImportFrom(path, dir, mode)
+	} else {
+		pkg, err = l.imp.Import(path)
+	}
+	if pkg != nil {
+		l.expand(pkg)
+	}
+	return pkg, err
+}
+
+// expand reads everything reachable from pkg's scope, so no later read is
+// a type's first.
+func (l *lockedImporter) expand(pkg *types.Package) {
+	if l.expanded == nil {
+		l.expanded = map[*types.Package]bool{}
+		l.types = map[types.Type]bool{}
+	}
+	if l.expanded[pkg] {
+		return
+	}
+	l.expanded[pkg] = true
+	scope := pkg.Scope()
+	for _, name := range scope.Names() {
+		l.expandType(scope.Lookup(name).Type())
+	}
+}
+
+func (l *lockedImporter) expandType(t types.Type) {
+	if t == nil || l.types[t] {
+		return
+	}
+	l.types[t] = true
+	switch t := t.(type) {
+	case *types.Alias:
+		l.expandType(types.Unalias(t))
+		l.expandType(t.Rhs())
+		l.expandTypeList(t.TypeArgs())
+		l.expandTypeParams(t.TypeParams())
+	case *types.Named:
+		l.expandType(t.Underlying())
+		l.expandTypeList(t.TypeArgs())
+		l.expandTypeParams(t.TypeParams())
+		for i := 0; i < t.NumMethods(); i++ {
+			l.expandType(t.Method(i).Type())
+		}
+	case *types.Pointer:
+		l.expandType(t.Elem())
+	case *types.Slice:
+		l.expandType(t.Elem())
+	case *types.Array:
+		l.expandType(t.Elem())
+	case *types.Chan:
+		l.expandType(t.Elem())
+	case *types.Map:
+		l.expandType(t.Key())
+		l.expandType(t.Elem())
+	case *types.Struct:
+		for i := 0; i < t.NumFields(); i++ {
+			l.expandType(t.Field(i).Type())
+		}
+	case *types.Signature:
+		if r := t.Recv(); r != nil {
+			l.expandType(r.Type())
+		}
+		l.expandTuple(t.Params())
+		l.expandTuple(t.Results())
+		l.expandTypeParams(t.TypeParams())
+		l.expandTypeParams(t.RecvTypeParams())
+	case *types.Interface:
+		t.Complete()
+		for i := 0; i < t.NumMethods(); i++ {
+			l.expandType(t.Method(i).Type())
+		}
+		for i := 0; i < t.NumEmbeddeds(); i++ {
+			l.expandType(t.EmbeddedType(i))
+		}
+	case *types.TypeParam:
+		l.expandType(t.Constraint())
+	case *types.Union:
+		for i := 0; i < t.Len(); i++ {
+			l.expandType(t.Term(i).Type())
+		}
+	case *types.Tuple:
+		l.expandTuple(t)
+	}
+}
+
+func (l *lockedImporter) expandTuple(t *types.Tuple) {
+	for i := 0; t != nil && i < t.Len(); i++ {
+		l.expandType(t.At(i).Type())
+	}
+}
+
+func (l *lockedImporter) expandTypeList(t *types.TypeList) {
+	for i := 0; t != nil && i < t.Len(); i++ {
+		l.expandType(t.At(i))
+	}
+}
+
+func (l *lockedImporter) expandTypeParams(t *types.TypeParamList) {
+	for i := 0; t != nil && i < t.Len(); i++ {
+		l.expandType(t.At(i))
+	}
 }
 
 // contentFile is where in dir the generated file goName holding src goes:
