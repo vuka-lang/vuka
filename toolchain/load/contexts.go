@@ -263,7 +263,7 @@ func isGenerated(entries []fs.DirEntry, name string) bool {
 			return true
 		}
 	}
-	return name == transpile.CallsGoName
+	return name == transpile.CallsGoName || name == RouteGoName
 }
 
 // mainContext is the context processors a package main lists, and whether

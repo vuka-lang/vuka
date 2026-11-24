@@ -35,6 +35,9 @@ func (a *App) Put(path string, fn any, opts ...RouteOption) *App    { return a }
 func (a *App) Patch(path string, fn any, opts ...RouteOption) *App  { return a }
 func (a *App) Delete(path string, fn any, opts ...RouteOption) *App { return a }
 func (a *App) Live(path string, page any, opts ...RouteOption) *App { return a }
+func (a *App) Handle(method, path string, fn any, opts ...RouteOption) *App {
+	return a
+}
 
 type Option interface{ apply(*App) }
 

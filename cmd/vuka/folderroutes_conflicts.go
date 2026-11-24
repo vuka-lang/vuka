@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"maps"
@@ -261,21 +260,6 @@ func onMethod(src []byte, i int) bool {
 		}
 		return bytes.HasPrefix(line, []byte("func ("))
 	}
-}
-
-// goDirectiveOf is the go directive of the go.mod at root ("1.25.0").
-func goDirectiveOf(root string) string {
-	data, err := load.ReadSource(filepath.Join(root, "go.mod"))
-	if err != nil {
-		return ""
-	}
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	for sc.Scan() {
-		if f := strings.Fields(sc.Text()); len(f) == 2 && f[0] == "go" {
-			return f[1]
-		}
-	}
-	return ""
 }
 
 // routesUnserved is W0701 for each page tree with pages that no main

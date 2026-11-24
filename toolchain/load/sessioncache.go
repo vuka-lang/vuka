@@ -33,7 +33,7 @@ import (
 var CompilerVersion = "dev"
 
 // cacheVersion is the format of the entries.
-const cacheVersion = "4"
+const cacheVersion = "5"
 
 // CacheDir is the directory vuka keeps its caches in: VUKA_CACHE when it
 // names a directory, else vuka in the user's cache directory. ok is false
@@ -131,6 +131,8 @@ func trimEntries(dir string, n int) {
 type diskOut struct {
 	Path, Key, Stats string
 	Gens             []diskGen
+	Facts            []byte
+	HasFacts         bool
 }
 
 type diskGen struct {
@@ -165,7 +167,7 @@ func (s *Session) loadOut(path, key string) *pkgOut {
 	if gob.NewDecoder(bytes.NewReader(data)).Decode(&d) != nil || d.Path != path || d.Key != key {
 		return nil
 	}
-	o := &pkgOut{key: d.Key, stats: d.Stats}
+	o := &pkgOut{key: d.Key, stats: d.Stats, facts: d.Facts, hasFacts: d.HasFacts}
 	for _, g := range d.Gens {
 		o.gens = append(o.gens, Generated{Target: g.Target, Source: g.Source, Src: g.Src, From: g.From, Map: g.Map,
 			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Available: g.Avail, Warnings: g.Warnings, Unwrapped: g.Unwrapped, Implicit: g.Implicit, Lets: g.Lets, VariantMethods: g.VariantMethods, Matches: g.Matches})
@@ -178,7 +180,7 @@ func (s *Session) saveOut(path string, o *pkgOut) {
 	if dir == "" {
 		return
 	}
-	d := diskOut{Path: path, Key: o.key, Stats: o.stats}
+	d := diskOut{Path: path, Key: o.key, Stats: o.stats, Facts: o.facts, HasFacts: o.hasFacts}
 	for _, g := range o.gens {
 		if g.TemplMap != nil {
 			return // templ's own source map: the language server's, never cached

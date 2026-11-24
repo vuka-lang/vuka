@@ -13,9 +13,26 @@ import (
 // its middleware, guards and layouts: web.New(pages.Routes(), …).
 func Routes() web.Option {
 	return web.OptionFunc(func(app *web.App) {
-		app.Get("/admin", func() *console.Index { return &console.Index{} }, web.PageRoute(), web.LayoutOf[Layout](), web.GuardOf[console.Guard](), web.LayoutOf[console.Shell]())
-		app.Get("/admin/auth/login", func() *auth.Login { return &auth.Login{} }, web.PageRoute(), web.LayoutOf[Layout]())
-		app.Get("/admin/users", func() *users.Index { return &users.Index{} }, web.PageRoute(), web.LayoutOf[Layout](), web.GuardOf[console.Guard](), web.LayoutOf[console.Shell]())
-		app.Get("/admin/users/{id}", func() *users.User { return &users.User{} }, web.PageRoute(), web.LayoutOf[Layout](), web.GuardOf[console.Guard](), web.LayoutOf[console.Shell]())
+		console.VukaRoutes(vukaRoute(app, web.LayoutOf[Layout](), web.GuardOf[console.Guard](), web.LayoutOf[console.Shell]()))
+		users.VukaRoutes(vukaRoute(app, web.LayoutOf[Layout](), web.GuardOf[console.Guard](), web.LayoutOf[console.Shell]()))
+		auth.VukaRoutes(vukaRoute(app, web.LayoutOf[Layout]()))
 	})
+}
+
+// vukaRoute registers on app each route a page package's VukaRoutes gives,
+// with opts after the route's own.
+//
+//go:noinline
+func vukaRoute(app *web.App, opts ...web.RouteOption) func(kind, method, path string, fn, ctor any, params ...string) {
+	return func(kind, method, path string, fn, ctor any, params ...string) {
+		opt := web.PageRoute()
+		switch kind {
+		case "live":
+			app.Live(path, fn, append([]web.RouteOption{opt}, opts...)...)
+			return
+		case "handler":
+			opt = web.Receiver(ctor)
+		}
+		app.Handle(method, path, fn, append([]web.RouteOption{opt}, opts...)...)
+	}
 }

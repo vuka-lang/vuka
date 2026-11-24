@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -99,7 +100,7 @@ func TestFolderRoutes(t *testing.T) {
 	if err := vukaIn(app, &out, &out, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	for _, f := range routeFiles {
+	for _, f := range append(slices.Clone(routeFiles), pageRouteFiles...) {
 		b, err := os.ReadFile(filepath.Join(app, f))
 		if err != nil {
 			t.Fatalf("vuka gen -inplace wrote no %s:\n%s", f, out.Bytes())
@@ -134,7 +135,7 @@ func TestFolderRoutes(t *testing.T) {
 	}
 
 	// With nothing on disk, the overlay alone builds it.
-	for _, f := range routeFiles {
+	for _, f := range append(slices.Clone(routeFiles), pageRouteFiles...) {
 		os.Remove(filepath.Join(app, f))
 	}
 	errOut.Reset()
@@ -145,6 +146,9 @@ func TestFolderRoutes(t *testing.T) {
 
 // routeFiles are the files generated for the fixture.
 var routeFiles = []string{"pages/route.go", "pages/urls/urls_gen.go"}
+
+// pageRouteFiles are two of its page packages' vuka_route_gen.go.
+var pageRouteFiles = []string{"pages/vuka_route_gen.go", "pages/api/pets/vuka_route_gen.go"}
 
 const editPage = `package org
 
@@ -383,7 +387,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.ReloadLayout", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New", "web.MountPath":
+			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.ReloadLayout", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New", "web.MountPath", "web.RouteOption":
 			default:
 				out = append(out, "names "+sel+name)
 			}
@@ -461,9 +465,9 @@ func TestShapePages(t *testing.T) {
 	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	b, _ := os.ReadFile(filepath.Join(app, "pages", "route.go"))
-	if !strings.Contains(string(b), `app.Live("/counter", func() *Counter { return &Counter{} }`) || !strings.Contains(string(b), `app.Get("/about", func() *Info { return &Info{} }`) {
-		t.Errorf("route.go:\n%s", b)
+	b, _ := os.ReadFile(filepath.Join(app, "pages", "vuka_route_gen.go"))
+	if !strings.Contains(string(b), `route("live", "GET", "/counter", func() *Counter { return &Counter{} }`) || !strings.Contains(string(b), `route("page", "GET", "/about", func() *Info { return &Info{} }`) {
+		t.Errorf("vuka_route_gen.go:\n%s", b)
 	}
 	if u, _ := os.ReadFile(filepath.Join(app, "pages", "urls", "urls_gen.go")); !regexp.MustCompile(`About += Root\.About`).Match(u) {
 		t.Errorf("urls_gen.go names the page by its type, not its file:\n%s", u)
@@ -559,15 +563,17 @@ func TestGeneratedConstructors(t *testing.T) {
 	if err := vukaIn(app, io.Discard, io.Discard, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	b, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
-	for _, want := range []string{`app.Get("/files/{file...}", files.NewFile,`, `web.Receiver(func() *api_orgs.Index { return &api_orgs.Index{} })`} {
-		if !strings.Contains(string(b), want) {
-			t.Errorf("route.go has no %s:\n%s", want, b)
+	for f, want := range map[string]string{"pages/files/vuka_route_gen.go": `route("page", "GET", "/files/{file...}", NewFile,`, "pages/api/orgs/vuka_route_gen.go": `(*Index).Get, func() *Index { return &Index{} })`} {
+		if b, _ := os.ReadFile(filepath.Join(app, f)); !strings.Contains(string(b), want) {
+			t.Errorf("%s has no %s:\n%s", f, want, b)
 		}
 	}
-	if strings.Contains(string(b), "Card") || strings.Contains(string(b), "Store") {
-		t.Errorf("route.go builds a type that is no page:\n%s", b)
-	}
+	filepath.WalkDir(filepath.Join(app, "pages"), func(p string, d fs.DirEntry, err error) error {
+		if b, _ := os.ReadFile(p); err == nil && filepath.Base(p) == "vuka_route_gen.go" && (strings.Contains(string(b), "Card") || strings.Contains(string(b), "Store")) {
+			t.Errorf("%s builds a type that is no page:\n%s", p, b)
+		}
+		return nil
+	})
 	if err := vukaIn(app, io.Discard, &errOut, "vet", "./..."); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
@@ -658,10 +664,11 @@ func TestMainPages(t *testing.T) {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
 	for f, want := range map[string]string{
-		"pages/route.go":               "package pages",
-		"cmd/a/pages/route.go":         `app.Get("/pets/{id}"`,
-		"cmd/a/pages/urls/urls_gen.go": "package urls",
-		"cmd/b/pages/route.go":         `app.Get("/about"`,
+		"pages/route.go":                     "package pages",
+		"cmd/a/pages/route.go":               `pets.VukaRoutes(vukaRoute(app`,
+		"cmd/a/pages/pets/vuka_route_gen.go": `"GET", "/pets/{id}"`,
+		"cmd/a/pages/urls/urls_gen.go":       "package urls",
+		"cmd/b/pages/vuka_route_gen.go":      `"GET", "/about"`,
 	} {
 		if b, _ := os.ReadFile(filepath.Join(app, f)); !strings.Contains(string(b), want) {
 			t.Errorf("%s has no %s:\n%s", f, want, b)

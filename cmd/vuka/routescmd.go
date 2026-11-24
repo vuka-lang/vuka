@@ -91,7 +91,7 @@ func routeTable(root, modPath string) (routeTrees, *routesResult, error) {
 		ds, _ := diag.From(err)
 		return routes, &routesResult{diags: ds}, nil
 	}
-	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
+	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, routes.options(loadOptions(pa)))
 	if err != nil {
 		return nil, nil, err
 	}

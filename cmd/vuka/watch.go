@@ -505,7 +505,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		if s.sess != nil {
 			transpile = s.sess.Transpile
 		}
-		opts := loadOptions(r.pa)
+		opts := routes.options(loadOptions(r.pa))
 		opts.Files = filepath.Join(s.tmp, "gen") // kept across builds: an unchanged file isn't written again
 		if gens, r.overlay, err = transpile(pkgs, dir, opts); err != nil {
 			r.err, r.gens = err, gens // the report checks the packages that transpiled
@@ -1328,7 +1328,7 @@ func (w *watcher) skipDir(path, name string) bool {
 // watched reports whether a change to the file at path starts a build.
 func (w *watcher) watched(path string) bool {
 	name := filepath.Base(path)
-	if strings.HasPrefix(name, ".") || routeFile(path) {
+	if strings.HasPrefix(name, ".") || routeFile(path) || name == load.RouteGoName {
 		return false // a route file is vuka's, written by the build it would start
 	}
 	switch filepath.Ext(name) {

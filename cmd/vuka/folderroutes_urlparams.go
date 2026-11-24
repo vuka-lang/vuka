@@ -3,7 +3,6 @@ package main
 import (
 	"go/ast"
 	"go/build"
-	"go/types"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,75 +16,35 @@ import (
 // marked with a bare @ui.URL binds the route's path parameter of its name,
 // so the page's path must have it (E0340).
 func (c *routeChecker) urlParams() {
-	bare := map[*types.TypeName][]string{}
+	bare := map[[2]string][]string{}
 	for _, rt := range c.res.routes {
-		if rt.typ == "" || rt.Kind != "live" && rt.Kind != "page" || rt.dir == nil {
-			continue
-		}
-		syn, ok := c.r.syntax[rt.dir.importPath]
-		if !ok {
+		if rt.typ == "" || rt.Kind != "live" && rt.Kind != "page" || rt.dir == nil || rt.facts == nil {
 			continue
 		}
 		params := pathParams(rt.Path)
-		for _, f := range syn.files {
-			for _, d := range f.Decls {
-				fd, ok := d.(*ast.FuncDecl)
-				if !ok || fd.Body == nil || fd.Recv == nil || len(fd.Recv.List) == 0 || recvTypeName(fd.Recv.List[0].Type) != rt.typ ||
-					fd.Name.Name != "Render" && fd.Name.Name != "View" {
+		for _, lit := range rt.facts.Renders {
+			key := [2]string{lit.Pkg, lit.Name}
+			fields, seen := bare[key]
+			if !seen {
+				fields = c.t.bareURLFields(lit.Pkg, lit.Name)
+				bare[key] = fields
+			}
+			for _, name := range fields {
+				if matchFold(params, name) != "" {
 					continue
 				}
-				ast.Inspect(fd.Body, func(n ast.Node) bool {
-					lit, ok := n.(*ast.CompositeLit)
-					if !ok {
-						return true
-					}
-					tn := c.litType(syn, lit.Type)
-					if tn == nil {
-						return true
-					}
-					fields, seen := bare[tn]
-					if !seen {
-						fields = c.bareURLFields(tn)
-						bare[tn] = fields
-					}
-					for _, name := range fields {
-						if matchFold(params, name) != "" {
-							continue
-						}
-						d := diag.New("E0340", "%s.%s binds the path parameter {%s} (a bare @ui.URL), and %s's path %s has none", tn.Name(), name, name, rt.typ, rt.Path)
-						if s := closest(name, params); s != "" {
-							d = d.WithHelp("did you mean {%s}? name the field %s, or give @ui.URL the parameter: @ui.URL(\"%s\") reads the query", s, s, name)
-						} else if len(params) > 0 {
-							d = d.WithHelp("the path's parameters are {%s}; or read the query: @ui.URL(\"%s\")", strings.Join(params, "}, {"), name)
-						} else {
-							d = d.WithHelp("render it under a [%s] folder, or read the query: @ui.URL(\"%s\")", name, name)
-						}
-						c.report(d, lit.Pos())
-					}
-					return true
-				})
+				d := diag.New("E0340", "%s.%s binds the path parameter {%s} (a bare @ui.URL), and %s's path %s has none", lit.Name, name, name, rt.typ, rt.Path)
+				if s := closest(name, params); s != "" {
+					d = d.WithHelp("did you mean {%s}? name the field %s, or give @ui.URL the parameter: @ui.URL(\"%s\") reads the query", s, s, name)
+				} else if len(params) > 0 {
+					d = d.WithHelp("the path's parameters are {%s}; or read the query: @ui.URL(\"%s\")", strings.Join(params, "}, {"), name)
+				} else {
+					d = d.WithHelp("render it under a [%s] folder, or read the query: @ui.URL(\"%s\")", name, name)
+				}
+				c.reportAt(d, lit.Pos)
 			}
 		}
 	}
-}
-
-// litType is the struct type a composite literal's type names, T or
-// pkg.T.
-func (c *routeChecker) litType(syn checked, x ast.Expr) *types.TypeName {
-	var id *ast.Ident
-	switch t := x.(type) {
-	case *ast.Ident:
-		id = t
-	case *ast.SelectorExpr:
-		id = t.Sel
-	case *ast.IndexExpr:
-		return c.litType(syn, t.X)
-	}
-	if id == nil {
-		return nil
-	}
-	tn, _ := syn.uses[id].(*types.TypeName)
-	return tn
 }
 
 func recvTypeName(x ast.Expr) string {
@@ -121,28 +80,27 @@ func matchFold(names []string, name string) string {
 	return ""
 }
 
-// bareURLFields are the fields of tn's struct that its Vuka source marks
-// with a bare @ui.URL.
-func (c *routeChecker) bareURLFields(tn *types.TypeName) []string {
-	if tn.Pkg() == nil {
-		return nil
-	}
+// bareURLFields are the fields of the struct path.name that its Vuka
+// source marks with a bare @ui.URL.
+func (t *routeTree) bareURLFields(path, name string) []string {
 	dir := ""
-	switch path := tn.Pkg().Path(); {
-	case path == c.t.modPath:
-		dir = c.t.root
-	case strings.HasPrefix(path, c.t.modPath+"/"):
-		dir = filepath.Join(c.t.root, filepath.FromSlash(strings.TrimPrefix(path, c.t.modPath+"/")))
+	switch {
+	case path == t.modPath:
+		dir = t.root
+	case strings.HasPrefix(path, t.modPath+"/"):
+		dir = filepath.Join(t.root, filepath.FromSlash(strings.TrimPrefix(path, t.modPath+"/")))
 	default:
-		if bp, err := build.Default.Import(path, c.t.root, build.FindOnly); err == nil {
+		if bp, err := build.Default.Import(path, t.root, build.FindOnly); err == nil {
 			dir = bp.Dir
 		}
 	}
-	if d := c.r.byPath[tn.Pkg().Path()]; d != nil {
-		dir = d.dir
+	for _, d := range t.dirs {
+		if d.importPath == path {
+			dir = d.dir
+		}
 	}
 	var out []string
-	for _, a := range structURLAttrs(dir, tn.Name()) {
+	for _, a := range structURLAttrs(dir, name) {
 		if a.bare {
 			out = append(out, a.field)
 		}

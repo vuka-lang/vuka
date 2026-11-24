@@ -132,6 +132,9 @@ type pkgOut struct {
 	key   string // inputKey
 	gens  []Generated
 	stats string // the vuka.File paths' existence, as fileStats saw it
+	// facts are Options.Facts' answer, when hasFacts: it was asked.
+	facts    []byte
+	hasFacts bool
 }
 
 // NewSession starts a session for the module at root.
@@ -657,7 +660,7 @@ const keepOuts = 4
 
 // reuse returns the files a run generated for p from the inputs key names,
 // when a recent run did.
-func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
+func (s *Session) reuse(p *Package, key string) (*pkgOut, bool) {
 	var o *pkgOut
 	for _, x := range s.outs[p.ImportPath] {
 		if x.key == key {
@@ -675,12 +678,12 @@ func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
 		return nil, false
 	}
 	s.ran.reused++
-	return o.gens, true
+	return o, true
 }
 
-func (s *Session) store(p *Package, key string, gens []Generated) {
+func (s *Session) store(p *Package, key string, gens []Generated, facts []byte, hasFacts bool) {
 	s.ran.transpiled++
-	o := &pkgOut{key: key, gens: slices.Clone(gens), stats: fileStats(gens)}
+	o := &pkgOut{key: key, gens: slices.Clone(gens), stats: fileStats(gens), facts: facts, hasFacts: hasFacts}
 	s.keep(p.ImportPath, o)
 	s.saveOut(p.ImportPath, o)
 }

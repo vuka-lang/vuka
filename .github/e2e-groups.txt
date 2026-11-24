@@ -348,6 +348,8 @@ TestEnums
 TestExplainEnums
 # folderroutes_e2e_test.go
 TestFolderRoutesE2E
+# folderroutes_prefix_e2e_test.go
+TestFolderRoutesUnderPrefix
 # goimports_e2e_test.go
 TestGoImportsVuka
 TestGoImportsVukaErrors

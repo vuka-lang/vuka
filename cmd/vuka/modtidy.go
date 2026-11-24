@@ -499,7 +499,7 @@ func tidyTranspile(root, modPath string, pkgs []*load.Package, tmp string) ([]lo
 	var overlay string
 	var terr error
 	if len(pkgs) > 0 {
-		gens, overlay, terr = cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
+		gens, overlay, terr = cachedTranspile(root)(pkgs, tmp, routes.options(loadOptions(pa)))
 	}
 	if g, o, err := routes.apply(gens, overlay, tmp); err != nil {
 		if g != nil {

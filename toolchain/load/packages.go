@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/scanner"
@@ -322,7 +323,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	if err != nil {
 		return nil, err
 	}
-	generated := map[string]bool{}
+	generated := map[string]bool{RouteGoName: true}
 	hasSource := false
 	for _, e := range entries {
 		switch name := e.Name(); {
@@ -743,6 +744,27 @@ type Options struct {
 	// generated files are written in, each named by its content: a file a
 	// run generates as an earlier run did is not written again.
 	Files string
+	// Facts, when set, is asked for what to keep with a Vuka package's
+	// output once it (and AfterPackage) transpiled: check type-checks the
+	// package from the Go the run generated for it, its files named skip and
+	// RouteGoName left out. A session keeps the answer with the output, in
+	// memory and on disk, so a package taken from it is asked again only
+	// when its output has none. Got is given each package's, kept or new.
+	Facts func(p *Package, check func(skip ...string) *Typed) []byte
+	Got   func(p *Package, facts []byte)
+}
+
+// RouteGoName is the file of a page package registering its folder
+// routes: generated after the transpile, never one of its inputs.
+const RouteGoName = "vuka_route_gen.go"
+
+// Typed is a package type-checked for Options.Facts.
+type Typed struct {
+	Pkg    *types.Package
+	Fset   *token.FileSet
+	Files  []*ast.File
+	Uses   map[*ast.Ident]types.Object
+	Import func(path string) (*types.Package, error)
 }
 
 // AfterPackage, when set, is asked after each Vuka package transpiles, with
@@ -932,13 +954,22 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			if key = sess.inputKey(p, pkgs, registry, opts, cc); key == "" {
 				return nil, "", sess.failed // the session gives up on this run
 			}
-			if gens, ok := sess.reuse(p, key); ok {
-				for _, g := range gens {
+			if o, ok := sess.reuse(p, key); ok {
+				for _, g := range o.gens {
 					if err := add(filepath.Base(g.Target), g.Src); err != nil {
 						return nil, "", err
 					}
 				}
-				out = append(out, gens...)
+				out = append(out, o.gens...)
+				if opts.Facts != nil {
+					if !o.hasFacts {
+						o.facts, o.hasFacts = opts.Facts(p, typedOf(p, imp, sess, replace, moduleRoot)), true
+						sess.saveOut(p.ImportPath, o)
+					}
+					if opts.Got != nil {
+						opts.Got(p, o.facts)
+					}
+				}
 				continue
 			}
 		}
@@ -1047,8 +1078,21 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 				out = append(out, g)
 			}
 		}
+		var facts []byte
+		if opts.Facts != nil {
+			if sess == nil {
+				if err := writeOverlay(overlay, replace); err != nil {
+					return nil, "", err
+				}
+				imp.OverlayChanged()
+			}
+			facts = opts.Facts(p, typedOf(p, imp, sess, replace, moduleRoot))
+			if opts.Got != nil {
+				opts.Got(p, facts)
+			}
+		}
 		if sess != nil && !partial {
-			sess.store(p, key, out[first:])
+			sess.store(p, key, out[first:], facts, opts.Facts != nil)
 		}
 		if err := flush(); err != nil {
 			return nil, "", err
