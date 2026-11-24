@@ -314,7 +314,7 @@ func (p *proxy) build() {
 				gens, list, err = nil, transpile.ErrorList{compilerPanic(path, r)}, nil
 			}
 		}()
-		gens, overlay, err := transpileAll(pkgs, p.tmp, opts)
+		gens, overlay, err := transpileAll(pkgs, p.tmp, routes.options(opts))
 		var goVersion *load.GoVersionError
 		if errors.As(err, &goVersion) {
 			p.logf("transpile: %v", err)

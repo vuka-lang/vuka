@@ -19,7 +19,7 @@ func TestRunWritesRouteFiles(t *testing.T) {
 	if err := runGo("run", []string{"."}, &out, &errOut); err != nil {
 		t.Fatalf("vuka run: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
-	checkRouteFilesOnDisk(t, app, "/orgs/{org}")
+	checkRouteFilesOnDisk(t, app, "org.VukaRoutes(")
 	noGoDirs(t, app)
 }
 
@@ -32,12 +32,12 @@ func TestRunWatchWritesRouteFiles(t *testing.T) {
 	vuka := buildVuka(t)
 	app := routesModule(t, map[string]string{"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc main() {\n\tweb.New(pages.Routes())\n\tselect {}\n}\n"})
 	r := startWatch(t, vuka, app, nil)
-	waitFile(t, r, filepath.Join(app, "pages", "route.go"), `"/orgs/{org}"`)
+	waitFile(t, r, filepath.Join(app, "pages", "route.go"), "org.VukaRoutes(")
 	writeFile(t, filepath.Join(app, "pages", "pets", "index.vuka.html"), "package pets\n\n// Index lists the pets.\ntype Index struct{}\n<p>pets</p>\n")
-	waitFile(t, r, filepath.Join(app, "pages", "route.go"), `"/pets"`)
+	waitFile(t, r, filepath.Join(app, "pages", "route.go"), `"example.com/app/pages/pets"`)
 	waitFile(t, r, filepath.Join(app, "pages", "urls", "urls_gen.go"), "Pets")
 	r.stop()
-	checkRouteFilesOnDisk(t, app, "/pets")
+	checkRouteFilesOnDisk(t, app, `"example.com/app/pages/pets"`)
 }
 
 func waitFile(t *testing.T, r *watchRun, path, want string) {
@@ -53,19 +53,19 @@ func waitFile(t *testing.T, r *watchRun, path, want string) {
 	}
 }
 
-// checkRouteFilesOnDisk: the route files are on disk, route.go with path,
+// checkRouteFilesOnDisk: the route files are on disk, route.go with want,
 // and no other generated file is.
-func checkRouteFilesOnDisk(t *testing.T, app, path string) {
+func checkRouteFilesOnDisk(t *testing.T, app, want string) {
 	t.Helper()
 	route, err := os.ReadFile(filepath.Join(app, "pages", "route.go"))
-	if err != nil || !strings.Contains(string(route), `"`+path+`"`) {
+	if err != nil || !strings.Contains(string(route), want) {
 		t.Errorf("pages/route.go: %v\n%s", err, route)
 	}
 	if _, err := os.Stat(filepath.Join(app, "pages", "urls", "urls_gen.go")); err != nil {
 		t.Errorf("no pages/urls/urls_gen.go: %v", err)
 	}
 	filepath.WalkDir(app, func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && (strings.HasSuffix(p, "_html.go") || strings.HasSuffix(p, "_vuka.go")) {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(p, "_html.go") || strings.HasSuffix(p, "_vuka.go") || filepath.Base(p) == "vuka_route_gen.go") {
 			t.Errorf("vuka run wrote %s", p)
 		}
 		return nil

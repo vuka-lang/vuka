@@ -79,6 +79,7 @@ type routeTree struct {
 	info       map[*routeDir]*dirInfo
 	urls       *urlNode
 	result     *routesResult // the last finish's
+	factsStore
 }
 
 // routeTrees are the module's page trees: its pages/ directory's, and
@@ -106,7 +107,8 @@ func (ts routeTrees) files() []load.Generated {
 }
 
 // writeFiles writes the files the last finish generated that hand-written
-// code imports — each tree's route.go and urls/urls_gen.go — to disk where
+// code imports — each tree's route.go and urls/urls_gen.go, not the page
+// packages' vuka_route_gen.go — to disk where
 // they differ, so an editor and plain Go tools see the packages vuka run
 // serves; the overlay holds the same text. It returns the files written.
 func (ts routeTrees) writeFiles() ([]string, error) {
@@ -129,7 +131,7 @@ func gitTracked(path string) bool {
 func (ts routeTrees) write(skip func(path string) bool) ([]string, error) {
 	var wrote []string
 	for _, g := range ts.files() {
-		if skip(g.Target) {
+		if !routeFile(g.Target) || skip(g.Target) {
 			continue
 		}
 		if old, err := load.ReadSource(g.Target); err == nil && bytes.Equal(old, g.Src) {
@@ -685,7 +687,7 @@ func generatedFor(name string, entries []fs.DirEntry) bool {
 	for _, e := range entries {
 		n := e.Name()
 		if (strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html")) && transpile.GoName(n) == name ||
-			strings.HasSuffix(n, ".templ") && load.TemplGoName(n) == name || name == transpile.CallsGoName {
+			strings.HasSuffix(n, ".templ") && load.TemplGoName(n) == name || name == transpile.CallsGoName || name == load.RouteGoName {
 			return true
 		}
 	}
@@ -732,6 +734,10 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	}
 	pkg := func(dir, goDir, importPath, name string, goFiles []string) *load.Package {
 		i := slices.IndexFunc(pkgs, func(p *load.Package) bool { return realPathOf(p.Dir) == dir && p.Name == name })
+		if i < 0 {
+			// Discover may name a package of templates alone for its folder.
+			i = slices.IndexFunc(pkgs, func(p *load.Package) bool { return realPathOf(p.Dir) == dir && !strings.HasSuffix(p.Name, "_test") })
+		}
 		if i >= 0 {
 			return pkgs[i]
 		}
@@ -776,6 +782,12 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	root := t.root0()
 	rp := pkg(pagesDir, pagesDir, t.pagesPath, root.name, root.goFiles)
 	rp.Files = slices.DeleteFunc(rp.Files, func(f transpile.File) bool { return f.Name == routeGoName })
+	// What route.go on disk imports, the page packages, isn't the package's:
+	// it would be transpiled again whenever a page's API changes.
+	rp.Imports = slices.DeleteFunc(slices.Clone(rp.Imports), func(path string) bool {
+		return slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return d.importPath == path && d.importPath != rp.ImportPath }) &&
+			!slices.ContainsFunc(rp.Files, func(f transpile.File) bool { return bytes.Contains(f.Src, []byte(strconv.Quote(path))) })
+	})
 	stub := []byte(routesHeading + "package " + root.name + "\n\nimport \"" + webPath + "\"\n\n// Routes registers the pages under pages/.\nfunc Routes() web.Option { return web.OptionFunc(func(*web.App) {}) }\n")
 	placeholder(rp, stub)
 	// route.go imports the page packages: main reaches them through it
@@ -787,6 +799,15 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 		}
 	}
 	routeStubs[pagesDir] = []load.Generated{{Target: filepath.Join(pagesDir, routeGoName), Src: stub}}
+	// Each page package is transpiled, its route facts recorded, and its
+	// vuka_route_gen.go is a stub until the routes are assembled.
+	for _, d := range t.dirs {
+		p := pkg(d.dir, d.goDir, d.importPath, d.name, d.goFiles)
+		if d.rel != "" {
+			placeholder(p, nil)
+		}
+		routeStubs[d.goDir] = append(routeStubs[d.goDir], load.Generated{Target: filepath.Join(d.goDir, load.RouteGoName), Src: []byte(routesHeading + "package " + d.name + "\n")})
+	}
 	for _, d := range t.dirs {
 		if !slices.ContainsFunc(d.funcs, func(f methodFunc) bool { return f.goName != f.method }) {
 			continue
@@ -926,7 +947,7 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 		return nil, "", nil, err
 	}
 	for _, t := range ts {
-		r := t.checked(ov, overlay)
+		r := t.checked()
 		t.result = r
 		res.routes = append(res.routes, r.routes...)
 		res.files = append(res.files, r.files...)
@@ -941,10 +962,15 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 	for _, target := range drop {
 		delete(ov, target)
 	}
-	for i, g := range res.files {
-		file := filepath.Join(tmp, fmt.Sprintf("routes%d_%s", i, filepath.Base(g.Target)))
-		if err := os.WriteFile(file, g.Src, 0o644); err != nil {
-			return nil, "", nil, err
+	for _, g := range res.files {
+		// Named by its content: a watch's next build writes only the files
+		// that changed.
+		sum := sha256.Sum256(g.Src)
+		file := filepath.Join(tmp, fmt.Sprintf("routes_%x_%s", sum[:12], filepath.Base(g.Target)))
+		if _, err := os.Stat(file); err != nil {
+			if err := os.WriteFile(file, g.Src, 0o644); err != nil {
+				return nil, "", nil, err
+			}
 		}
 		ov[g.Target] = file
 	}
@@ -958,32 +984,11 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 	return append(gens, res.files...), overlay, res, nil
 }
 
-// checked is t's route table and generated files: the last ones when a
-// watch's sources have the same shape and they came without a diagnostic.
-// The check reads function bodies only in the page tree (what a Load reads,
-// what a Render links to), and the rest of the module through its types.
-func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult {
-	shape := shapes.module(t.root, overlay, false, t.bodiesRead)
-	if shape != "" {
-		h := sha256.New()
-		fmt.Fprintf(h, "%s\n", shape)
-		for _, d := range t.dirs {
-			fmt.Fprintf(h, "%s %s\n", d.rel, d.importPath)
-		}
-		for _, r := range t.declared {
-			fmt.Fprintf(h, "%s %s\n", r.method, r.path)
-		}
-		for _, name := range slices.Sorted(maps.Keys(t.registered)) {
-			fmt.Fprintf(h, "%s\n", name)
-		}
-		shape = fmt.Sprintf("%x", h.Sum(nil))
-		if m := routeMemo[t.pages]; m != nil && m.shape == shape && len(t.clashes) == 0 {
-			t.info, t.urls = m.info, m.urls
-			return m.result
-		}
-	}
+// checked is t's route table and generated files, from the page
+// packages' facts.
+func (t *routeTree) checked() *routesResult {
 	r := &routesResult{}
-	t.check(ov, overlay, r)
+	t.check(r)
 	if r.err() == nil {
 		r.files = t.generate(r.routes)
 	} else if t.urlsNamable(r.diags) {
@@ -991,34 +996,7 @@ func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult 
 		// building against them while the errors are fixed.
 		r.files = t.generateURLs()
 	}
-	if shape != "" && len(r.diags) == 0 && len(t.clashes) == 0 {
-		routeMemo[t.pages] = &routeResultMemo{shape, r, t.info, t.urls}
-	}
 	return r
-}
-
-// bodiesRead reports whether the route check reads the function bodies of the
-// file at path. Routes declared in a body elsewhere are scanned on every build,
-// and checked add what they found to the shape.
-func (t *routeTree) bodiesRead(path string) shapeKind {
-	dir := filepath.Dir(path)
-	for _, d := range t.dirs {
-		if dir == d.goDir || dir == d.dir {
-			return shapeFull
-		}
-	}
-	return shapeDecls
-}
-
-// routeMemo is a watch's last route check of each page tree, by its pages
-// directory.
-var routeMemo = map[string]*routeResultMemo{}
-
-type routeResultMemo struct {
-	shape  string // sourceShapes.module and the tree's directories
-	result *routesResult
-	info   map[*routeDir]*dirInfo
-	urls   *urlNode
 }
 
 // withoutStubs is gens without the stubs and placeholders' files.

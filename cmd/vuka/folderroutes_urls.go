@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"go/token"
-	"go/types"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -307,14 +306,6 @@ func (c *routeChecker) urlTree() *urlNode {
 	return root
 }
 
-func namedObj(t types.Type) *types.TypeName {
-	switch t := types.Unalias(t).(type) {
-	case *types.Named:
-		return t.Obj()
-	}
-	return nil
-}
-
 // urlsFile is pages/urls/urls_gen.go.
 func (t *routeTree) urlsFile() []byte {
 	root := t.urls
@@ -356,9 +347,9 @@ func (t *routeTree) urlsFile() []byte {
 	var qb strings.Builder
 	if len(queries) > 0 {
 		qb.WriteString(queryHelpers(ctxQ, webQ, urlQ, reflectQ, slicesQ, uiQ))
-		typeOf := func(t types.Type) string { return types.TypeString(t, im.qualifier) }
+		typeOf := func(t goType) string { return t.render(im.name) }
 		for _, q := range queries {
-			q.decl(&qb, func(f queryField) string { return typeOf(f.typ) })
+			q.decl(&qb, func(f queryField) string { return typeOf(*f.typ) })
 			q.valuesMethod(&qb, urlQ, typeOf)
 		}
 	}
@@ -423,7 +414,7 @@ func (t *routeTree) urlsFile() []byte {
 			typ, seg := "any", ""
 			var body strings.Builder
 			if c.p.typ != nil {
-				typ = types.TypeString(c.p.typ, im.qualifier)
+				typ = c.p.typ.render(im.name)
 				seg = t.segment(&body, im, c.p)
 			} else {
 				seg = im.name("net/url", "url") + ".PathEscape(" + im.name("fmt", "fmt") + ".Sprint(" + v + "))"
@@ -452,7 +443,7 @@ func (t *routeTree) urlsFile() []byte {
 		head.WriteString("\n// pageURL is a page's path.\ntype pageURL struct{ path string }\n\n// Path is the page's path.\nfunc (p pageURL) Path() string { return p.path }\n")
 		fmt.Fprintf(&head, "\n// URL is Path carrying the app's mount prefix.\nfunc (p pageURL) URL(ctx %s.Context) string { return %s.MountPath(ctx, p.path) }\n", ctxQ, webQ)
 	}
-	return gofmt(head.String() + qb.String() + b.String())
+	return gofmtKept(head.String() + qb.String() + b.String())
 }
 
 // mark makes each folder named for a parameter one.

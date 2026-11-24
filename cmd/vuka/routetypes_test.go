@@ -6,14 +6,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
-// TestWatchRouteTypes: under watch, a body edit in one page type-checks that
-// page package alone for the route check, the others' types kept; a new
-// declaration types them all again; every page is served as edited.
+// TestWatchRouteTypes: under watch, a page package's route facts are
+// recorded when it is transpiled, and no page package is type-checked
+// again for the route table: a body edit records the edited package's
+// facts alone, a new declaration its package's (and those importing it);
+// every page is served as edited.
 func TestWatchRouteTypes(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -54,6 +58,17 @@ func TestWatchRouteTypes(t *testing.T) {
 		}
 		writeFile(t, path, strings.Replace(string(src), old, new, 1))
 	}
+	// lastFacts are the packages whose facts the last build recorded.
+	lastFacts := func() []string {
+		log := r.log.String()
+		log = log[:strings.LastIndex(log, "page packages assembled")]
+		log = log[strings.LastIndex(log, "prepare routes"):]
+		var out []string
+		for _, m := range regexp.MustCompile(`route facts of example\.com/app/(\S+) `).FindAllStringSubmatch(log, -1) {
+			out = append(out, m[1])
+		}
+		return out
+	}
 	get("/a", "a one")
 	a := filepath.Join(root, "pages", "a", "index.vuka.html")
 	for i, s := range []string{"a two", "a three"} {
@@ -62,14 +77,19 @@ func TestWatchRouteTypes(t *testing.T) {
 		get("/b", "b one")
 		get("/", "home one")
 		r.waitLog("● rebuilt in ", i+1)
+		if got := lastFacts(); !slices.Equal(got, []string{"pages/a"}) {
+			t.Errorf("a body edit recorded the facts of %v:\n%s", got, r.log.String())
+		}
 	}
-	if !strings.Contains(r.log.String(), "route check: 1 of 3 page packages typed") {
-		t.Errorf("a body edit typed more than its page package:\n%s", r.log.String())
-	}
-	n := strings.Count(r.log.String(), "route check: 3 of 3 page packages typed")
 	edit(filepath.Join(root, "pages", "b", "index.vuka.html"), "func (p *Index) Text()", "func (p *Index) More() int { return 1 }\n\nfunc (p *Index) Text()")
 	edit(filepath.Join(root, "pages", "b", "index.vuka.html"), "b one", "b two")
 	get("/b", "b two")
 	get("/a", "a three")
-	r.waitLog("route check: 3 of 3 page packages typed", n+1)
+	r.waitLog("● rebuilt in ", 3)
+	if got := lastFacts(); !slices.Contains(got, "pages/b") || slices.Contains(got, "pages/a") {
+		t.Errorf("a declaration in b recorded the facts of %v:\n%s", got, r.log.String())
+	}
+	if strings.Contains(r.log.String(), "page packages typed") {
+		t.Errorf("the route check type-checked page packages:\n%s", r.log.String())
+	}
 }

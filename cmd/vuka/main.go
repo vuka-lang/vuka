@@ -353,7 +353,7 @@ func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) er
 	var overlay string
 	ro := reportOptions{color: colorFor(stderr), verbose: slices.Contains(args, "-v"), all: cmd == "vet"}
 	if len(pkgs) > 0 {
-		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
+		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, routes.options(loadOptions(pa))); err != nil {
 			in := buildInput{root: root, modPath: modPath, overlay: overlay, gens: gens, imports: pkgImports(pkgs)}
 			rep := transpileReport(in, err)
 			left := scope.report(rep, in)
@@ -858,12 +858,11 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	if err != nil {
 		return "", nil, err
 	}
-	opts := loadOptions(pa)
 	routes := scanRoutes(root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		return "", nil, err
 	}
-	files, overlay, err := load.Transpile(pkgs, tmp, opts)
+	files, overlay, err := load.Transpile(pkgs, tmp, routes.options(loadOptions(pa)))
 	if err != nil {
 		return "", nil, err
 	}
@@ -1014,7 +1013,7 @@ func genGens(codeOnly bool, patterns []string) (root string, gens []load.Generat
 			return root, gens, scope, err
 		}
 	}
-	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
+	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, routes.options(loadOptions(pa)))
 	if err != nil {
 		return "", nil, scope, err
 	}

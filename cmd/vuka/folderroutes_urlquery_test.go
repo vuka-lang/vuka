@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -434,23 +433,15 @@ func TestURLQueryBrokenPage(t *testing.T) {
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		t.Fatal(err)
 	}
-	gens, overlay, err := cachedTranspile(app)(pkgs, tmp, loadOptions(pa))
+	gens, overlay, err := cachedTranspile(app)(pkgs, tmp, routes.options(loadOptions(pa)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// What a failed transpile of two pages leaves: their Go isn't there.
-	ov, err := readOverlay(overlay)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for target := range ov {
-		if strings.HasSuffix(filepath.ToSlash(target), "pages/ajira/index_html.go") || strings.HasSuffix(filepath.ToSlash(target), "/edit_html.go") {
-			delete(ov, target)
+	// What a failed transpile of two pages leaves: no facts of their packages.
+	for path := range routes[0].facts {
+		if strings.HasSuffix(path, "/pages/ajira") || strings.HasSuffix(path, "/param_org") {
+			delete(routes[0].facts, path)
 		}
-	}
-	data, _ := json.Marshal(struct{ Replace map[string]string }{ov})
-	if err := os.WriteFile(overlay, data, 0o644); err != nil {
-		t.Fatal(err)
 	}
 	_, _, res, err := routes.finish(gens, overlay, tmp)
 	if err != nil {

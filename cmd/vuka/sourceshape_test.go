@@ -212,22 +212,6 @@ func TestSourceShapesBodies(t *testing.T) {
 	write("lib/lib.go", "package lib\n\nfunc F() int { return 1 }\n")
 	write("pages/index.go", "package pages\n\nfunc G() int { return 1 }\n")
 	s := newSourceShapes()
-	t2 := &routeTree{dirs: []*routeDir{{dir: filepath.Join(root, "pages"), goDir: filepath.Join(root, "pages")}}}
-	first := s.module(root, "", false, t2.bodiesRead)
-	write("lib/lib.go", "package lib\n\nfunc F() int { return 2 }\n")
-	if s.module(root, "", false, t2.bodiesRead) != first {
-		t.Error("a body outside the pages changed the route check's shape")
-	}
-	write("lib/lib.go", "package lib\n\nfunc F() string { return \"\" }\n")
-	second := s.module(root, "", false, t2.bodiesRead)
-	if second == first {
-		t.Error("a signature outside the pages left the route check's shape")
-	}
-	write("pages/index.go", "package pages\n\nfunc G() int { return 2 }\n")
-	if s.module(root, "", false, t2.bodiesRead) == second {
-		t.Error("a body in the pages left the route check's shape")
-	}
-
 	orm := s.module(root, "", false, ormReads)
 	write("lib/x_gen.go", "package lib\n\nfunc H() int { return 1 }\n")
 	gen := s.module(root, "", false, ormReads)

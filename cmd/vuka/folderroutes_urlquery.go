@@ -34,8 +34,8 @@ type queryField struct {
 	field string // in the component
 	name  string // in the struct: field, exported
 	key   string
-	typ   types.Type     // nil in the stub the pages are transpiled with
-	def   constant.Value // the @ui.URL's default, when it is a constant
+	typ   *goType  // nil in the stub the pages are transpiled with
+	def   *defFact // the @ui.URL's default, when it is a constant
 }
 
 // active reports whether urls has a struct for the query.
@@ -162,9 +162,9 @@ func (n *urlNode) nameSegs(leaf string) []string {
 	return segs
 }
 
-// resolveQueries types the queries of the tree from the checked page
-// packages: a field whose type a URL can't hold, or urls can't name, is
-// left out with W0705, and the query goes with its last field.
+// resolveQueries types the queries of the tree from the page packages'
+// facts: a field whose type a URL can't hold, or urls can't name, is left
+// out with W0705, and the query goes with its last field.
 func (c *routeChecker) resolveQueries(n *urlNode) {
 	for _, q := range n.queries {
 		q.fields = c.queryTypes(q)
@@ -176,53 +176,77 @@ func (c *routeChecker) resolveQueries(n *urlNode) {
 
 func (c *routeChecker) queryTypes(q *urlQuery) []queryField {
 	in := c.info[q.dir]
-	if in == nil || in.pkg == nil {
+	if in == nil || in.facts == nil {
 		return nil
 	}
-	tn, _ := in.pkg.Scope().Lookup(q.typ).(*types.TypeName)
-	if tn == nil {
-		return nil
-	}
-	st, _ := tn.Type().Underlying().(*types.Struct)
-	if st == nil {
-		return nil
-	}
-	syn := c.r.syntax[q.dir.importPath]
-	defaults := queryDefaults(syn, q.typ)
+	facts := in.facts.Queries[q.typ]
 	var out []queryField
 	for _, f := range q.fields {
-		var v *types.Var
-		for i := range st.NumFields() {
-			if st.Field(i).Name() == f.field {
-				v = st.Field(i)
-			}
-		}
-		if v == nil {
+		i := slices.IndexFunc(facts, func(qf queryFact) bool { return qf.Field == f.field })
+		if i < 0 {
 			continue
 		}
-		t := assignElem(v.Type())
-		if t == types.Typ[types.Invalid] {
-			continue // the page's own error says so
-		}
-		if why := c.queryProblem(t); why != "" {
-			c.report(diag.Warn("W0705", "%s.%s is kept in ?%s, and urls leaves it out of the page's query: %s", q.typ, f.field, f.key, why), v.Pos()).
+		qf := facts[i]
+		if why := c.queryProblem(qf); why != "" {
+			c.reportAt(diag.Warn("W0705", "%s.%s is kept in ?%s, and urls leaves it out of the page's query: %s", q.typ, f.field, f.key, why), qf.Pos).
 				WithHelp("declare the type outside pages/, or a type with a text form: the field reads ?%s as always, and the URL can carry it by hand", f.key)
 			continue
 		}
-		f.typ = t
-		if e, ok := defaults[f.field]; ok {
-			f.def = constOf(e, syn.uses)
-		}
+		f.typ, f.def = &qf.Go, qf.Def
 		out = append(out, f)
+	}
+	return out
+}
+
+// queries are the @ui.URL("name") fields of the package's pages, typed.
+func (s *factsSource) queries() map[string][]queryFact {
+	out := map[string][]queryFact{}
+	for _, typ := range s.d.pages {
+		tn, _ := s.ty.Pkg.Scope().Lookup(typ).(*types.TypeName)
+		if tn == nil {
+			continue
+		}
+		st, _ := tn.Type().Underlying().(*types.Struct)
+		if st == nil {
+			continue
+		}
+		var defaults map[string]ast.Expr
+		for _, a := range structURLAttrs(s.d.dir, typ) {
+			if a.bare || a.key == "" || slices.ContainsFunc(out[typ], func(f queryFact) bool { return f.Field == a.field }) {
+				continue
+			}
+			var v *types.Var
+			for i := range st.NumFields() {
+				if st.Field(i).Name() == a.field {
+					v = st.Field(i)
+				}
+			}
+			if v == nil {
+				continue
+			}
+			t := assignElem(v.Type())
+			if t == types.Typ[types.Invalid] {
+				continue // the page's own error says so
+			}
+			qf := queryFact{Field: a.field, Pos: s.span(v.Pos()), Text: urlText(t), TypeStr: t.String(), Go: goTypeOf(t)}
+			qf.Named = s.namedRefs(t, map[types.Type]bool{}, nil)
+			if defaults == nil {
+				defaults = queryDefaults(s.ty.Files, typ)
+			}
+			if e, ok := defaults[a.field]; ok {
+				qf.Def = defaultOf(constOf(e, s.ty.Uses), t)
+			}
+			out[typ] = append(out[typ], qf)
+		}
 	}
 	return out
 }
 
 // queryDefaults are the arguments of the .Default of the @ui.URL attributes
 // in typ's LiveSchema, by field.
-func queryDefaults(syn checked, typ string) map[string]ast.Expr {
+func queryDefaults(files []*ast.File, typ string) map[string]ast.Expr {
 	out := map[string]ast.Expr{}
-	for _, f := range syn.files {
+	for _, f := range files {
 		for _, d := range f.Decls {
 			fd, ok := d.(*ast.FuncDecl)
 			if !ok || fd.Body == nil || fd.Recv == nil || len(fd.Recv.List) == 0 || recvTypeName(fd.Recv.List[0].Type) != typ || fd.Name.Name != "LiveSchema" {
@@ -295,14 +319,24 @@ func constOf(e ast.Expr, uses map[*ast.Ident]types.Object) constant.Value {
 	return nil
 }
 
-// queryProblem is why urls can't hold a field of type t in a page's query,
-// "" when it can: the type must be one @ui.URL keeps, and one urls can
-// import.
-func (c *routeChecker) queryProblem(t types.Type) string {
-	if !urlText(t) {
-		return t.String() + " has no text form a URL can hold: a string, a number, a bool, a type with UnmarshalText, a slice or pointer of one, or an Option of one"
+// queryProblem is why urls can't hold a query field in a page's query, ""
+// when it can: the type must be one @ui.URL keeps, and one urls can import.
+func (c *routeChecker) queryProblem(f queryFact) string {
+	if !f.Text {
+		return f.TypeStr + " has no text form a URL can hold: a string, a number, a bool, a type with UnmarshalText, a slice or pointer of one, or an Option of one"
 	}
-	return c.unnameable(t, map[types.Type]bool{})
+	for _, n := range f.Named {
+		switch {
+		case n.Pkg == "":
+		case !n.Exported:
+			return n.Name + " is unexported"
+		case c.byPath[n.Pkg] != nil:
+			return n.Pkg + " is a page package, which urls can't import"
+		case n.ImportsURLs:
+			return n.Pkg + " imports urls, and urls can't import it back"
+		}
+	}
+	return ""
 }
 
 // urlText reports whether a URL parameter's text can set a t, as ui's
@@ -349,38 +383,31 @@ func optionElem(t types.Type) types.Type {
 
 func isOptionType(t types.Type) bool { return optionElem(t) != nil }
 
-// unnameable is why the package urls can't write t, "" when it can: a
-// type it can't reach, an unexported one, or one of a package that imports
-// urls.
-func (c *routeChecker) unnameable(t types.Type, seen map[types.Type]bool) string {
+// namedRefs are the named types t is made of, outermost first, as urls
+// would write them.
+func (s *factsSource) namedRefs(t types.Type, seen map[types.Type]bool, out []namedRef) []namedRef {
 	if seen[t] {
-		return ""
+		return out
 	}
 	seen[t] = true
 	switch t := types.Unalias(t).(type) {
 	case *types.Named:
 		obj := t.Obj()
+		r := namedRef{Name: obj.Name(), Exported: obj.Exported()}
 		if obj.Pkg() != nil {
-			switch {
-			case !obj.Exported():
-				return obj.Name() + " is unexported"
-			case c.r.byPath[obj.Pkg().Path()] != nil:
-				return obj.Pkg().Path() + " is a page package, which urls can't import"
-			case importsPath(obj.Pkg(), c.t.pagesPath+"/"+urlsDirName, map[*types.Package]bool{}):
-				return obj.Pkg().Path() + " imports urls, and urls can't import it back"
-			}
+			r.Pkg = obj.Pkg().Path()
+			r.ImportsURLs = importsPath(obj.Pkg(), s.t.pagesPath+"/"+urlsDirName, map[*types.Package]bool{})
 		}
+		out = append(out, r)
 		for i := range t.TypeArgs().Len() {
-			if why := c.unnameable(t.TypeArgs().At(i), seen); why != "" {
-				return why
-			}
+			out = s.namedRefs(t.TypeArgs().At(i), seen, out)
 		}
 	case *types.Pointer:
-		return c.unnameable(t.Elem(), seen)
+		return s.namedRefs(t.Elem(), seen, out)
 	case *types.Slice:
-		return c.unnameable(t.Elem(), seen)
+		return s.namedRefs(t.Elem(), seen, out)
 	}
-	return ""
+	return out
 }
 
 // importsPath reports whether p imports the package path, directly or not.
@@ -407,7 +434,7 @@ func (q *urlQuery) decl(b *strings.Builder, typeOf func(queryField) string) {
 }
 
 // valuesMethod writes q's values: the parameters in key order.
-func (q *urlQuery) valuesMethod(b *strings.Builder, urlQ string, typeOf func(types.Type) string) {
+func (q *urlQuery) valuesMethod(b *strings.Builder, urlQ string, typeOf func(goType) string) {
 	fmt.Fprintf(b, "\nfunc (q %s) values() %s.Values {\n\tv := %[2]s.Values{}\n", q.name, urlQ)
 	fields := slices.Clone(q.fields)
 	slices.SortStableFunc(fields, func(a, b queryField) int { return strings.Compare(a.key, b.key) })
@@ -419,38 +446,50 @@ func (q *urlQuery) valuesMethod(b *strings.Builder, urlQ string, typeOf func(typ
 
 // defaultArg is the argument giving setParam the field's default, written as
 // a value of the field's type.
-func (q *urlQuery) defaultArg(f queryField, typeOf func(types.Type) string) string {
-	if f.def == nil {
+func (q *urlQuery) defaultArg(f queryField, typeOf func(goType) string) string {
+	switch {
+	case f.def == nil:
 		return ""
+	case f.def.Conv == nil:
+		return ", " + f.def.Lit
+	}
+	return ", " + typeOf(*f.def.Conv) + "(" + f.def.Lit + ")"
+}
+
+// defaultOf is a field's default def written as a value of its type typ;
+// nil when it can't be.
+func defaultOf(def constant.Value, typ types.Type) *defFact {
+	if def == nil {
+		return nil
 	}
 	var lit string
-	switch f.def.Kind() {
+	switch def.Kind() {
 	case constant.String:
-		lit = strconv.Quote(constant.StringVal(f.def))
+		lit = strconv.Quote(constant.StringVal(def))
 	case constant.Bool:
-		lit = strconv.FormatBool(constant.BoolVal(f.def))
+		lit = strconv.FormatBool(constant.BoolVal(def))
 	case constant.Int:
-		lit = f.def.ExactString()
+		lit = def.ExactString()
 	case constant.Float:
-		x, _ := constant.Float64Val(f.def)
+		x, _ := constant.Float64Val(def)
 		lit = strconv.FormatFloat(x, 'g', -1, 64)
 	default:
-		return ""
+		return nil
 	}
 	// an Option's default is its T, whose text is the Some's
-	typ := f.typ
 	if e := optionElem(typ); e != nil {
 		typ = e
 	}
 	b, ok := typ.Underlying().(*types.Basic)
 	if !ok {
-		return ""
+		return nil
 	}
-	if _, named := types.Unalias(typ).(*types.Named); !named && (b.Kind() == types.String && f.def.Kind() == constant.String ||
-		b.Kind() == types.Bool && f.def.Kind() == constant.Bool || b.Kind() == types.Int && f.def.Kind() == constant.Int) {
-		return ", " + lit
+	if _, named := types.Unalias(typ).(*types.Named); !named && (b.Kind() == types.String && def.Kind() == constant.String ||
+		b.Kind() == types.Bool && def.Kind() == constant.Bool || b.Kind() == types.Int && def.Kind() == constant.Int) {
+		return &defFact{Lit: lit}
 	}
-	return ", " + typeOf(typ) + "(" + lit + ")"
+	conv := goTypeOf(typ)
+	return &defFact{Lit: lit, Conv: &conv}
 }
 
 // queryHelpers are what the structs share, written for the names the file
