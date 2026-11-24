@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -80,6 +81,9 @@ type routeTree struct {
 	urls       *urlNode
 	result     *routesResult // the last finish's
 	factsStore
+	depMu   sync.Mutex
+	depDirs map[string]string // the directories of the dependencies' packages the checks read
+	attrs   *urlAttrMemo
 }
 
 // routeTrees are the module's page trees: its pages/ directory's, and
@@ -193,6 +197,7 @@ type routeDir struct {
 	funcs      []methodFunc        // its method funcs: GET, POST… declared by a file
 	clashes    []diag.Diagnostic   // found before the transpile, which they would derail
 	vuka       bool                // it has .vuka, .vuka.html or .templ files
+	attrs      *urlAttrMemo        // its tree's
 }
 
 // methodFunc is an endpoint written as a function named for its HTTP
@@ -291,7 +296,7 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 		return nil
 	}
 	rel, _ := filepath.Rel(root, base)
-	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}}
+	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}, attrs: &urlAttrMemo{root: root}}
 	t.declared = declaredRoutes(dir, t.registered)
 	load.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
@@ -330,7 +335,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, attrs: t.attrs, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
 	if rel != "" {
 		d.importPath += "/" + load.GoRel(rel)
 	}
@@ -893,7 +898,7 @@ func (t *routeTree) root0() *routeDir {
 			return d
 		}
 	}
-	return &routeDir{dir: t.pages, goDir: t.pages, name: pagesDirName, importPath: t.pagesPath}
+	return &routeDir{dir: t.pages, goDir: t.pages, name: pagesDirName, importPath: t.pagesPath, attrs: t.attrs}
 }
 
 // stubbed reports whether a generated file is a stub or a placeholder's.

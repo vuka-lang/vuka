@@ -115,6 +115,7 @@ func (t *routeTree) check(res *routesResult) {
 	c.conflicts()
 	t.info = c.info
 	t.urls = c.urlTree()
+	t.attrs.save()
 	traceStep("route check: %d page packages assembled %v", len(t.dirs), time.Since(t0))
 }
 
