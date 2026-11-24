@@ -16,6 +16,7 @@ import (
 type folderRoute struct {
 	Method     string   `json:"method"`
 	Path       string   `json:"path"`
+	Name       string   `json:"name"` // its route name: users.edit
 	Page       string   `json:"page"` // employer.Edit
 	Kind       string   `json:"kind"` // live, page, handler or endpoint
 	File       string   `json:"file"`
@@ -40,7 +41,6 @@ type folderRoute struct {
 	wraps   []wrap
 	facts   *typeFact // the page's or endpoint's
 	params  []string  // the keys of its path parameters, in order
-	name    string    // its route name
 }
 
 // wrap is a guard or a layout over a folder's routes.

@@ -9,7 +9,6 @@ import (
 	"example.com/jobboard/components"
 	"example.com/jobboard/modules/jobs"
 	"example.com/jobboard/modules/users"
-	"example.com/jobboard/pages/urls"
 )
 
 // Applications is /applications: the jobs the signed-in user applied to.
@@ -28,7 +27,7 @@ func (p *Applications) Sent(ctx context.Context) ([]jobs.Application, error) {
 sent := Sent()
 if len(sent) == 0 {
   <p class="text-sm text-slate-500">Nothing yet. <ui.Link
-    href={urls.Root.Path()}
+    href={route("index")}
     class="font-medium text-brand-700 hover:underline"
   >Find a job</ui.Link>.</p>
 }
@@ -38,7 +37,7 @@ if len(sent) == 0 {
       key={a.ID}
       class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10"
     >
-      <ui.Link href={urls.Jobs.Job(a.Job.ID()).Path()} class="font-semibold hover:underline">{a.Job.Related().Title}</ui.Link>
+      <ui.Link href={route("jobs", a.Job.ID())} class="font-semibold hover:underline">{a.Job.Related().Title}</ui.Link>
       <p class="mt-1 text-sm text-slate-500">Sent {a.Sent.Format("2 Jan 2006")} with {a.CVName}</p>
     </li>
   }

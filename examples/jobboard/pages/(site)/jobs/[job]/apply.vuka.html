@@ -11,7 +11,6 @@ import (
 
 	"example.com/jobboard/modules/jobs"
 	"example.com/jobboard/modules/users"
-	"example.com/jobboard/pages/urls"
 )
 
 // Apply is /jobs/{job}/apply: a letter and a CV. The CV uploads as soon
@@ -32,7 +31,7 @@ func (p *Apply) save(ctx context.Context, f jobs.ApplyForm) error {
 	match p.board.Apply(ctx, job, users.Of(user), f.Letter, f.CV.Name(), cv) {
 	case Ok(_):
 		web.Flash(ctx, "success", "Your application to "+job.Title+" is on its way.")?
-		return web.Redirect(urls.Applications.Path())
+		return web.Redirect(route("applications"))
 	case Err(e) if errors.Is(e, jobs.ErrApplied) || errors.Is(e, jobs.ErrClosed):
 		return p.Form.Fail(e.Error())
 	case Err(e):

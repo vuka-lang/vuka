@@ -136,7 +136,9 @@ chain alike.
 ### Moving a folder
 
 `vuka mv <from> <to>` moves a folder and rewrites every `route(...)` naming
-a route under it.
+a route under it. The old and new names come from the route table before
+and after the move, checked in a copy of the module first; the language
+server's rename of a route name is the same move.
 
 ## 5. The `urls` chain
 
@@ -172,7 +174,10 @@ and `urls` unwritten and uncompiled; an added route compiles its page and
    `orders.order`). The links are recorded with the route facts and checked
    by the assembler, so a target's change re-checks its linkers without
    transpiling them again, and the input keys stay as they were.
-3. **`vuka mv`**, and docs teaching `route`.
+3. **`vuka mv`**, and docs teaching `route`. *Shipped.* The urls chains are
+   rewritten as the new chain, not as `route(…)`; the editor's rename of a
+   route name and its explorer's moves under `pages/` both use the plan;
+   `vuka routes` prints the names.
 
 The concurrent transpile (`transpileRun` as a scheduler) waits for step 1,
 since both change how the transpile runs.

@@ -759,9 +759,9 @@ sees the folder as `group_console/`, as it sees a bracket folder as a
 `vuka gen -inplace`. As in a bracket folder, a group's `.go` files — logic
 and tests — are its package, compiled where the go command sees it.
 
-The group is invisible to the URL and to [typed URLs](#typed-urls): the
-pages above are `urls.Admin.Path()`, `urls.Admin.Users.ID(7).Path()` and
-`urls.Admin.Auth.Login.Path()`. `vuka routes` names the group's layout and
+The group is invisible to the URL and to [route names](#linking-by-name):
+the pages above are `route("admin")`, `route("admin.users.id", 7)` and
+`route("admin.auth.login")`. `vuka routes` names the group's layout and
 guard on each route below it.
 
 > [!WARNING]
@@ -979,9 +979,9 @@ page — no markup, no `ui.Live` — with methods named `Get`, `Post`, `Put`,
 folder's). Each request builds it and binds its fields as a page's are.
 
 A page and an endpoint may share a path when their methods differ; two
-answering one method on one path are [E0701](/errors/E0701). `pages/urls`
-links to endpoints as to pages, `urls.Api.Employers.Employer(7).Path()`,
-and `vuka routes` marks them `(endpoint)`.
+answering one method on one path are [E0701](/errors/E0701). A link names
+an endpoint as it names a page, `route("api.employers.employer", 7)`, and
+`vuka routes` marks it `(endpoint)`.
 
 ## Guarding a Folder {#guards}
 
@@ -1196,13 +1196,66 @@ under `vuka run` and in tests, and is logged and gives `"#"` in production.
 `vuka lsp` completes the names inside the string, shows a link's parameters
 as you type them and its path on hover, and goes to the page.
 
+### Moving a Folder {#moving-a-folder}
+
+A route's name is where its page is, so moving the page renames the route.
+`vuka mv` moves a folder, a `[param]` folder or one page file under
+`pages/`, and rewrites what names the routes below it:
+
+```sh
+vuka mv -n pages/employers pages/companies   # print the plan, write nothing
+vuka mv pages/employers pages/companies
+```
+
+```text
+moving pages/employers → pages/companies (git mv)
+routes:
+	employers /employers → companies /companies
+	employers.new /employers/new → companies.new /companies/new
+	employers.employer /employers/{employer} → companies.employer /companies/{employer}
+	employers.edit /employers/{employer}/edit → companies.edit /companies/{employer}/edit
+	employers.permits /employers/{employer}/permits/{permit} → companies.permits /companies/{employer}/permits/{permit}
+rewrites:
+	pages/_layout.vuka.html:27: "employers" → "companies"
+	pages/employers/[employer]/_layout.vuka.html:36: "employers.employer" → "companies.employer"
+	pages/employers/[employer]/_layout.vuka.html:36: "employers.edit" → "companies.edit"
+	pages/employers/index.vuka.html:50: "employers.employer" → "companies.employer"
+	…
+```
+
+It works the names out from the route table before and after the move, so
+a name the move changes without moving its page is rewritten too: moving
+`/orders` away leaves `/orders/{order}` alone in `orders`, and its links
+change from `orders.order` to `orders`. It rewrites:
+
+- `route("…")` and `routePath("…")` in `.vuka` and `.vuka.html` files, and
+  `web.Route`, `web.RouteURL` and `web.RoutePath` in `.go` files;
+- the [`urls` chains](#typed-urls) naming the routes, as the new chain;
+- the import paths of the moved packages, in hand-written Go and tests.
+
+A move can change which layouts, guards and middleware wrap a page —
+into a [route group](#route-groups), or out of a folder with a `Guard` —
+and `vuka mv` lists each route whose chain changes, before and after. It
+writes nothing when the target exists, when either side is outside
+`pages/`, or when the moved tree fails the route checks: two routes on one
+path or name ([E0706](/errors/E0706)), a link whose parameters the new path
+doesn't take ([E0726](/errors/E0726)). In a git work tree a tracked folder
+moves with `git mv`, keeping its history. The generated `pages/route.go`
+and `urls_gen.go` are written again by the next build.
+
+In the editor, renaming a route name in a link — `orgs.org` to
+`teams.org` — is the same move of the folder the changed part names, sent
+as one edit; renaming or moving a folder in the explorer rewrites the
+links before it moves. See [Renaming Pages](/tools/editors#renaming-pages).
+
 ## Typed URLs
 
 > [!NOTE]
 > The `urls` package keeps working, and is generated as before, until the
-> next major version. Link by [name](#linking-by-name) in new code; the
-> chains a tool can name are rewritten to `route(…)`, the others are
-> [W0706](/errors/W0706).
+> next major version. Link by [name](#linking-by-name) in new code; `vuka
+> fix routes` rewrites the chains it can name to `route(…)`, the others are
+> [W0706](/errors/W0706). [`vuka mv`](#moving-a-folder) keeps the chains
+> following a move.
 
 vuka writes one more package, `pages/urls`, with a link to every page,
 shaped like the tree: a folder is a value, a fixed child folder or a page
@@ -1336,30 +1389,33 @@ Page URLs remain declared by the page tree.
 
 ## The vuka routes Command {#vuka-routes}
 
-`vuka routes` prints the table — method, path, page or endpoint (marked
-when it is live or an endpoint), source, middleware, guards and layouts.
-This is its output for the example tree:
+`vuka routes` prints the table — method, path, [route name](#linking-by-name),
+page or endpoint (marked when it is live or an endpoint), source,
+middleware, guards and layouts; `vuka routes -json` gives each route's
+`method`, `path`, `name`, `page`, `kind`, `file`, `line` and, when it has
+them, `middleware`, `guards`, `layouts` and `root`. This is its output for
+the example tree:
 
 ```text
 $ vuka routes
-METHOD  PATH                                    PAGE                             FILE                                                      MIDDLEWARE                        GUARDS     LAYOUTS
-GET     /about                                  pages.About                      pages/about.vuka.html:4                                   pages.Middleware                             pages.Layout
-GET     /api/employers                          employers.Index.Get (endpoint)   pages/api/employers/index.go:24                           pages.Middleware, api.Middleware  api.Guard  pages.Layout
-POST    /api/employers                          employers.Index.Post (endpoint)  pages/api/employers/index.go:37                           pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /api/employers/{employer}               employers.GET (endpoint)         pages/api/employers/[employer].vuka:13                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
-PUT     /api/employers/{employer}               employers.PUT (endpoint)         pages/api/employers/[employer].vuka:22                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
-DELETE  /api/employers/{employer}               employers.DELETE (endpoint)      pages/api/employers/[employer].vuka:31                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /app/settings                           app.Settings                     pages/app/settings.vuka.html:23                                  pages.Middleware                             pages.Layout
-GET     /app/{route...}                         app.Shell                        pages/app/[route...].vuka.html:5                          pages.Middleware                             pages.Layout
-GET     /employers                              employers.Index (live)           pages/employers/index.vuka.html:14                               pages.Middleware                             pages.Layout
-GET     /employers/new                          employers.New                    pages/employers/new.vuka.html:19                                 pages.Middleware                             pages.Layout
-POST    /employers/new                          employers.New.Post               pages/employers/new.vuka.html:32                                 pages.Middleware                             pages.Layout
-GET     /employers/{employer}                   employer.Index                   pages/employers/[employer]/index.vuka.html:13             pages.Middleware                             pages.Layout, employer.Layout
-GET     /employers/{employer}/edit              employer.Edit                    pages/employers/[employer]/edit.vuka.html:15              pages.Middleware                             pages.Layout, employer.Layout
-POST    /employers/{employer}/edit              employer.Edit.Post               pages/employers/[employer]/edit.vuka.html:32              pages.Middleware                             pages.Layout, employer.Layout
-DELETE  /employers/{employer}/edit              employer.Edit.Delete             pages/employers/[employer]/edit.vuka.html:37              pages.Middleware                             pages.Layout, employer.Layout
-GET     /employers/{employer}/permits/{permit}  permits.Permit (live)            pages/employers/[employer]/permits/[permit].vuka.html:16  pages.Middleware                             pages.Layout, employer.Layout
-GET     /files/{file...}                        file.Index                       pages/files/[file...]/index.vuka.html:9                   pages.Middleware                             pages.Layout, file.Layout
+METHOD  PATH                                    NAME                    PAGE                             FILE                                                      MIDDLEWARE                        GUARDS     LAYOUTS
+GET     /about                                  about                   pages.About                      pages/about.vuka.html:4                                   pages.Middleware                             pages.Layout
+GET     /api/employers                          api.employers           employers.Index.Get (endpoint)   pages/api/employers/index.go:24                           pages.Middleware, api.Middleware  api.Guard  pages.Layout
+POST    /api/employers                          api.employers           employers.Index.Post (endpoint)  pages/api/employers/index.go:37                           pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /api/employers/{employer}               api.employers.employer  employers.GET (endpoint)         pages/api/employers/[employer].vuka:13                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+PUT     /api/employers/{employer}               api.employers.employer  employers.PUT (endpoint)         pages/api/employers/[employer].vuka:22                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+DELETE  /api/employers/{employer}               api.employers.employer  employers.DELETE (endpoint)      pages/api/employers/[employer].vuka:31                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /app/settings                           app.settings            app.Settings                     pages/app/settings.vuka.html:23                           pages.Middleware                             pages.Layout
+GET     /app/{route...}                         app                     app.Shell                        pages/app/[route...].vuka.html:5                          pages.Middleware                             pages.Layout
+GET     /employers                              employers               employers.Index (live)           pages/employers/index.vuka.html:14                        pages.Middleware                             pages.Layout
+GET     /employers/new                          employers.new           employers.New                    pages/employers/new.vuka.html:19                          pages.Middleware                             pages.Layout
+POST    /employers/new                          employers.new           employers.New.Post               pages/employers/new.vuka.html:32                          pages.Middleware                             pages.Layout
+GET     /employers/{employer}                   employers.employer      employer.Index                   pages/employers/[employer]/index.vuka.html:13             pages.Middleware                             pages.Layout, employer.Layout
+GET     /employers/{employer}/edit              employers.edit          employer.Edit                    pages/employers/[employer]/edit.vuka.html:15              pages.Middleware                             pages.Layout, employer.Layout
+POST    /employers/{employer}/edit              employers.edit          employer.Edit.Post               pages/employers/[employer]/edit.vuka.html:32              pages.Middleware                             pages.Layout, employer.Layout
+DELETE  /employers/{employer}/edit              employers.edit          employer.Edit.Delete             pages/employers/[employer]/edit.vuka.html:37              pages.Middleware                             pages.Layout, employer.Layout
+GET     /employers/{employer}/permits/{permit}  employers.permits       permits.Permit (live)            pages/employers/[employer]/permits/[permit].vuka.html:16  pages.Middleware                             pages.Layout, employer.Layout
+GET     /files/{file...}                        files                   file.Index                       pages/files/[file...]/index.vuka.html:9                   pages.Middleware                             pages.Layout, file.Layout
 ```
 
 ## Generated Files

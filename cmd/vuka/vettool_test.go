@@ -97,6 +97,8 @@ func childCommand(args []string) int {
 		err = runGoAs(cmd, args, stdout, stderr, childShimmed)
 	case "routes":
 		err = routesCmd(args, stdout, stderr)
+	case "mv":
+		err = mvCmd(args, stdout, stderr)
 	case "gen":
 		err = gen(args, stdout)
 	case "eject":

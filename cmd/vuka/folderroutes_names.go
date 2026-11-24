@@ -135,7 +135,7 @@ func (c *routeChecker) names() {
 		c.t.named[name] = nr
 		for _, r := range c.res.routes {
 			if r.Path == p {
-				r.name = name
+				r.Name = name
 			}
 		}
 	}

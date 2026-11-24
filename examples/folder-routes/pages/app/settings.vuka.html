@@ -2,7 +2,6 @@
 package app
 
 import (
-	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/vuka/v2"
 )
 
@@ -16,4 +15,4 @@ func init() { vuka.RegisterType[Settings](NoStore{}) }
 func (p *Settings) Title() string { return "App settings" }
 </script>
 
-<section id="settings"><h1>Settings</h1><a id="open" href={urls.App.Route("").Path()}>Open the app</a></section>
+<section id="settings"><h1>Settings</h1><a id="open" href={route("app", "")}>Open the app</a></section>

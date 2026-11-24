@@ -839,6 +839,9 @@ func (p *proxy) fromEditor() {
 			}
 			continue
 		}
+		if (m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename") && (isVuka(path) || strings.HasSuffix(path, ".go")) && p.routeRenameRequest(&m, p.real(path)) {
+			continue
+		}
 		if isVuka(path) || p.routeGo(path) {
 			switch {
 			case m.Method == "textDocument/formatting" && isVuka(path):

@@ -95,8 +95,9 @@ var _ = ui.JS
 
 // TestFolderRoutesUnderPrefix: examples/folder-routes served under a
 // prefix, by http.StripPrefix and by a proxy's X-Forwarded-Prefix: its
-// folder routes match below the prefix, the urls chain's URL(ctx) and the
-// redirects carry it once, and Path() is the path alone.
+// folder routes match below the prefix, the urls chain's URL(ctx), route(…)
+// (the example's own links) and the redirects carry it once, and Path() and
+// routePath(…) are the path alone.
 func TestFolderRoutesUnderPrefix(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -201,16 +202,16 @@ func TestFolderRoutesUnderPrefix(t *testing.T) {
 			if code, loc, _ := do("POST", "/links", url.Values{}, false); code != http.StatusSeeOther || loc != "/gateway/employers/1" {
 				t.Errorf("a redirect to route(…): %d %q, want /gateway/employers/1", code, loc)
 			}
-			page("/employers", `<a href="/employers/1">Acme Logistics</a>`, `<script src="/gateway/_vuka/live.js`)
-			page("/employers/1", `<a href="/employers/1/edit">Edit</a>`, `<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="api" href="/api/employers/1">`)
-			page("/employers/1/permits/2", `<a id="back" href="/employers/1">`, `<script src="/gateway/_vuka/live.js`)
+			page("/employers", `<a href="/gateway/employers/1">Acme Logistics</a>`, `<script src="/gateway/_vuka/live.js`)
+			page("/employers/1", `<a href="/gateway/employers/1/edit">Edit</a>`, `<a href="/gateway/employers/1/permits/2">Residence permit</a>`, `<a id="api" href="/gateway/api/employers/1">`)
+			page("/employers/1/permits/2", `<a id="back" href="/gateway/employers/1">`, `<script src="/gateway/_vuka/live.js`)
 			page("/files/handbook/leave.txt", "<h1>handbook/leave.txt</h1>")
-			page("/app/settings", `<a id="open" href="/app/">`)
+			page("/app/settings", `<a id="open" href="/gateway/app/">`)
 			page("/app/a/b/c", `<div id="app"></div>`)
 			if code, loc, _ := do("GET", "/admin", nil, false); code != http.StatusSeeOther && code != http.StatusFound || loc != "/gateway/admin/auth/login" {
 				t.Errorf("GET /admin without the cookie: %d %q, want a redirect to /gateway/admin/auth/login", code, loc)
 			}
-			if code, _, body := do("GET", "/admin", nil, true); code != http.StatusOK || !strings.Contains(body, `<a href="/admin">Dashboard</a>`) {
+			if code, _, body := do("GET", "/admin", nil, true); code != http.StatusOK || !strings.Contains(body, `<a href="/gateway/admin">Dashboard</a>`) {
 				t.Errorf("GET /admin with the cookie: %d\n%s", code, body)
 			}
 			if code, _, _ := do("GET", "/employers/x", nil, false); code != http.StatusNotFound {

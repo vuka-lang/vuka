@@ -2,9 +2,9 @@
 package employer
 
 import (
+	"context"
 	"fmt"
 
-	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/web/v2"
 )
@@ -24,8 +24,8 @@ func (p *Index) Title() string {
 	return e.Name
 }
 
-func (p *Index) contract() string {
-	return urls.Files.File(web.Rest(fmt.Sprintf("contracts/%d.txt", p.Employer))).Path()
+func (p *Index) contract(ctx context.Context) string {
+	return route("files", web.Rest(fmt.Sprintf("contracts/%d.txt", p.Employer)))
 }
 </script>
 
@@ -33,9 +33,9 @@ func (p *Index) contract() string {
   <h2>Permits</h2>
   <ul id="permits">
     for _, pm := range db.Permits(Employer) {
-      <li><a href={urls.Employers.Employer(Employer).Permits.Permit(pm.ID).Path()}>{pm.Kind}</a></li>
+      <li><a href={route("employers.permits", Employer, pm.ID)}>{pm.Kind}</a></li>
     }
   </ul>
-  <a id="contract" href={contract()}>Contract</a>
-  <a id="api" href={urls.Api.Employers.Employer(Employer).Path()}>As JSON</a>
+  <a id="contract" href={contract(ctx)}>Contract</a>
+  <a id="api" href={route("api.employers.employer", Employer)}>As JSON</a>
 </section>

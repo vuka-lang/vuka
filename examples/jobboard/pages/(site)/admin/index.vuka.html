@@ -10,7 +10,6 @@ import (
 
 	"example.com/jobboard/components"
 	"example.com/jobboard/modules/jobs"
-	"example.com/jobboard/pages/urls"
 )
 
 // Index is /admin: every open job, for a moderator to close.
@@ -49,7 +48,7 @@ func (p *Index) Close(ctx context.Context, id int64) error {
       id={"open-" + strconv.FormatInt(j.ID, 10)}
       class="flex items-center justify-between rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10"
     >
-      <ui.Link href={urls.Jobs.Job(j.ID).Path()} class="font-medium hover:underline">{j.Title}</ui.Link>
+      <ui.Link href={route("jobs", j.ID)} class="font-medium hover:underline">{j.Title}</ui.Link>
       <components.Button
         type="button"
         variant="danger"

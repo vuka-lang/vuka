@@ -87,7 +87,7 @@ func routeEntry(r *folderRoute, modRoot string) map[string]any {
 	if rel, err := filepath.Rel(modRoot, file); err == nil && !strings.HasPrefix(rel, "..") {
 		file = filepath.ToSlash(rel)
 	}
-	e := map[string]any{"method": r.Method, "path": r.Path, "page": r.Page, "kind": r.Kind, "file": file, "line": r.Line}
+	e := map[string]any{"method": r.Method, "path": r.Path, "name": r.Name, "page": r.Page, "kind": r.Kind, "file": file, "line": r.Line}
 	for k, v := range map[string][]string{"middleware": r.Middleware, "guards": r.Guards, "layouts": r.Layouts} {
 		if len(v) > 0 {
 			e[k] = v
@@ -617,9 +617,17 @@ func (p *proxy) renameEdits(raw json.RawMessage) any {
 	}
 	_ = json.Unmarshal(raw, &params)
 	routes, modRoot := p.routes()
+	if len(params.Files) == 1 {
+		if e := p.moveEdits(modRoot, uriToPath(params.Files[0].OldURI), uriToPath(params.Files[0].NewURI)); e != nil {
+			return e
+		}
+	}
 	var renames []chainRename
 	for _, f := range params.Files {
 		old, new := uriToPath(f.OldURI), uriToPath(f.NewURI)
+		if renamedForRoute(realPathOf(old)) {
+			continue
+		}
 		for _, r := range routes {
 			if r.Kind == "handler" || r.dir == nil || !(samePath(r.File, old) || strings.HasPrefix(r.File, old+string(filepath.Separator))) {
 				continue
