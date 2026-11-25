@@ -97,6 +97,14 @@ values. In a hand-written `.go` file: `web.Route(ctx, "users.edit", id)`,
 checked when it runs (a panic naming the closest route under `vuka run`
 and in tests; logged, and `"#"`, in production).
 
+A test of a component or module package builds no app, so it has no
+table. `vuka test` and `vuka vet` add `vuka_routenames_gen_test.go` to each
+package's tests (its external test package when it has one), in the
+overlay only, whose `init` gives the module's route names to
+`web.RegisterRouteNames`: a table web reads for a name the built app
+doesn't have, or with no app built. Production binaries and the non-test
+build graph don't change.
+
 ### Checked when it is transpiled
 
 - an unknown name: E0725 at the string, with the closest name;

@@ -1193,6 +1193,15 @@ without a request (a job, a cron) it is the path alone. In hand-written Go,
 checked when they run: a name no route has panics, naming the closest one,
 under `vuka run` and in tests, and is logged and gives `"#"` in production.
 
+A test that builds no app links by name too. `vuka test` and `vuka vet`
+add a file to each package's tests, in the build's overlay only, that
+registers the module's route names with `web.RegisterRouteNames`; a
+component's test can compare `profileURL(ctx, row)` with
+`web.Route(ctx, "users.edit", 7)`, without a mount prefix. An app the
+test builds keeps its own names. Plain `go test` adds nothing: a test run
+without vuka calls `web.RegisterRouteNames` itself, with the paths
+`vuka routes` prints.
+
 `vuka lsp` completes the names inside the string, shows a link's parameters
 as you type them and its path on hover, and goes to the page.
 
