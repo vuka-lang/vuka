@@ -117,6 +117,9 @@ func rewriteRouteLinks(src []byte, goFile, html bool, routes []*folderRoute, byP
 					continue
 				}
 				query = q
+				if goFile {
+					query = "web.RouteQuery" + strings.TrimPrefix(q, "query")
+				}
 			}
 		}
 		inScript := c.start >= script[0] && c.start < script[1]
