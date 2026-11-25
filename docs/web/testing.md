@@ -88,6 +88,13 @@ func TestStore(t *testing.T) {
 }
 ```
 
+### Links in a Test That Builds No App
+
+`route("name", …)` and `web.Route` read the app's route names, and under
+`vuka test` a test that builds no app reads the module's folder routes
+instead, registered for it with `web.RegisterRouteNames`: see
+[Linking by Name](/web/folder-routes#linking-by-name).
+
 ### Limiting a Test to Some Packages
 
 `web.Only` matters when a test binary links packages that declare routes of

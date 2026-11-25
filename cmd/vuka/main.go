@@ -408,6 +408,11 @@ func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) er
 	if overlay, gens, linkMsg, err = moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
 		return err
 	}
+	if cmd == "test" || cmd == "vet" {
+		if overlay, gens, err = routeNameTests(root, modPath, tmp, overlay, routes, gens); err != nil {
+			return err
+		}
+	}
 	if ((cmd == "build" && !plain) || cmd == "install") && len(pkgs) > 0 {
 		syncKeep(root, modPath, pkgs, gens, stderr)
 	}
