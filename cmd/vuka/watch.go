@@ -200,7 +200,8 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	defer assets.close()
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
-		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub, reuse: newReuseCache(root, fresh)}
+		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub, reuse: newReuseCache(root, fresh),
+		preload: &preloader{dir: dir, env: env}}
 	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
 		s.tty = true
 	}
@@ -300,6 +301,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		if s.ran != nil {
 			running = *s.ran
 		}
+		s.preload.start()
 		go func(n int) { builds <- s.build(bctx, n, &running) }(n)
 	}
 	if kept != nil && !started && first.err == nil {
@@ -337,6 +339,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		case r := <-builds:
 			building = false
 			cancelBuild()
+			s.preload.stop()
 			if again {
 				again = false
 				r.discard()
@@ -382,6 +385,7 @@ type supervisor struct {
 	ran             *app          // the last build started, running or not
 	exits           chan *app     // each app, once it has exited
 	assets          *devAssets
+	preload         *preloader  // reads the last build's link inputs back in on a change; nil for none
 	linked          string      // the last build's auto-link message, said once per change
 	reuse           *reuseCache // the builds kept for later runs; nil for none
 	reusedSum       string      // the binaryID of the kept build this run started with
@@ -622,7 +626,7 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	}
 	r.bin = bin
 	r.sum, r.err = binaryID(r.bin)
-	if r.err == nil && s.pruner != nil {
+	if r.err == nil && (s.pruner != nil || s.preload != nil) {
 		r.listed, r.pruned = make(chan struct{}), make(chan struct{})
 		go s.pruneBuild(r)
 	}

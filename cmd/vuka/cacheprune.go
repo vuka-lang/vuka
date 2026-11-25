@@ -70,24 +70,28 @@ func (s *supervisor) goCache() string {
 
 // pruneBuild runs after a good build, beside the swap to it, which it
 // doesn't delay: go list (some hundreds of ms, from the cache) names the
-// build's archives, and the ones it replaced go.
+// build's archives, which the next change preloads, and the module's that
+// it replaced go.
 func (s *supervisor) pruneBuild(r *buildResult) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute) // the build's own is cancelled once the loop has its result
 	defer cancel()
-	release := buildlock.Hold(s.root)
+	release := func() {}
+	if s.pruner != nil {
+		release = buildlock.Hold(s.root)
+	}
 	exports := s.listExports(ctx, r)
 	release()
 	close(r.listed)
+	s.preload.set(exports)
 	s.prune(exports)
 	close(r.pruned)
 }
 
 // listExports asks go list, which finds the build just made in the cache,
-// for the archive of each of the module's own packages the build compiled.
-// Nil when it can't say.
+// for the archive of each package the build linked. Nil when it can't say.
 func (s *supervisor) listExports(ctx context.Context, r *buildResult) map[string]string {
 	t0 := time.Now()
-	args := []string{"list", "-e", "-export", "-deps", "-f", `{{if .Module}}{{if .Module.Main}}{{.ImportPath}} {{.Export}}{{end}}{{end}}`}
+	args := []string{"list", "-e", "-export", "-deps", "-f", `{{if .Export}}{{.ImportPath}} {{.Export}}{{end}}`}
 	args = append(args, s.flags...)
 	if r.overlay != "" {
 		args = append(args, "-overlay="+r.overlay)
@@ -101,7 +105,7 @@ func (s *supervisor) listExports(ctx context.Context, r *buildResult) map[string
 	exports := map[string]string{}
 	for _, line := range bytes.Split(out, []byte("\n")) {
 		path, file, ok := strings.Cut(string(line), " ")
-		if ok && file != "" && (path == s.modPath || strings.HasPrefix(path, s.modPath+"/")) {
+		if ok && file != "" {
 			exports[path] = file
 		}
 	}
@@ -109,11 +113,18 @@ func (s *supervisor) listExports(ctx context.Context, r *buildResult) map[string
 	return exports
 }
 
-// prune removes the archives exports replaces, or an earlier call could not.
-func (s *supervisor) prune(exports map[string]string) {
+// prune removes the module's archives exports replaces, or an earlier call
+// could not.
+func (s *supervisor) prune(all map[string]string) {
 	p := s.pruner
-	if p == nil || len(exports) == 0 {
+	if p == nil || len(all) == 0 {
 		return
+	}
+	exports := map[string]string{}
+	for path, file := range all {
+		if path == s.modPath || strings.HasPrefix(path, s.modPath+"/") {
+			exports[path] = file
+		}
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
