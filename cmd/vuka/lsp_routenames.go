@@ -178,6 +178,15 @@ func (p *proxy) routeNameRequest(method, path string, src []byte, off int) func(
 	if !goFile && !strings.Contains(string(src), "route") {
 		return nil
 	}
+	if method == "textDocument/hover" {
+		for _, rc := range findRouteCalls(src) {
+			if (!goFile || strings.HasPrefix(rc.fn, "web.")) && off >= rc.start && off < rc.lparen {
+				return func() any {
+					return markdownHover(routeFuncHover(rc.fn, p.namedRoutes()[rc.name]), src, rc.start, rc.lparen)
+				}
+			}
+		}
+	}
 	rc, ok := routeCallAt(src, off, goFile)
 	if !ok {
 		return nil
@@ -198,9 +207,10 @@ func (p *proxy) routeNameRequest(method, path string, src []byte, off int) func(
 				if nr == nil {
 					return nil
 				}
-				return markdownHover(routeHover(nr), src, rc.nameStart, rc.nameEnd)
+				return markdownHover(routeHover(nr, rc.fn), src, rc.nameStart, rc.nameEnd)
 			}
 		}
+
 	case "textDocument/definition":
 		if inName {
 			return func() any {
@@ -299,8 +309,69 @@ func queryKeyItems(nr *namedRoute, src []byte, from, off int) any {
 	return map[string]any{"isIncomplete": false, "items": items}
 }
 
-// routeHover is what hover says of a route's name.
-func routeHover(nr *namedRoute) string {
+// routeFuncHover is what hover says of route, routePath and web.Route*:
+// what it returns and how it is called, with nr's own call when it names one.
+func routeFuncHover(fn string, nr *namedRoute) string {
+	var b strings.Builder
+	what := "the URL of a route by its name, with the request's mount prefix in front"
+	if strings.HasSuffix(fn, "Path") {
+		what = "the path of a route by its name, without the mount prefix"
+	}
+	b.WriteString("**" + fn + "**: " + what + ". Path parameters follow the name in path order; a trailing `query{…}` gives query values.\n\n")
+	ex := routeExample(fn, &namedRoute{Name: "users.edit", Params: []routeParam{{Name: "user"}}})
+	ex += "\n" + routeExample(fn, &namedRoute{Name: "orders", Query: []routeQuery{{Key: "status"}, {Key: "page"}}})
+	if nr != nil {
+		ex = routeExample(fn, nr)
+	}
+	b.WriteString("```go\n" + ex + "\n```")
+	return b.String()
+}
+
+// routeExample is a call of fn linking to nr, its arguments named after
+// the route's parameters and query keys.
+func routeExample(fn string, nr *namedRoute) string {
+	args := []string{strconv.Quote(nr.Name)}
+	if strings.HasPrefix(fn, "web.") {
+		args = append([]string{"ctx"}, args...)
+	}
+	for _, p := range nr.Params {
+		args = append(args, exampleIdent(p.Name))
+	}
+	if len(nr.Query) > 0 {
+		var kv []string
+		for _, q := range nr.Query {
+			kv = append(kv, strconv.Quote(q.Key)+": "+exampleIdent(q.Key))
+		}
+		args = append(args, "query{"+strings.Join(kv, ", ")+"}")
+	}
+	return fn + "(" + strings.Join(args, ", ") + ")"
+}
+
+func exampleIdent(s string) string {
+	var b strings.Builder
+	up := false
+	for i, r := range s {
+		switch {
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			up = b.Len() > 0
+		case up:
+			b.WriteString(strings.ToUpper(string(r)))
+			up = false
+		case i == 0 && r >= '0' && r <= '9':
+			b.WriteString("v" + string(r))
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "v"
+	}
+	return b.String()
+}
+
+// routeHover is what hover says of a route's name, with a call of fn
+// linking to it.
+func routeHover(nr *namedRoute, fn string) string {
 	var b strings.Builder
 	b.WriteString("**" + nr.Name + "** `" + bracketPath(nr.Path) + "`\n\n")
 	if len(nr.Params) == 0 {
@@ -325,6 +396,7 @@ func routeHover(nr *namedRoute) string {
 			b.WriteString(" — " + filepath.Base(nr.At.File) + ":" + strconv.Itoa(max(nr.At.Line, 1)))
 		}
 	}
+	b.WriteString("\n\n```go\n" + routeExample(fn, nr) + "\n```")
 	return b.String()
 }
 

@@ -47,6 +47,13 @@ func TestRouteNameEditor(t *testing.T) {
 	if !strings.Contains(string(b), "**orgs.org** `/orgs/[org]`") || !strings.Contains(string(b), "takes `org int`") || !strings.Contains(string(b), "org.Index") {
 		t.Errorf("hover: %s", b)
 	}
+	if !strings.Contains(string(b), `route(\"orgs.org\", org)`) {
+		t.Errorf("hover lacks an example: %s", b)
+	}
+	b, _ = json.Marshal(ask("textDocument/hover", strings.Index(routeLinksPage, "route(")+2))
+	if !strings.Contains(string(b), "**route**: the URL of a route") || !strings.Contains(string(b), `route(\"orgs.org\", org)`) {
+		t.Errorf("hover on route: %s", b)
+	}
 	b, _ = json.Marshal(ask("textDocument/definition", in))
 	if !strings.Contains(string(b), "index.vuka.html") || !strings.Contains(string(b), "orgs/") {
 		t.Errorf("definition: %s", b)
