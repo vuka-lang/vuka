@@ -326,6 +326,8 @@ github.com/vuka-lang/web/v2 v2.25.0 h1:KYurxNbZ8gTmNVlDc+4eiysaFI55fSZK35iF5QhhK
 github.com/vuka-lang/web/v2 v2.25.0/go.mod h1:LwZyyI5TybH+JwOIr2yD53XDjc35qBgzzAo6zs0Fte4=
 github.com/vuka-lang/web/v2 v2.25.1-0.20261124171006-564cf130ca15 h1:sN7hC9EwF04mXtik6dk1Cz6VCHzpDOM1UH/VMjUG9Nk=
 github.com/vuka-lang/web/v2 v2.25.1-0.20261124171006-564cf130ca15/go.mod h1:LwZyyI5TybH+JwOIr2yD53XDjc35qBgzzAo6zs0Fte4=
+github.com/vuka-lang/web/v2 v2.25.1-0.20261125021747-87fda4e05fe6 h1:Krr+Z7nPXtYC1Xh/iBEkQPLfyRQ7v59Q+W/FxaSlcao=
+github.com/vuka-lang/web/v2 v2.25.1-0.20261125021747-87fda4e05fe6/go.mod h1:LwZyyI5TybH+JwOIr2yD53XDjc35qBgzzAo6zs0Fte4=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=

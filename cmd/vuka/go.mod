@@ -18,7 +18,7 @@ require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/vuka-lang/orm/v2 v2.18.0 // indirect
-	github.com/vuka-lang/web/v2 v2.25.1-0.20261124171006-564cf130ca15 // indirect
+	github.com/vuka-lang/web/v2 v2.25.1-0.20261125021747-87fda4e05fe6 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )
