@@ -65,3 +65,25 @@ func TestFixRouteLinksShadowed(t *testing.T) {
 		t.Errorf("vuka vet: %v\n%s", err, out.Bytes())
 	}
 }
+
+// TestFixRouteLinksGoQuery: in Go a chain's query is written as a
+// web.RouteQuery, query{…} being a Vuka builtin.
+func TestFixRouteLinksGoQuery(t *testing.T) {
+	t.Parallel()
+	files := map[string]string{"handlers.go": "package main\n\nimport (\n\t\"context\"\n\n\t\"example.com/app/pages/urls\"\n)\n\nfunc open(ctx context.Context) string {\n\treturn urls.Orders.URL(ctx, urls.Orders{Page: 2})\n}\n"}
+	for k, v := range ordersPage {
+		files[k] = v
+	}
+	app := routesModuleAt(t, files)
+	var out bytes.Buffer
+	if err := vukaIn(app, &out, &out, "fix", "routes"); err != nil {
+		t.Fatalf("vuka fix routes: %v\n%s", err, out.Bytes())
+	}
+	b, _ := os.ReadFile(filepath.Join(app, "handlers.go"))
+	if !strings.Contains(string(b), `web.Route(ctx, "orders", web.RouteQuery{"page": 2})`) {
+		t.Errorf("handlers.go:\n%s\n%s", b, out.Bytes())
+	}
+	if err := vukaIn(app, &out, &out, "vet"); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, out.Bytes())
+	}
+}
