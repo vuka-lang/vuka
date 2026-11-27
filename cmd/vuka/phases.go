@@ -56,6 +56,9 @@ func (p *phases) step(name string) {
 	p.timer = time.AfterFunc(p.after, tell)
 }
 
+// setDetail isn't said: the lines name a step only.
+func (p *phases) setDetail(string) {}
+
 // done ends the last step.
 func (p *phases) done() {
 	p.mu.Lock()

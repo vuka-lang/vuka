@@ -30,3 +30,12 @@ func makeRaw(f *os.File) (restore func(), err error) {
 	}
 	return func() { unix.IoctlSetTermios(fd, ioctlSetTermios, old) }, nil
 }
+
+// termWidth is the terminal's width in columns; 0 when it can't be told.
+func termWidth(f *os.File) int {
+	ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
+		return 0
+	}
+	return int(ws.Col)
+}

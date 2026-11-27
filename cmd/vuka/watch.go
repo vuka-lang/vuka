@@ -34,7 +34,7 @@ import (
 // one running; a build that comes out byte-identical restarts nothing.
 // Tailwind's watcher runs once, across the restarts.
 
-const runUsage = `usage: vuka run [-watch [-debug] [-fresh] [-keep-cache]] [build flags] [package] [arguments...]
+const runUsage = `usage: vuka run [-watch [-debug] [-fresh] [-keep-cache] [-no-clear]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
 package with go run. An app on github.com/vuka-lang/web/v2 gets its Tailwind
@@ -66,6 +66,9 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 	with -watch, leave Go's build cache alone: by default each good build
 	removes the module's own archives the build before it replaced
 	(VUKA_KEEP_CACHE=1 does the same)
+  -no-clear, --no-clear
+	with -watch, leave the screen as it is when a build's errors appear and
+	when they go
   -embed, --embed
 	with -watch, build in the files web.Frontend serves (it reads them from
 	disk under vuka run; VUKA_EMBED_STUB=off does the same)
@@ -164,6 +167,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	flags, debug := cutDebug(flags)
 	flags, fresh := cutFresh(flags)
 	flags, keepCache := cutKeepCache(flags)
+	flags, noClear := cutNoClear(flags)
 	flags, stub := stubbing(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
@@ -196,16 +200,26 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		rand.Read(key)
 		env = append(env, liveKeyEnv+"="+hex.EncodeToString(key))
 	}
+	tty := false
+	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
+		tty = true
+	}
+	var st watchStatus = &plainStatus{w: stderr, tty: tty, noClear: noClear}
+	if tty && colorFor(stderr) {
+		// Everything written to the terminal goes around the pinned line.
+		ts := newTermStatus(stderr, noClear)
+		if f, ok := stdout.(*os.File); ok && isTerminal(f) {
+			stdout = ts.wrap(stdout)
+		}
+		st, stderr = ts, ts.wrap(stderr)
+	}
 	assets := newDevAssets(root, stderr)
 	defer assets.close()
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
 		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub, reuse: newReuseCache(root, fresh),
 		preload: &preloader{dir: dir, env: env}}
-	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
-		s.tty = true
-	}
-	s.st = &plainStatus{w: stderr, tty: s.tty}
+	s.tty, s.st = tty, st
 	s.staticsMain, s.staticsFromFile = devStaticsMain(root, dir, pkg, env)
 	if s.staticsFromFile {
 		if s.goKeys = s.reuse; s.goKeys == nil {
@@ -326,8 +340,9 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 			s.app.stop(first, 0, sig)
 			stopFrontend()
 			return nil
-		case <-changes:
+		case paths := <-changes:
 			changed = time.Now()
+			s.status().changed(s.relPaths(paths))
 			traceStep("change")
 			if building {
 				// What it builds is stale already: stop it, and build anew
@@ -700,10 +715,10 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.w.setEmbeds(r.embeds)
 	}
 	if r.err != nil {
-		plain, shown := s.failure(r)
+		plain, f := s.failure(r)
 		s.setState(buildState{State: "failed", At: time.Now(), Output: plain})
 		s.failedShown = true
-		s.status().failed(shown, s.app != nil)
+		s.status().failed(f, s.app != nil)
 		r.discard()
 		return
 	}
@@ -818,7 +833,7 @@ func (s *supervisor) restart(r *buildResult, changed time.Time) {
 		r.discard() // the app runs from the last build's directory
 	}
 	if !changed.IsZero() {
-		s.status().rebuilt(time.Since(changed))
+		s.status().updated(time.Since(changed))
 	}
 }
 
@@ -837,7 +852,7 @@ const clearScreen = "\x1b[H\x1b[2J"
 // failure is what a failed build says: plain for the toolbar, and as the
 // terminal shows it. The errors of the module's packages are reported at
 // their source (buildReport); anything else as the build said it.
-func (s *supervisor) failure(r *buildResult) (plain, shown string) {
+func (s *supervisor) failure(r *buildResult) (plain string, f buildFailure) {
 	_, modPath, _ := load.ModuleRoot(s.root)
 	in := buildInput{root: s.root, modPath: modPath, overlay: r.overlay, gens: r.gens}
 	var rep *buildReport
@@ -851,14 +866,45 @@ func (s *supervisor) failure(r *buildResult) (plain, shown string) {
 		if len(r.out) == 0 || !isExit(r.err) {
 			out += r.err.Error() + "\n"
 		}
-		return out, out
+		return out, buildFailure{shown: out}
 	}
 	o := reportOptions{verbose: slices.Contains(s.flags, "-v")}
 	plain = reportText(rep, o)
+	f = buildFailure{shown: plain, errs: rep.errs(), at: rep.firstAt()}
 	if o.color = colorFor(s.stderr); o.color {
-		return plain, reportText(rep, o)
+		f.shown = reportText(rep, o)
 	}
-	return plain, plain
+	return plain, f
+}
+
+// relPaths are the changed files as the terminal names them: from the
+// module's root.
+func (s *supervisor) relPaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if rel, err := filepath.Rel(s.root, p); err == nil && !strings.HasPrefix(rel, "..") {
+			p = rel
+		}
+		out = append(out, filepath.ToSlash(p))
+	}
+	return out
+}
+
+// cutNoClear reports whether flags ask for -no-clear, and returns them
+// without it.
+func cutNoClear(flags []string) ([]string, bool) {
+	noClear := false
+	out := flags[:0:0]
+	for _, f := range flags {
+		switch strings.TrimLeft(f, "-") {
+		case "no-clear", "no-clear=true":
+			noClear = true
+		case "no-clear=false":
+		default:
+			out = append(out, f)
+		}
+	}
+	return out, noClear
 }
 
 // cutDebug reports whether flags ask for -debug, and returns them without it.

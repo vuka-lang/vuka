@@ -12,27 +12,38 @@ type watchStatus interface {
 	build() buildSteps // the steps of one build
 	linked(msg string) // what auto-link added, once per change
 	reused()           // a kept build of an earlier run started
-	failed(shown string, running bool)
+	failed(f buildFailure, running bool)
 	warn(msg string)
 	unchanged()
 	rebuilt(took time.Duration)
-	exited(status string) // the app exited by itself
-	clear()               // the errors on the screen are gone
+	updated(took time.Duration) // the same binary restarted with new texts
+	changed(files []string)     // what the next build answers
+	exited(status string)       // the app exited by itself
+	clear()                     // the errors on the screen are gone
 }
 
 // buildSteps hears a build's steps: step as one begins, done once they are
 // over.
 type buildSteps interface {
 	step(name string)
+	setDetail(d string) // how far the step under way has come
 	done()
+}
+
+// buildFailure is a failed build as the terminal shows it.
+type buildFailure struct {
+	shown string // the errors
+	errs  int    // how many; 0 for unknown
+	at    string // the first one's file:line; "" for unknown
 }
 
 // plainStatus says it in ● lines, the way a pipe or a log takes it. On a
 // terminal a failed build's errors replace the last one's on the screen.
 type plainStatus struct {
-	w   io.Writer
-	tty bool
-	now func() time.Time // nil: time.Now
+	w       io.Writer
+	tty     bool
+	noClear bool             // -no-clear: the screen is left as it is
+	now     func() time.Time // nil: time.Now
 }
 
 func (p *plainStatus) build() buildSteps { return newPhases(p.w) }
@@ -41,17 +52,19 @@ func (p *plainStatus) linked(msg string) { fmt.Fprintln(p.w, "● "+msg) }
 
 func (p *plainStatus) reused() { fmt.Fprintln(p.w, "● reusing the last build (no changes)") }
 
-func (p *plainStatus) failed(shown string, running bool) {
+func (p *plainStatus) failed(f buildFailure, running bool) {
 	at := ""
 	if p.tty {
-		io.WriteString(p.w, clearScreen)
+		if !p.noClear {
+			io.WriteString(p.w, clearScreen)
+		}
 		now := p.now
 		if now == nil {
 			now = time.Now
 		}
 		at = " at " + now().Format("15:04:05")
 	}
-	io.WriteString(p.w, shown)
+	io.WriteString(p.w, f.shown)
 	if running {
 		fmt.Fprintf(p.w, "● build failed%s; the last good build keeps running\n", at)
 	} else {
@@ -67,12 +80,16 @@ func (p *plainStatus) rebuilt(took time.Duration) {
 	fmt.Fprintf(p.w, "● rebuilt in %.1fs\n", took.Seconds())
 }
 
+func (p *plainStatus) updated(took time.Duration) { p.rebuilt(took) }
+
+func (p *plainStatus) changed([]string) {}
+
 func (p *plainStatus) exited(status string) {
 	fmt.Fprintf(p.w, "● the app exited (%s); waiting for a change\n", status)
 }
 
 func (p *plainStatus) clear() {
-	if p.tty {
+	if p.tty && !p.noClear {
 		io.WriteString(p.w, clearScreen)
 	}
 }

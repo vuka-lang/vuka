@@ -662,6 +662,24 @@ func (in buildInput) dropped(ds []diag.Diagnostic) map[string]map[string]string 
 // stoppedBefore says, of a model's typed fields a failed transpile left
 // ungenerated, why: the build stopped at another package's error before
 // the orm wrote them.
+// firstAt is the file:line of the report's first error, from the working
+// directory when it is under it; "" for none.
+func (r *buildReport) firstAt() string {
+	for _, g := range r.groups {
+		for _, d := range g.diags {
+			if d.Span.File == "" || d.Severity == diag.Warning {
+				continue
+			}
+			f := d.Span.File
+			if rel, err := filepath.Rel(workDir(), f); err == nil && filepath.IsAbs(f) && !strings.HasPrefix(rel, "..") {
+				f = rel
+			}
+			return fmt.Sprintf("%s:%d", filepath.ToSlash(f), d.Span.Line)
+		}
+	}
+	return ""
+}
+
 func (r *buildReport) stoppedBefore() {
 	const missed = " wasn't generated for this build"
 	var cause *diag.Diagnostic
