@@ -521,6 +521,9 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	}
 	stepDone("routes")
 	if len(pkgs) > 0 {
+		if t, ok := s.st.(*termStatus); ok {
+			t.setPackages(len(pkgs)) // for the banner
+		}
 		ph.step(fmt.Sprintf("transpiling %d %s", len(pkgs), map[bool]string{true: "package", false: "packages"}[len(pkgs) == 1]))
 		transpile := load.Transpile
 		if s.sess != nil {
@@ -617,7 +620,13 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	go func() { defer wg.Done(); embeds = embedRoots(ctx, s.root, r.overlay) }()
 	defer wg.Wait()
 	bin := exe(filepath.Join(dir, "app")) // app.exe on Windows, which runs no file without it
-	args := append([]string{"build", "-o", bin}, s.flags...)
+	_, counting := s.st.(*termStatus)
+	userV := slices.Contains(s.flags, "-v")
+	args := []string{"build"}
+	if counting && !userV {
+		args = append(args, "-v") // names each package compiled, for the pinned line's count
+	}
+	args = append(append(args, "-o", bin), s.flags...)
 	if r.overlay != "" {
 		args = append(args, "-overlay="+r.overlay)
 	}
@@ -632,8 +641,17 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	c.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	resp := &respeller{w: &out, dir: s.dir, gens: r.gens}
-	c.Stdout, c.Stderr = resp, resp
+	var w io.Writer = resp
+	count := &pkgCounter{w: resp, pass: userV}
+	if counting {
+		// -v's lines are counted before the respeller, and never reach the
+		// output a failure reports.
+		defer countPackages(count, ph, s.preload.packages(), 3*time.Second)()
+		w = count
+	}
+	c.Stdout, c.Stderr = w, w
 	r.err = c.Run()
+	count.flush()
 	resp.flush()
 	r.out = out.Bytes()
 	wg.Wait()
