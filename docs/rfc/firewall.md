@@ -1,10 +1,9 @@
 # RFC: The compile firewall — editing a shared package without recompiling its importers
 
-Status: rejected 2026-11-27 — experiment failed (§7). The facade stops
-only edits that leave the edited package's export data unchanged; an
-unexported addition, or a body edit that moves a later declaration's line,
-changes it, and the change passes through the facade to every importer.
-No shard writer was built.
+Status: draft v3 2026-11-27 — padded layout + facade (§8). The sharded
+design of §3 was rejected (§7, §7.1); what carries is a whole-package alias
+facade over code laid out so that body edits leave its export data as it
+was. Prototype behind `VUKA_FIREWALL=1` in the watch; numbers in §8.4.
 
 ## 1. Problem
 
@@ -257,4 +256,135 @@ Verdict: position pinning through `//line` contains nothing; physical
 layout (a file or a padded slot per declaration) would contain body edits
 that add or remove lines, but no layout contains an added unexported
 func or var — and every save that adds or removes one, written or
-generated, fans out. The status stays rejected.
+generated, fans out. (§8 builds on the layouts that do contain body
+edits.)
+
+## 8. v3: padded layout behind a whole-package facade
+
+§7.1 found the two layouts that keep a body edit's export data stable:
+a file per declaration, or each declaration at a fixed line with blank
+lines taking up growth. The transpiler owns the layout of the Go it
+writes, so the watch can lay a shared package out that way, and a plain
+alias facade over the whole package (no shards) then stops the cascade.
+
+### 8.1 Gate in the toy module
+
+Padded dep (each declaration at a fixed line, 100-line slots) behind the
+facade, each case on a fresh module path:
+
+| Edit to dep | Recompiled |
+|---|---|
+| (a) body edit, same lines | dep, facade |
+| (a″) lines added in an early func | dep, facade |
+| (a3) early func grows 40 lines, within its slot | dep, facade |
+| (d) early func outgrows its slot (later decls move) | dep, facade, u1..u20 |
+| (g) body edit inside a generic func | dep, facade, u1..u20 |
+| (b) unexported func appended | dep, facade, u1..u20, main |
+| (c) exported func appended | dep, facade, u1..u20, main |
+
+Two more facts the prototype had to respect, measured the same way:
+
+- A `//line` directive's *value* is export data when it positions a
+  declaration (its header, a struct's fields): shifting those values by one
+  fans out. The same shift in directives inside function bodies doesn't.
+- What escape analysis concludes about an exported function's parameters
+  is export data: a body edit changing whether a parameter escapes, or
+  leaks to a result, fans out (TestFirewallContains/escape).
+
+### 8.2 Design
+
+Behind `VUKA_FIREWALL=1`, the watch's prepare step, after the module
+overlay and devstatics (`cmd/vuka/firewall.go`):
+
+- **Which packages:** module packages other than main imported by at least
+  8 module packages (`VUKA_FIREWALL_IMPORTERS`), from the import graph
+  discovery already has. A package with cgo, assembly or `go:embed`, or with
+  an exported variable (a facade can't share one: a copy would be a second
+  variable), is left as it is.
+- **Facade:** every Go file of the package is deleted in the overlay and
+  moved to `<dir>/0vukafw/`; at the import path stands one file:
+  `type T = vukafw_.T` (generic types with their type parameters),
+  `const C = vukafw_.C`, and a forward per function (`func F(p0 A) R {
+  return vukafw_.F(p0) }`, generic ones instantiating), which keeps
+  `runtime.FuncForPC`'s name of the package; a function whose signature names
+  what the facade can't (an unexported type) is bound as `var F = vukafw_.F`.
+  Importers are untouched.
+- **Layout:** the prologue (package clause and imports) and each top-level
+  declaration take a slot: their length plus at least 10 lines, rounded up
+  to 20. Each declaration starts with a `//line` giving its own position;
+  the directives in its doc comment are dropped, and each function body
+  opens with a directive giving its first line, so the lines inside bodies
+  report where they are in the `.vuka` source as before.
+- **Hysteresis:** the watch keeps each file's layout. While the file's
+  declarations are the same and each still fits its slot, the slots stay and
+  so do the values of the directives outside bodies — the pins. A
+  declaration outgrowing its slot, or one added, removed or renamed, lays
+  the file out afresh (and fans out, as it must).
+- **Dev-only:** `vuka build`, `vuka test` and the language server never
+  see it; unset, the overlay is today's.
+
+What still recompiles the importers: an API change; any added or removed
+package-level declaration; a declaration outgrowing its slot; an edit to a
+generic function's body; an edit changing a parameter's escape analysis;
+an added import beyond the prologue's slot.
+
+### 8.3 Correctness
+
+- Unit tests (`firewall_test.go`): every token keeps the position it
+  reports through the layout; starts and pins survive a body growing in its
+  slot and change when it outgrows it; the facade of a package with plain,
+  generic and variadic functions, generic types and iota constants builds
+  and runs an importer unchanged; and, compiled as the watch compiles,
+  a body edit adding lines recompiles only the package and its facade while
+  an escape change and an added function recompile the importers.
+- Watch e2e (`TestFirewallWatch`, `-toolexec` counting compiles): with
+  `VUKA_FIREWALL=1` a body edit adding lines compiles `shared` and
+  `shared/0vukafw` only; an added function compiles the importers; the page
+  is byte-identical (live tokens and toolbar ids aside) to the one the same
+  app serves without the firewall, which runs no firewall step.
+- On the bench's generated app, by hand: a body edit to `models` compiled
+  `models` and `models/0vukafw`; to a component, `components` and its core;
+  an unexported func or an API change, 17 packages. Six rendered pages were
+  identical with the firewall on and off.
+
+### 8.4 Numbers
+
+`TestWatchBench`, scale 36 (50 packages), GOMAXPROCS=10, M1 Pro, before
+(`VUKA_FIREWALL` unset) and after (`VUKA_WATCH_BENCH_ENV=VUKA_FIREWALL=1`),
+Go compile + link / total to live:
+
+| Save | Before | After |
+|---|---|---|
+| Go body edit in a shared component #1 | 1.80 s / 2.8 s | 0.63 s / 1.6 s |
+| Go body edit in a shared component #2 | 1.60 s / 2.6 s | 0.63 s / 1.9 s |
+| Go body edit, widely imported package #1 | 1.96 s / 2.8 s | 0.70 s / 1.6 s |
+| Go body edit, widely imported package #2 | 1.93 s / 2.9 s | 0.76 s / 1.7 s |
+| text in a shared component #1 | 0.00 s / 0.5 s | 0.00 s / 0.4 s |
+| new unused func, widely imported package #1 | 2.34 s / 3.0 s | 1.87 s / 2.2 s |
+| exported API change, widely imported package #1 | 5.11 s / 6.9 s | 1.75 s / 2.7 s |
+
+The body-edit compile drops to the link (~0.6–0.7 s). The synthetic app
+is small — its importers are cheap packages, so the before rows are ~2 s,
+not the 15–22 s of the 216-package app in §1 — and the rows that should not
+change (API change, added func) moved between runs by as much, so read the
+table for which compiles ran, not for the absolute saving. The real
+measure is the 216-package app.
+
+### 8.5 Problems met and open
+
+- **PkgPath**: types and methods report `<pkg>/0vukafw` in dev. Nothing in
+  the bench app or the e2e app depended on it (the runtime's method registry
+  keys on the type); an app keying a registry, a cache or a message on
+  `reflect.Type.PkgPath` or a method's `FuncForPC` name would see it.
+- **Init order**: the package's initialization runs in the core, before the
+  facade; its dependencies are the same, so its order relative to them is.
+  Go orders independent packages by import path, so relative to unrelated
+  packages it can move; no case here noticed.
+- **Pinned positions lie**: after lines added above a declaration, its
+  header and fields report the line they had at the last layout until the
+  next one; body lines are exact. A compile error in a signature then
+  points a few lines off; the respeller could map pins back (not done).
+- Exported variables keep a package out; entity packages exporting a
+  manager variable need forwarding by accessor or by linkname.
+- The full `go test ./cmd/vuka` suite wasn't run locally (disk at the
+  stop line); CI runs it.

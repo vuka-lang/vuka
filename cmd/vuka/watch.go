@@ -561,6 +561,15 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		}
 		stepDone("statics")
 	}
+	if firewallOn() {
+		var walled []string
+		if r.overlay, walled, err = firewall(s.root, modPath, dir, filepath.Join(s.tmp, "gen"), r.overlay, pkgs); err != nil {
+			r.err = err
+			return r
+		}
+		traceStep("firewall: %s", strings.Join(walled, " "))
+		stepDone("firewall")
+	}
 	if s.goKeys != nil && r.statics != "" {
 		r.goKeyRoots = s.w.embedRoots()
 		r.goKey, _, _ = s.goKeys.goKey(s, r.goKeyRoots, r.overlay)
