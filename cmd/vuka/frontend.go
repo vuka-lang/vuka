@@ -102,7 +102,7 @@ func installCommand(dir string) []string {
 // a spinner when w is a terminal, a heartbeat line elsewhere.
 func task(w io.Writer, label, done, failed, still string) progress.Task {
 	tty := false
-	if f, ok := w.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
+	if f, ok := termFile(w); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
 		tty = true
 	}
 	return progress.Task{W: w, TTY: tty, Color: tty && os.Getenv("NO_COLOR") == "",

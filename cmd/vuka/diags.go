@@ -129,7 +129,7 @@ func markdownText(md string) string {
 
 // colorFor reports whether w is a terminal to colour.
 func colorFor(w io.Writer) bool {
-	f, ok := w.(*os.File)
+	f, ok := termFile(w)
 	return ok && diag.ColorFor(f)
 }
 

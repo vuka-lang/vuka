@@ -14,3 +14,6 @@ func isTerminal(f *os.File) bool {
 
 // makeRaw isn't done here: questions are answered a line at a time.
 func makeRaw(*os.File) (func(), error) { return nil, errors.New("no raw terminal") }
+
+// termWidth isn't told here: the pinned line isn't cut.
+func termWidth(*os.File) int { return 0 }

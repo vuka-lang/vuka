@@ -337,7 +337,7 @@ func vukaOnlyFlag(args []string) string {
 		}
 		name, _, _ := strings.Cut(strings.TrimLeft(a, "-"), "=")
 		switch name {
-		case "watch", "islands", "debug", "fresh", "keep-cache", "embed", "diag":
+		case "watch", "islands", "debug", "fresh", "keep-cache", "no-clear", "embed", "diag":
 			return name
 		}
 	}

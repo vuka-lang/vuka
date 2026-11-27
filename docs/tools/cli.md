@@ -23,7 +23,7 @@ vuka ui theme [--dry-run] [--registry r] [--offline] [name]
 vuka ui list [--registry r] [--offline] [library | component | library/component]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka build|install -debug [go flags] [packages]
-vuka run -watch [-debug] [-fresh] [-keep-cache] [go flags] [package] [args]
+vuka run -watch [-debug] [-fresh] [-keep-cache] [-no-clear] [go flags] [package] [args]
 vuka mod tidy [-check] [-e] [-v] [-go=version] [-compat=version]
 vuka mod why|vendor|graph|… [args]
 vuka build -islands [-watch]
@@ -340,6 +340,17 @@ only while no other `vuka` build of the module runs (they share a lock in
 nothing, and going back to an earlier edit recompiles. On Windows nothing is
 removed. `-keep-cache` or `VUKA_KEEP_CACHE=1` turns it off.
 
+**On a terminal the watch keeps one line at the bottom.** While a build
+runs it names the step under way and its time (`⠹ compiling  3.1s`); each
+build ends as a timed line above it — `✓ rebuilt in 4.9s` with the files it
+answers and how long its steps took, `✓ updated` when only markup changed and
+the same binary restarted, a dim `○ unchanged`, a red `✗ build failed` naming
+the first error. A failure stays on the bottom line until a build passes; the
+same event twice in a row counts on its line (`(x2)`). The app's output
+scrolls above it. A build's errors replace the screen when they appear and
+when they go; `-no-clear` leaves it. Piped, under `TERM=dumb` or with
+`NO_COLOR` set, the watch writes plain `●` lines instead.
+
 ### Incremental Transpiling
 
 **Only what changed is transpiled again.** The Go each package became is
@@ -427,7 +438,7 @@ editor's test runner or a script that calls `go test` work on `.vuka` files.
 | `go test`, `go vet`, `go run` | `vuka test`, `vet`, `run`: the same output, errors and exit status |
 | `go build` | the overlay and the app's Tailwind stylesheet: the binary plain `go build` makes with the generated code on disk, your `-ldflags` and `-tags` as given; none of `vuka build`'s `-ldflags=-w`, `-tags=vuka_release`, `build/` module or frontend (vite) build |
 | `go build -h`, `-overlay=…`, `-modfile=…`; `go -C dir …` | the real go |
-| a flag only vuka has (`go run -watch`, `go build -islands`, `-debug`, `-fresh`, `-keep-cache`, `-embed`, `-diag`) | refused with one line naming the vuka command: `vuka run -watch …` |
+| a flag only vuka has (`go run -watch`, `go build -islands`, `-debug`, `-fresh`, `-keep-cache`, `-no-clear`, `-embed`, `-diag`) | refused with one line naming the vuka command: `vuka run -watch …` |
 | any other go command | the real go |
 
 ```sh
