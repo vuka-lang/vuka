@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // sourceShapes tells a watch build when the steps reading the whole module
@@ -33,23 +35,46 @@ type sourceShapes struct {
 	byFile map[[sha256.Size]byte]fileShapes
 	sums   map[string]sumOf  // the local modules' files (localSources), by path
 	pinned map[string]string // a build's localSources, by module root (pin)
+	snaps  map[string]*load.Snapshot
 }
 
 // pin hashes the local modules of the module at root (localSources) for a
 // build: its steps' shapes take that hash rather than each walking them
-// again. It returns the hash, "" for none.
-func (s *sourceShapes) pin(root string) string {
+// again. Until the build is done (unpin) they read the module through snap.
+// It returns the hash, "" for none.
+func (s *sourceShapes) pin(root string, snap *load.Snapshot) string {
 	if s == nil {
 		return ""
 	}
+	s.mu.Lock()
+	s.snaps[root] = snap
+	s.mu.Unlock()
 	local := ""
-	if mod, err := os.ReadFile(filepath.Join(root, "go.mod")); err == nil && (localReplace.Match(mod) || inWorkspace(root)) {
+	if mod, err := snap.ReadFile(filepath.Join(root, "go.mod")); err == nil && (localReplace.Match(mod) || inWorkspace(root)) {
 		local = s.localSources(root)
 	}
 	s.mu.Lock()
 	s.pinned[root] = local
 	s.mu.Unlock()
 	return local
+}
+
+// unpin has the steps read the module at root from disk again, once the
+// build pin was for is done.
+func (s *sourceShapes) unpin(root string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	delete(s.snaps, root)
+	s.mu.Unlock()
+}
+
+// snap is what a build reads the module at root through: nil for the disk.
+func (s *sourceShapes) snap(root string) *load.Snapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.snaps[root]
 }
 
 // fileShapes are a file's hashes: of everything; without the function
@@ -70,7 +95,7 @@ const (
 )
 
 func newSourceShapes() *sourceShapes {
-	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}, sums: map[string]sumOf{}, pinned: map[string]string{}}
+	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}, sums: map[string]sumOf{}, pinned: map[string]string{}, snaps: map[string]*load.Snapshot{}}
 }
 
 // shapes is the running watch's.
@@ -92,10 +117,11 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 	if !ok {
 		return ""
 	}
+	snap := s.snap(root)
 	h := sha256.New()
 	h.Write([]byte(head))
 	for _, p := range paths {
-		src, err := os.ReadFile(files[p])
+		src, err := snap.ReadFile(files[p])
 		if err != nil {
 			return ""
 		}
@@ -124,7 +150,8 @@ func (f fileShapes) of(kind func(path string) shapeKind, path string) [sha256.Si
 // the local modules, and the module's Go files as overlay has them, in
 // order, each with where its content is. Not ok when one can't be read.
 func (s *sourceShapes) moduleFiles(root, overlay string, tests bool) (head string, paths []string, files map[string]string, ok bool) {
-	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	snap := s.snap(root)
+	mod, err := snap.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return "", nil, nil, false
 	}
@@ -140,19 +167,19 @@ func (s *sourceShapes) moduleFiles(root, overlay string, tests bool) (head strin
 			return "", nil, nil, false
 		}
 	}
-	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
+	sum, _ := snap.ReadFile(filepath.Join(root, "go.sum"))
 	ov, err := readOverlay(overlay)
 	if err != nil {
 		return "", nil, nil, false
 	}
 	files = map[string]string{} // path → where its content is
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err = snap.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "vendor" || name == "node_modules" || name == "testdata" || fileExists(filepath.Join(path, "go.mod"))) {
+			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "vendor" || name == "node_modules" || name == "testdata" || snap.Exists(filepath.Join(path, "go.mod"))) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -205,6 +232,7 @@ func (s *sourceShapes) file(src []byte) fileShapes {
 // A file's hash is kept while its size, modification time and identity
 // stay. "" when a file can't be read.
 func (s *sourceShapes) localSources(root string) string {
+	snap := s.snap(root)
 	trees, files := moduleTrees(root, root, os.Environ())
 	h := sha256.New()
 	hashFile := func(path string, fi fs.FileInfo) error {
@@ -216,7 +244,7 @@ func (s *sourceShapes) localSources(root string) string {
 		return nil
 	}
 	for _, f := range files {
-		fi, err := os.Stat(f)
+		fi, err := snap.Stat(f)
 		if err != nil {
 			fmt.Fprintf(h, "%s none\n", f)
 			continue
@@ -230,7 +258,7 @@ func (s *sourceShapes) localSources(root string) string {
 			continue // the module: module hashes it as the overlay has it
 		}
 		fmt.Fprintf(h, "tree %s\n", tree)
-		err := filepath.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
+		err := snap.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if path == tree {
 					return nil // gone: go.mod's directive fails the build
@@ -240,7 +268,7 @@ func (s *sourceShapes) localSources(root string) string {
 			name := d.Name()
 			if d.IsDir() {
 				if path != tree && (strings.HasPrefix(name, ".") || privateSkipped(tree, path, name) || name == "node_modules" || name == "testdata" ||
-					fileExists(filepath.Join(path, "go.mod"))) {
+					snap.Exists(filepath.Join(path, "go.mod"))) {
 					return filepath.SkipDir
 				}
 				return nil

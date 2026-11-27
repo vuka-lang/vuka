@@ -35,6 +35,7 @@ const scopeAttr = "data-vk-s"
 
 // pageAssets is what a module declares.
 type pageAssets struct {
+	snap          *load.Snapshot // what the module's sources are read through
 	root, modPath string
 	comps         []*assetComp  // scoped, in the order first declared
 	global        *assetComp    // web.New's and web.Global's
@@ -114,17 +115,20 @@ var assetFuncs = map[string]bool{"Style": true, "Script": true, "CSS": true, "JS
 
 // findAssets reads the asset options of the module at root. Nil when it
 // declares none.
-func findAssets(root, modPath string) (*pageAssets, error) {
-	if mod, err := load.ReadSource(filepath.Join(root, "go.mod")); err != nil || !twRequire.Match(mod) {
+func findAssets(root, modPath string) (*pageAssets, error) { return findAssetsIn(nil, root, modPath) }
+
+// findAssetsIn is findAssets reading through snap.
+func findAssetsIn(snap *load.Snapshot, root, modPath string) (*pageAssets, error) {
+	if mod, err := snap.ReadSource(filepath.Join(root, "go.mod")); err != nil || !twRequire.Match(mod) {
 		return nil, nil
 	}
-	pa := &pageAssets{root: root, modPath: modPath, global: &assetComp{}}
-	g := &goPkgs{root: root, modPath: modPath, fset: token.NewFileSet(), dirs: map[string][]*goFile{}}
+	pa := &pageAssets{snap: snap, root: root, modPath: modPath, global: &assetComp{}}
+	g := &goPkgs{snap: snap, root: root, modPath: modPath, fset: token.NewFileSet(), dirs: map[string][]*goFile{}}
 	var errs []error
-	err := walkSources(root, func(p, name string) error {
+	err := walkSourcesIn(snap, root, func(p, name string) error {
 		ext := filepath.Ext(name)
 		if strings.HasSuffix(name, ".vuka.html") {
-			src, err := load.ReadSource(p)
+			src, err := snap.ReadSource(p)
 			if err != nil {
 				return err
 			}
@@ -134,7 +138,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		if ext != ".vuka" && ext != ".go" || strings.HasSuffix(name, "_test"+ext) || strings.HasSuffix(name, "_gen.go") {
 			return nil
 		}
-		src, err := load.ReadSource(p)
+		src, err := snap.ReadSource(p)
 		if err != nil {
 			return err
 		}
@@ -188,6 +192,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 			ic.locate(root, pa.frontendRoot)
 		}
 	}
+	pa.snap = nil // what reads it later reads the disk
 	return pa, nil
 }
 
@@ -501,10 +506,10 @@ func (pa *pageAssets) layoutComp(dir string, imports map[string]string, toks []w
 	default:
 		return nil, "the layout must be a named function (counterPage, views.Shell): styles and scripts belong to its markup"
 	}
-	entries, _ := load.ReadDir(pkgDir)
+	entries, _ := pa.snap.ReadDir(pkgDir)
 	funcDecl := regexp.MustCompile(`(?m)^func\s+` + regexp.QuoteMeta(name) + `\s*[\[(]`)
 	for _, e := range entries {
-		src, err := load.ReadSource(filepath.Join(pkgDir, e.Name()))
+		src, err := pa.snap.ReadSource(filepath.Join(pkgDir, e.Name()))
 		switch {
 		case err != nil:
 		case strings.HasSuffix(e.Name(), ".templ") && declaresTempl(src, name):

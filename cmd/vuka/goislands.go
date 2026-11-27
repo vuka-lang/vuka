@@ -23,6 +23,7 @@ import (
 
 // goPkgs parses a module's Go packages once, by directory.
 type goPkgs struct {
+	snap          *load.Snapshot
 	root, modPath string
 	fset          *token.FileSet
 	dirs          map[string][]*goFile
@@ -40,14 +41,14 @@ func (g *goPkgs) pkg(dir string) []*goFile {
 		return fs
 	}
 	var fs []*goFile
-	entries, _ := load.ReadDir(dir)
+	entries, _ := g.snap.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
 			continue
 		}
 		p := filepath.Join(dir, n)
-		if src, err := load.ReadSource(p); err == nil {
+		if src, err := g.snap.ReadSource(p); err == nil {
 			if f, err := parser.ParseFile(g.fset, p, src, parser.SkipObjectResolution); err == nil {
 				fs = append(fs, &goFile{p, src, f})
 			}

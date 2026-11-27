@@ -405,7 +405,7 @@ func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) er
 		return err
 	}
 	var linkMsg string
-	if overlay, gens, linkMsg, err = moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
+	if overlay, gens, linkMsg, err = moduleOverlay(nil, root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
 		return err
 	}
 	if cmd == "test" || cmd == "vet" {
@@ -442,7 +442,7 @@ func runGoAs(cmd string, args []string, stdout, stderr io.Writer, plain bool) er
 		}
 	case cmd == "run":
 		if _, stub := stubbing(nil); stub {
-			if overlay, err = stubEmbeds(overlay, tmp, frontendEmbeds(root)); err != nil {
+			if overlay, err = stubEmbeds(overlay, tmp, frontendEmbeds(nil, root)); err != nil {
 				return err
 			}
 		}
@@ -903,7 +903,7 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	if err != nil {
 		return "", nil, fmt.Errorf("the models' typed fields: %w", err)
 	}
-	calls := newGens(files, goCallAdapters(root))
+	calls := newGens(files, goCallAdapters(nil, root))
 	files = slices.DeleteFunc(files, func(g load.Generated) bool {
 		return !dirs[filepath.Dir(g.Target)] || slices.ContainsFunc(routeFiles, func(r load.Generated) bool { return r.Target == g.Target })
 	})

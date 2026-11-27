@@ -605,7 +605,7 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 		return
 	}
 	dir := filepath.Dir(file)
-	page, tag, full, live := islandPageOf(file)
+	page, tag, full, live := islandPageOf(pa.snap, file)
 	for i := 0; i+1 < len(toks); i++ {
 		switch toks[i].tok {
 		case token.FUNC, token.TYPE, token.VAR, token.CONST:
@@ -618,7 +618,7 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 		if err != nil || !tsprops.IsComponent(p) {
 			continue
 		}
-		abs, src, readErr := tsprops.ReadIslandComponent(pa.root, dir, p, load.ReadSource)
+		abs, src, readErr := tsprops.ReadIslandComponent(pa.root, dir, p, pa.snap.ReadSource)
 		relSrc, _ := filepath.Rel(pa.root, abs)
 		ic := &islandComp{
 			name:      toks[i-1].lit,
@@ -632,7 +632,7 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 			ic.problem, ic.problemCode = readErr.Error(), "E0303"
 		}
 		if readErr == nil {
-			if c, err := tsprops.Read(filepath.ToSlash(abs), src, func(q string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(q)) }); err == nil {
+			if c, err := tsprops.Read(filepath.ToSlash(abs), src, func(q string) ([]byte, error) { return pa.snap.ReadSource(filepath.FromSlash(q)) }); err == nil {
 				for _, pr := range c.Props {
 					ic.props = append(ic.props, islandProp{name: pr.Name, ts: pr.Type.String(), optional: pr.Optional})
 				}
@@ -651,11 +651,11 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 // renders, the tag its markup is, alone, the file's tokens, and whether
 // the page is live (its struct embeds ui.Live; a stateless one declares
 // no hook); "" when it isn't one.
-func islandPageOf(file string) (page, tag string, full []wtok, live bool) {
+func islandPageOf(snap *load.Snapshot, file string) (page, tag string, full []wtok, live bool) {
 	if !strings.HasSuffix(file, ".vuka.html") {
 		return "", "", nil, false
 	}
-	src, err := load.ReadSource(file)
+	src, err := snap.ReadSource(file)
 	if err != nil {
 		return "", "", nil, false
 	}

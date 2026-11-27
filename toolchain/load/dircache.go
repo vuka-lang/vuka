@@ -64,7 +64,7 @@ func WalkDir(root string, fn fs.WalkDirFunc) error {
 	if err != nil {
 		err = fn(root, nil, err)
 	} else {
-		err = walkDir(root, fs.FileInfoToDirEntry(info), fn)
+		err = walkDirIn(nil, root, fs.FileInfoToDirEntry(info), fn)
 	}
 	if err == filepath.SkipDir || err == filepath.SkipAll {
 		return nil
@@ -72,14 +72,14 @@ func WalkDir(root string, fn fs.WalkDirFunc) error {
 	return err
 }
 
-func walkDir(path string, d fs.DirEntry, fn fs.WalkDirFunc) error {
+func walkDirIn(s *Snapshot, path string, d fs.DirEntry, fn fs.WalkDirFunc) error {
 	if err := fn(path, d, nil); err != nil || !d.IsDir() {
 		if err == filepath.SkipDir && d.IsDir() {
 			err = nil
 		}
 		return err
 	}
-	entries, err := ReadDir(path)
+	entries, err := s.ReadDir(path)
 	if err != nil {
 		if err = fn(path, d, err); err != nil {
 			if err == filepath.SkipDir && d.IsDir() {
@@ -89,7 +89,7 @@ func walkDir(path string, d fs.DirEntry, fn fs.WalkDirFunc) error {
 		}
 	}
 	for _, e := range entries {
-		if err := walkDir(filepath.Join(path, e.Name()), e, fn); err != nil {
+		if err := walkDirIn(s, filepath.Join(path, e.Name()), e, fn); err != nil {
 			if err == filepath.SkipDir {
 				break
 			}
@@ -101,18 +101,7 @@ func walkDir(path string, d fs.DirEntry, fn fs.WalkDirFunc) error {
 
 // hasGoMod reports whether dir holds a go.mod: the root of a nested module,
 // which a walk of the module leaves alone.
-func hasGoMod(dir string) bool {
-	entries, err := ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if e.Name() == "go.mod" {
-			return !e.IsDir()
-		}
-	}
-	return false
-}
+func hasGoMod(dir string) bool { return (*Snapshot)(nil).HasGoMod(dir) }
 
 // HasGoMod is hasGoMod for the vuka command.
 func HasGoMod(dir string) bool { return hasGoMod(dir) }

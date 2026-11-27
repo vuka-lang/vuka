@@ -344,7 +344,7 @@ func (p *proxy) build() {
 		}
 		// The rest of the build's Go, from the build's own code (the
 		// editor shows test files: the models of tests get typed fields).
-		if _, g, _, err := moduleOverlay(modRoot, modPath, p.tmp, overlay, pkgs, gens, true, logWriter{p}); err != nil {
+		if _, g, _, err := moduleOverlay(nil, modRoot, modPath, p.tmp, overlay, pkgs, gens, true, logWriter{p}); err != nil {
 			p.logf("module overlay: %v", err)
 		} else {
 			g = withoutGoSources(g)

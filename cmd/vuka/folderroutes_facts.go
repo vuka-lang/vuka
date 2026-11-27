@@ -430,7 +430,7 @@ func (s *factsSource) types(f *pkgFacts, names []string) {
 		}
 		island := false
 		if file := d.fileOf[name]; file != "" {
-			p, _, _, _ := islandPageOf(filepath.Join(d.dir, file))
+			p, _, _, _ := islandPageOf(nil, filepath.Join(d.dir, file))
 			island = p == name
 		}
 		tf.Page = tf.Live || s.isNode(named) || island

@@ -49,7 +49,7 @@ func main() {}
 		"pages/[code]/forms.go":        "package code\n\nimport \"github.com/vuka-lang/vuka/v2\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
 		"pages/[code]/index.vuka.html": "<main></main>\n",
 	})
-	gens := goCallAdapters(root)
+	gens := goCallAdapters(nil, root)
 	if len(gens) != 1 || gens[0].Target != filepath.Join(root, "vuka_calls_gen.go") {
 		t.Fatalf("generated %v, want the root package's vuka_calls_gen.go", gens)
 	}

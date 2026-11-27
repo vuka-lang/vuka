@@ -210,14 +210,14 @@ var (
 // declaredRoutes are the routes the module's own sources declare, outside
 // the generated files: those of its Go and Vuka files that import web. The
 // types whose constructors they register go in registered.
-func declaredRoutes(root string, registered map[string]bool) []declaredRoute {
+func declaredRoutes(snap *load.Snapshot, root string, registered map[string]bool) []declaredRoute {
 	var out []declaredRoute
-	walkSources(root, func(path, name string) error {
+	walkSourcesIn(snap, root, func(path, name string) error {
 		if !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") ||
 			strings.HasSuffix(name, "_gen.go") || strings.HasSuffix(name, "_vuka.go") || strings.HasSuffix(name, "_html.go") || strings.HasSuffix(name, "_templ.go") {
 			return nil
 		}
-		src, err := load.ReadSource(path)
+		src, err := snap.ReadSource(path)
 		if err != nil || !bytes.Contains(src, []byte(`"`+webPath+`"`)) || bytes.HasPrefix(src, []byte(routesHeading)) {
 			return nil // pages/route.go is the folder routes'
 		}

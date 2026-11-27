@@ -36,7 +36,7 @@ func Contexts(root, modPath string, pkgs []*Package, read ReadFunc) map[string][
 	if read == nil {
 		read = ReadSource
 	}
-	return contexts(scanModule(realPath(root), modPath, read), pkgs, read)
+	return contexts(scanModule(nil, realPath(root), modPath, read), pkgs, read)
 }
 
 // contexts is Contexts for the module's packages mod, which it adds pkgs
@@ -138,9 +138,9 @@ func sortedPkgs(mod map[string]*modPkg) []*modPkg {
 
 // scanModule is every package of the module at root, by import path: the
 // names and imports of their files, Go, Vuka and template.
-func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
+func scanModule(snap *Snapshot, root, modPath string, read ReadFunc) map[string]*modPkg {
 	mod := map[string]*modPkg{}
-	WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+	snap.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return nil
 		}
@@ -149,11 +149,11 @@ func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
 			if strings.HasPrefix(n, ".") || strings.HasPrefix(n, "_") && !inPages(root, path) || n == "testdata" || n == "vendor" || n == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
-			if hasGoMod(path) {
+			if snap.HasGoMod(path) {
 				return filepath.SkipDir
 			}
 		}
-		entries, err := ReadDir(path)
+		entries, err := snap.ReadDir(path)
 		if err != nil {
 			return nil
 		}

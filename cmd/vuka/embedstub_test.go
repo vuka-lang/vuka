@@ -47,7 +47,7 @@ func main() {
 	} {
 		writeFile(t, filepath.Join(root, filepath.FromSlash(p)), c)
 	}
-	got := frontendEmbeds(root)
+	got := frontendEmbeds(nil, root)
 	var rel []string
 	for _, f := range got {
 		r, _ := filepath.Rel(root, f)

@@ -185,7 +185,7 @@ func (c *reuseCache) lookup(s *supervisor) (*keptBuild, string) {
 		rk := strings.Join(e.Roots, "\x00")
 		k, ok := keys[rk]
 		if !ok {
-			k, _, _ = c.key(s, e.Roots)
+			k, _, _ = c.key(s, nil, e.Roots)
 			keys[rk] = k
 		}
 		if k != "" && k == e.Key {
@@ -221,7 +221,7 @@ func (c *reuseCache) store(s *supervisor, r *buildResult) {
 	if roots == nil {
 		return // go list failed: what the binary embeds is unknown
 	}
-	key, newest, err := c.key(s, roots)
+	key, newest, err := c.key(s, nil, roots)
 	if err != nil {
 		return
 	}
@@ -319,8 +319,8 @@ var goBuildExt = map[string]bool{
 // time of the files it hashed. It reads what the transpiled overlay is
 // made from, so a start computes it without transpiling. "" when a file
 // can't be read.
-func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time.Time, err error) {
-	key, newest, _, err = c.keyOf(s, roots, "")
+func (c *reuseCache) key(s *supervisor, snap *load.Snapshot, roots []string) (key string, newest time.Time, err error) {
+	key, newest, _, err = c.keyOf(s, snap, roots, "")
 	return key, newest, err
 }
 
@@ -357,18 +357,19 @@ func newKeyHasher() *reuseCache {
 // watch build's app reads from a file (devstatic.Load), leaves it as it
 // was; newestEmbed is the latest modification time of the embedded files.
 // "" when a file can't be read.
-func (c *reuseCache) goKey(s *supervisor, roots []string, overlay string) (key string, newestEmbed time.Time, err error) {
+func (c *reuseCache) goKey(s *supervisor, snap *load.Snapshot, roots []string, overlay string) (key string, newestEmbed time.Time, err error) {
 	ov := overlayHash(overlay)
 	if overlay == "" || ov == "" {
 		return "", newestEmbed, errors.New("no overlay")
 	}
-	key, _, newestEmbed, err = c.keyOf(s, roots, ov)
+	key, _, newestEmbed, err = c.keyOf(s, snap, roots, ov)
 	return key, newestEmbed, err
 }
 
 // keyOf is key, or goKey with ov, the overlay's hash; newestEmbed is the
-// latest modification time of the embedded files.
-func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string, newest, newestEmbed time.Time, err error) {
+// latest modification time of the embedded files. The files are listed and
+// statted through snap.
+func (c *reuseCache) keyOf(s *supervisor, snap *load.Snapshot, roots []string, ov string) (key string, newest, newestEmbed time.Time, err error) {
 	h := sha256.New()
 	if ov != "" {
 		fmt.Fprintf(h, "go build of overlay %s\n", ov)
@@ -406,7 +407,7 @@ func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string
 	// The embedded files the build stubs: only their names count.
 	stubbed := map[string]bool{}
 	if s.stub {
-		for _, f := range frontendEmbeds(s.root) {
+		for _, f := range frontendEmbeds(snap, s.root) {
 			stubbed[filepath.Clean(f)] = true
 		}
 	}
@@ -442,12 +443,12 @@ func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string
 				return hashFile(kind, path, fi)
 			}
 		}
-		if err := c.hashTree(tree, hash); err != nil {
+		if err := c.hashTree(snap, tree, hash); err != nil {
 			return "", newest, newestEmbed, err
 		}
 	}
 	for _, f := range files {
-		fi, err := os.Stat(f)
+		fi, err := snap.Stat(f)
 		if err != nil {
 			fmt.Fprintf(h, "file %q none\n", c.rel(s.root, f))
 			continue
@@ -458,7 +459,7 @@ func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string
 	}
 	// The embedded files.
 	for _, root := range roots {
-		fi, err := os.Stat(root)
+		fi, err := snap.Stat(root)
 		if err != nil {
 			fmt.Fprintf(h, "embed %q none\n", c.rel(s.root, root))
 			continue
@@ -469,12 +470,12 @@ func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string
 			}
 			continue
 		}
-		err = load.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		err = snap.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if d.IsDir() {
-				if path != root && load.HasGoMod(path) {
+				if path != root && snap.HasGoMod(path) {
 					return filepath.SkipDir // another module's, which no pattern reaches
 				}
 				fmt.Fprintf(h, "embeddir %q\n", c.rel(s.root, path))
@@ -504,8 +505,8 @@ func (c *reuseCache) rel(root, path string) string {
 // vendor/modules.txt, and each file of a type go build or vuka reads but
 // tests, in its directories but hidden ones, node_modules, testdata,
 // build/ and nested modules'.
-func (c *reuseCache) hashTree(tree string, hashFile func(kind, path string, fi fs.FileInfo) error) error {
-	return load.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
+func (c *reuseCache) hashTree(snap *load.Snapshot, tree string, hashFile func(kind, path string, fi fs.FileInfo) error) error {
+	return snap.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if path == tree {
 				return nil // gone: the overlay or go says so
@@ -515,7 +516,7 @@ func (c *reuseCache) hashTree(tree string, hashFile func(kind, path string, fi f
 		name := d.Name()
 		if d.IsDir() {
 			if path != tree && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "testdata" ||
-				path == filepath.Join(tree, "build") || load.HasGoMod(path)) {
+				path == filepath.Join(tree, "build") || snap.HasGoMod(path)) {
 				return filepath.SkipDir
 			}
 			return nil

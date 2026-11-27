@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -22,10 +21,10 @@ import (
 // gets its file from the compiler — writing one here would resurrect a
 // folder the compiler relocates (a route folder like [code]) as a Go
 // package, whose bracketed import path breaks ./... patterns.
-func goCallAdapters(root string) []load.Generated {
+func goCallAdapters(snap *load.Snapshot, root string) []load.Generated {
 	dirs := map[string][]string{}
 	vuka := map[string]bool{}
-	walkSources(root, func(p, name string) error {
+	walkSourcesIn(snap, root, func(p, name string) error {
 		dir := filepath.Dir(p)
 		switch {
 		case strings.HasSuffix(name, ".vuka"), strings.HasSuffix(name, ".vuka.html"):
@@ -48,7 +47,7 @@ func goCallAdapters(root string) []load.Generated {
 		}
 		files := dirs[dir]
 		slices.Sort(files)
-		if src := wrapAdapters(files); src != nil {
+		if src := wrapAdapters(snap, files); src != nil {
 			out = append(out, load.Generated{Target: filepath.Join(dir, transpile.CallsGoName), Source: files[0], Src: src})
 		}
 	}
@@ -70,13 +69,13 @@ func newGens(gens, more []load.Generated) []load.Generated {
 // — a function literal, a function or method of the package, or the type
 // argument it is given — and writes their adapters, with the package's
 // method tables.
-func wrapAdapters(files []string) []byte {
+func wrapAdapters(snap *load.Snapshot, files []string) []byte {
 	var parsed []goSrc
 	var srcs [][]byte
 	usesVuka := false
 	pkg := ""
 	for _, p := range files {
-		src, err := os.ReadFile(p)
+		src, err := snap.ReadFile(p)
 		if err != nil {
 			continue
 		}

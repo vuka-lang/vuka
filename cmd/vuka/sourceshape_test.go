@@ -117,7 +117,7 @@ func TestSourceShapesModule(t *testing.T) {
 	if s.module(root, "", false, nil) == replaced {
 		t.Error("an edit in the dependency left the shape")
 	}
-	if pinned := s.pin(root); pinned == "" || s.module(root, "", false, nil) == replaced {
+	if pinned := s.pin(root, nil); pinned == "" || s.module(root, "", false, nil) == replaced {
 		t.Error("pinned:", pinned)
 	}
 	if got := (*sourceShapes)(nil).module(root, "", false, nil); got != "" {
