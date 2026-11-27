@@ -68,7 +68,7 @@ func findStaticMounts(root string) []staticMount {
 		for _, c := range staticCalls(src) {
 			m := staticMount{prefix: c.prefix, at: p}
 			if c.embed != "" {
-				if pats := embedPatterns(filepath.Dir(p), c.embed); pats != nil {
+				if pats := embedPatterns(nil, filepath.Dir(p), c.embed); pats != nil {
 					m.dir = filepath.Join(filepath.Dir(p), filepath.FromSlash(c.sub))
 					m.files = embeddedFiles(filepath.Dir(p), pats, c.sub)
 				}

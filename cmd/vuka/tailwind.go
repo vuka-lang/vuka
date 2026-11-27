@@ -113,7 +113,12 @@ func tailwindFor(root string) (*tailwind, error) {
 // does, leaving out testdata, examples and _ directories too, but for a
 // private folder below pages/ (_parts), whose files are sources.
 func walkSources(root string, fn func(path, name string) error) error {
-	return load.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	return walkSourcesIn(nil, root, fn)
+}
+
+// walkSourcesIn is walkSources reading through snap.
+func walkSourcesIn(snap *load.Snapshot, root string, fn func(path, name string) error) error {
+	return snap.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -123,8 +128,8 @@ func walkSources(root string, fn func(path, name string) error) error {
 				return nil
 			}
 			if strings.HasPrefix(name, ".") || privateSkipped(root, path, name) || name == "node_modules" || name == "testdata" ||
-				name == "examples" || name == "vendor" || fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)) ||
-				fileExists(filepath.Join(path, "package.json")) { // a frontend's: its .html files aren't views
+				name == "examples" || name == "vendor" || snap.Exists(filepath.Join(path, "go.mod")) || snap.Exists(filepath.Join(path, load.Marker)) ||
+				snap.Exists(filepath.Join(path, "package.json")) { // a frontend's: its .html files aren't views
 				return filepath.SkipDir
 			}
 			return nil

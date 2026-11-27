@@ -509,7 +509,7 @@ func tidyTranspile(root, modPath string, pkgs []*load.Package, tmp string) ([]lo
 	} else {
 		gens, overlay = g, o
 	}
-	o, g, _, err := moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, true, io.Discard)
+	o, g, _, err := moduleOverlay(nil, root, modPath, tmp, overlay, pkgs, gens, true, io.Discard)
 	if err != nil {
 		return gens, overlay, errors.Join(terr, err)
 	}

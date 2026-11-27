@@ -24,26 +24,26 @@ import (
 // -embed, builds them in.
 
 // frontendEmbeds are the files of the module at root that a web.Frontend
-// call serves from an embedded tree.
-func frontendEmbeds(root string) []string {
+// call serves from an embedded tree, read through snap.
+func frontendEmbeds(snap *load.Snapshot, root string) []string {
 	var files []string
 	seen := map[string]bool{}
-	walkSources(root, func(p, name string) error {
+	walkSourcesIn(snap, root, func(p, name string) error {
 		ext := filepath.Ext(name)
 		if ext != ".go" && ext != ".vuka" || strings.HasSuffix(name, "_test"+ext) {
 			return nil
 		}
-		src, err := os.ReadFile(p)
+		src, err := snap.ReadFile(p)
 		if err != nil || !strings.Contains(string(src), `"`+webPath+`"`) {
 			return nil
 		}
 		for _, f := range frontendCalls(src) {
-			patterns := embedPatterns(filepath.Dir(p), f.fsVar)
+			patterns := embedPatterns(snap, filepath.Dir(p), f.fsVar)
 			if !covered(patterns, f.root) {
 				continue
 			}
 			dir := filepath.Join(filepath.Dir(p), filepath.FromSlash(f.root))
-			load.WalkDir(dir, func(q string, d fs.DirEntry, err error) error {
+			snap.WalkDir(dir, func(q string, d fs.DirEntry, err error) error {
 				if err == nil && d.Type().IsRegular() && !seen[q] {
 					seen[q] = true
 					files = append(files, q)
@@ -91,15 +91,15 @@ func frontendCalls(src []byte) []frontendCall {
 
 // embedPatterns are the //go:embed patterns of the embed.FS variable name
 // declared in the package in dir.
-func embedPatterns(dir, name string) []string {
+func embedPatterns(snap *load.Snapshot, dir, name string) []string {
 	re := regexp.MustCompile(`(?m)((?:^[ \t]*//go:embed[^\n]*\n(?:[ \t]*//[^\n]*\n)*)+)[ \t]*var[ \t]+` + regexp.QuoteMeta(name) + `[ \t]+embed\.FS`)
-	entries, _ := load.ReadDir(dir)
+	entries, _ := snap.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka")) || strings.HasSuffix(n, "_vuka.go") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, n))
+		src, err := snap.ReadFile(filepath.Join(dir, n))
 		if err != nil {
 			continue
 		}

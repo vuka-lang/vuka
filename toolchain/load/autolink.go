@@ -40,6 +40,10 @@ type LinkedMain struct {
 // file only when one is already on disk (gen -inplace wrote it earlier), so
 // the stale one never breaks the build.
 func AutoLink(root, modPath string, pkgs []*Package, gens []Generated) ([]Generated, []LinkedMain, error) {
+	return autoLink(nil, root, modPath, pkgs, gens)
+}
+
+func autoLink(snap *Snapshot, root, modPath string, pkgs []*Package, gens []Generated) ([]Generated, []LinkedMain, error) {
 	root = realPath(root)
 	declares := map[string]bool{}
 	for _, g := range gens {
@@ -62,7 +66,7 @@ func AutoLink(root, modPath string, pkgs []*Package, gens []Generated) ([]Genera
 	slices.SortFunc(declarers, func(a, b declarer) int { return strings.Compare(a.path, b.path) })
 	declarers = slices.CompactFunc(declarers, func(a, b declarer) bool { return a.path == b.path })
 
-	mains, err := mainPackages(root)
+	mains, err := mainPackages(snap, root)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,7 +94,7 @@ func AutoLink(root, modPath string, pkgs []*Package, gens []Generated) ([]Genera
 			}
 			imports = append(imports, d.path)
 		}
-		if len(imports) == 0 && !fileExists(filepath.Join(m.dir, LinkGoName)) {
+		if len(imports) == 0 && !snap.Exists(filepath.Join(m.dir, LinkGoName)) {
 			continue
 		}
 		out = append(out, Generated{Target: filepath.Join(m.dir, LinkGoName), Src: linkSrc(imports)})
@@ -154,9 +158,9 @@ type mainPkg struct {
 // hidden and _-prefixed directories, testdata, vendor, node_modules, nested
 // modules and gen's build output left out — whose Go or Vuka source (tests
 // and LinkGoName aside) says package main.
-func mainPackages(root string) ([]mainPkg, error) {
+func mainPackages(snap *Snapshot, root string) ([]mainPkg, error) {
 	var out []mainPkg
-	err := WalkDir(root, func(path string, e os.DirEntry, err error) error {
+	err := snap.WalkDir(root, func(path string, e os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -167,11 +171,11 @@ func mainPackages(root string) ([]mainPkg, error) {
 		if path != root {
 			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
 				name == "testdata" || name == "vendor" || name == "node_modules" ||
-				hasGoMod(path) || fileExists(filepath.Join(path, Marker)) {
+				snap.HasGoMod(path) || snap.Exists(filepath.Join(path, Marker)) {
 				return filepath.SkipDir
 			}
 		}
-		if m, ok := mainIn(path); ok {
+		if m, ok := mainIn(snap, path); ok {
 			out = append(out, m)
 		}
 		return nil
@@ -181,8 +185,8 @@ func mainPackages(root string) ([]mainPkg, error) {
 
 // mainIn reports whether dir holds a main package, and whether any of its
 // files opts out with //vuka:nolink.
-func mainIn(dir string) (mainPkg, bool) {
-	entries, err := ReadDir(dir)
+func mainIn(snap *Snapshot, dir string) (mainPkg, bool) {
+	entries, err := snap.ReadDir(dir)
 	if err != nil {
 		return mainPkg{}, false
 	}
@@ -194,7 +198,7 @@ func mainIn(dir string) (mainPkg, bool) {
 			strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_test.vuka") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, name))
+		src, err := snap.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			continue
 		}

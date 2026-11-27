@@ -239,16 +239,22 @@ var (
 // below it; none when it has neither. read reads a source (the editor's
 // buffer, for the language server); nil reads the disk.
 func scanRoutes(root, modPath string, read load.ReadFunc) routeTrees {
+	return scanRoutesIn(nil, root, modPath, read)
+}
+
+// scanRoutesIn is scanRoutes listing the module's directories, and reading
+// its sources when read is nil, through snap.
+func scanRoutesIn(snap *load.Snapshot, root, modPath string, read load.ReadFunc) routeTrees {
 	if read == nil {
-		read = os.ReadFile
+		read = snap.ReadFile
 	}
 	root = realPathOf(root)
 	var ts routeTrees
-	if t := scanRouteTree(root, modPath, "", read); t != nil {
+	if t := scanRouteTree(snap, root, modPath, "", read); t != nil {
 		ts = append(ts, t)
 	}
-	for _, dir := range mainDirs(root, read) {
-		if t := scanRouteTree(root, modPath, dir, read); t != nil {
+	for _, dir := range mainDirs(snap, root, read) {
+		if t := scanRouteTree(snap, root, modPath, dir, read); t != nil {
 			ts = append(ts, t)
 		}
 	}
@@ -260,20 +266,20 @@ func scanRoutes(root, modPath string, read load.ReadFunc) routeTrees {
 
 // mainDirs are the directories below root holding a package main beside a
 // pages/ directory, root itself not included.
-func mainDirs(root string, read load.ReadFunc) []string {
+func mainDirs(snap *load.Snapshot, root string, read load.ReadFunc) []string {
 	var out []string
-	load.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+	snap.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() || path == root {
 			return nil
 		}
 		if n := e.Name(); strings.HasPrefix(n, ".") || strings.HasPrefix(n, "_") || n == "testdata" || n == "vendor" || n == "node_modules" ||
-			n == pagesDirName || fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)) || load.IsGoName(path) {
+			n == pagesDirName || snap.Exists(filepath.Join(path, "go.mod")) || snap.Exists(filepath.Join(path, load.Marker)) || load.IsGoName(path) {
 			return filepath.SkipDir
 		}
-		if fi, err := os.Stat(filepath.Join(path, pagesDirName)); err != nil || !fi.IsDir() {
+		if !snap.IsDir(filepath.Join(path, pagesDirName)) {
 			return nil
 		}
-		entries, _ := load.ReadDir(path)
+		entries, _ := snap.ReadDir(path)
 		for _, f := range entries {
 			n := f.Name()
 			if f.IsDir() || strings.Contains(n, "_test.") || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka")) {
@@ -293,19 +299,19 @@ var mainPkg = regexp.MustCompile(`(?m)^package main\b`)
 
 // scanRouteTree is the page packages of the pages/ directory beside main,
 // the module's for "": nil when there is none.
-func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
+func scanRouteTree(snap *load.Snapshot, root, modPath, main string, read load.ReadFunc) *routeTree {
 	dir := root
 	if main != "" {
 		dir = main
 	}
 	base := filepath.Join(dir, pagesDirName)
-	if fi, err := os.Stat(base); err != nil || !fi.IsDir() {
+	if !snap.IsDir(base) {
 		return nil
 	}
 	rel, _ := filepath.Rel(root, base)
 	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}, attrs: &urlAttrMemo{root: root}}
-	t.declared = declaredRoutes(dir, t.registered)
-	load.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
+	t.declared = declaredRoutes(snap, dir, t.registered)
+	snap.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return nil
 		}
@@ -316,10 +322,10 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 			return filepath.SkipDir // no routes; its Vuka source is a package all the same
 		}
 		if n := e.Name(); path != base && (strings.HasPrefix(n, ".") || n == "testdata" || n == "vendor" ||
-			n == "node_modules" || fileExists(filepath.Join(path, "go.mod")) || path == t.urlsDir() || load.IsGoName(path)) {
+			n == "node_modules" || snap.Exists(filepath.Join(path, "go.mod")) || path == t.urlsDir() || load.IsGoName(path)) {
 			return filepath.SkipDir
 		}
-		if d := readRouteDir(t, path, read); d != nil {
+		if d := readRouteDir(snap, t, path, read); d != nil {
 			t.dirs = append(t.dirs, d)
 		}
 		return nil
@@ -331,9 +337,9 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 // urlsDir is the directory of the generated package urls.
 func (t *routeTree) urlsDir() string { return filepath.Join(t.pages, urlsDirName) }
 
-func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
+func readRouteDir(snap *load.Snapshot, t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	root, registered := t.root, t.registered
-	entries, err := load.ReadDir(dir)
+	entries, err := snap.ReadDir(dir)
 	if err != nil {
 		return nil
 	}

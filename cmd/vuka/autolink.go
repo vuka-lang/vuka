@@ -14,8 +14,8 @@ import (
 // hand-written import is needed for a declarer package to be compiled in. It
 // returns the overlay (made when there was none), gens with the link files
 // appended, and a one-line message naming what is linked ("" when nothing is).
-func autoLink(root, modPath, tmp, overlay string, pkgs []*load.Package, gens []load.Generated) (string, []load.Generated, string, error) {
-	links, linked, err := load.AutoLink(root, modPath, pkgs, gens)
+func autoLink(snap *load.Snapshot, root, modPath, tmp, overlay string, pkgs []*load.Package, gens []load.Generated) (string, []load.Generated, string, error) {
+	links, linked, err := snap.AutoLink(root, modPath, pkgs, gens)
 	if err != nil || len(links) == 0 {
 		return overlay, gens, "", err
 	}

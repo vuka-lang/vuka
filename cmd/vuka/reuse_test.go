@@ -86,7 +86,7 @@ func TestReuseKey(t *testing.T) {
 	roots := []string{filepath.Join(root, "static"), filepath.Join(root, "dist")}
 	key := func() string {
 		t.Helper()
-		k, _, err := c.key(s, roots)
+		k, _, err := c.key(s, nil, roots)
 		if err != nil || k == "" {
 			t.Fatalf("key: %q %v", k, err)
 		}

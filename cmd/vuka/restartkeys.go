@@ -10,8 +10,8 @@ import (
 // restartKeys puts the registration of the module's restart-only keys into
 // each main package through the overlay, so web.NeedsRestart knows them
 // (load.RestartKeys). Nothing is added to a module that reads no key.
-func restartKeys(root, modPath, tmp, overlay string, pkgs []*load.Package, gens []load.Generated) (string, []load.Generated, error) {
-	files, _, err := load.RestartKeys(root, modPath, pkgs, gens)
+func restartKeys(snap *load.Snapshot, root, modPath, tmp, overlay string, pkgs []*load.Package, gens []load.Generated) (string, []load.Generated, error) {
+	files, _, err := snap.RestartKeys(root, modPath, pkgs, gens)
 	if err != nil || len(files) == 0 {
 		return overlay, gens, err
 	}

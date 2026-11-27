@@ -268,6 +268,10 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	if read == nil {
 		read = ReadSource
 	}
+	return discover(nil, root, modPath, dir, recursive, read)
+}
+
+func discover(snap *Snapshot, root, modPath, dir string, recursive bool, read ReadFunc) ([]*Package, error) {
 	// The go command matches overlay paths against real paths, so a module
 	// reached through a symlink (macOS's /var is /private/var) is resolved.
 	root, dir = realPath(root), realPath(dir)
@@ -281,14 +285,14 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 			return nil
 		}
 		seen[d] = true
-		found, err := readDir(root, modPath, d, read, templ, live)
+		found, err := readDir(snap, root, modPath, d, read, templ, live)
 		pkgs = append(pkgs, found...)
 		if err != nil || recursive {
 			return err
 		}
 		for _, p := range found {
 			for _, e := range p.Embeds {
-				if !hasGoMod(e) {
+				if !snap.HasGoMod(e) {
 					if err := visit(e); err != nil {
 						return err
 					}
@@ -300,7 +304,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	if !recursive {
 		return pkgs, visit(dir)
 	}
-	err := WalkDir(dir, func(path string, e os.DirEntry, err error) error {
+	err := snap.WalkDir(dir, func(path string, e os.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return err
 		}
@@ -309,7 +313,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") && !inPages(root, path) || name == "testdata" || name == "vendor" || name == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
-			if hasGoMod(path) {
+			if snap.HasGoMod(path) {
 				return filepath.SkipDir
 			}
 		}
@@ -318,8 +322,8 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	return pkgs, err
 }
 
-func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Package, error) {
-	entries, err := ReadDir(dir)
+func readDir(snap *Snapshot, root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Package, error) {
+	entries, err := snap.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -752,6 +756,9 @@ type Options struct {
 	// when its output has none. Got is given each package's, kept or new.
 	Facts func(p *Package, check func(skip ...string) *Typed) []byte
 	Got   func(p *Package, facts []byte)
+	// Snapshot, when set, is the build's view of the module: the run lists
+	// its directories and reads its sources through it. Nil reads the disk.
+	Snapshot *Snapshot
 }
 
 // RouteGoName is the file of a page package registering its folder
@@ -812,9 +819,9 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 				return nil, "", err
 			}
 			moduleRoot = root
-			mod, modPath = scanModule(realPath(root), mp, ReadSource), mp
+			mod, modPath = scanModule(opts.Snapshot, realPath(root), mp, opts.Snapshot.ReadSource), mp
 			if opts.Contexts == nil {
-				opts.Contexts = contexts(mod, pkgs, ReadSource)
+				opts.Contexts = contexts(mod, pkgs, opts.Snapshot.ReadSource)
 			}
 		}
 	}

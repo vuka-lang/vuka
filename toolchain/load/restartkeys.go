@@ -51,6 +51,10 @@ type RestartReport struct {
 // and nested modules left out) and the Go the compiler generated for its
 // Vuka files (gens).
 func RestartKeys(root, modPath string, pkgs []*Package, gens []Generated) ([]Generated, RestartReport, error) {
+	return restartKeys(nil, root, modPath, pkgs, gens)
+}
+
+func restartKeys(snap *Snapshot, root, modPath string, pkgs []*Package, gens []Generated) ([]Generated, RestartReport, error) {
 	root = realPath(root)
 	byDir := map[string]string{}
 	for _, p := range pkgs {
@@ -74,14 +78,14 @@ func RestartKeys(root, modPath string, pkgs []*Package, gens []Generated) ([]Gen
 			srcs = append(srcs, restartSrc{importPath(filepath.Dir(g.Target)), g.Target, g.Src})
 		}
 	}
-	err := WalkDir(root, func(path string, e os.DirEntry, err error) error {
+	err := snap.WalkDir(root, func(path string, e os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if e.IsDir() {
 			if name := e.Name(); path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
 				name == "testdata" || name == "vendor" || name == "node_modules" ||
-				hasGoMod(path) || fileExists(filepath.Join(path, Marker))) {
+				snap.HasGoMod(path) || snap.Exists(filepath.Join(path, Marker))) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -89,7 +93,7 @@ func RestartKeys(root, modPath string, pkgs []*Package, gens []Generated) ([]Gen
 		if !strings.HasSuffix(path, ".go") || isTestFile(path) || byTarget[path] || filepath.Base(path) == RestartGoName {
 			return nil
 		}
-		if src, err := os.ReadFile(path); err == nil {
+		if src, err := snap.ReadFile(path); err == nil {
 			srcs = append(srcs, restartSrc{importPath(filepath.Dir(path)), path, src})
 		}
 		return nil
@@ -102,7 +106,7 @@ func RestartKeys(root, modPath string, pkgs []*Package, gens []Generated) ([]Gen
 	if len(keys) > 0 && !webRegistersRestart(root, rep.Web) {
 		keys = nil
 	}
-	mains, err := mainPackages(root)
+	mains, err := mainPackages(snap, root)
 	if err != nil {
 		return nil, rep, err
 	}
@@ -112,7 +116,7 @@ func RestartKeys(root, modPath string, pkgs []*Package, gens []Generated) ([]Gen
 			continue
 		}
 		target := filepath.Join(m.dir, RestartGoName)
-		if len(keys) == 0 && !fileExists(target) {
+		if len(keys) == 0 && !snap.Exists(target) {
 			continue
 		}
 		out = append(out, Generated{Target: target, Src: restartSrcFile(RestartReport{Keys: keys, Web: rep.Web})})

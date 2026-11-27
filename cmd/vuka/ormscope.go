@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -254,12 +253,13 @@ func (s *sourceShapes) ormModuleState(root, overlay string) *ormState {
 	if !ok {
 		return nil
 	}
+	snap := s.snap(root)
 	st := &ormState{Global: head, Dirs: map[string]*ormDirState{}}
 	full := sha256.New()
 	full.Write([]byte(head))
 	dirHash := map[string][]byte{}
 	for _, p := range paths {
-		src, err := os.ReadFile(files[p])
+		src, err := snap.ReadFile(files[p])
 		if err != nil {
 			return nil
 		}

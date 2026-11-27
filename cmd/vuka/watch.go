@@ -471,12 +471,13 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	if r.err = os.MkdirAll(dir, 0o755); r.err != nil {
 		return r
 	}
+	snap := load.NewSnapshot() // the module as this build reads it, each file once
 	if s.reuse != nil {
 		// Before the build reads the sources: store hashes them again after.
 		if r.keyRoots = s.w.embedRoots(); r.keyRoots == nil {
 			r.keyRoots = s.reuse.lastRoots()
 		}
-		r.key, _, _ = s.reuse.key(s, r.keyRoots)
+		r.key, _, _ = s.reuse.key(s, snap, r.keyRoots)
 	}
 	if dir := os.Getenv(profileEnv); dir != "" {
 		// Where a rebuild's time before go build goes, to look at with go tool pprof.
@@ -498,23 +499,24 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
-	if local := shapes.pin(s.root); s.sess != nil {
+	if local := shapes.pin(s.root, snap); s.sess != nil {
 		s.sess.LocalSources = local
 	}
+	defer shapes.unpin(s.root)
 	stepDone("local modules")
-	pkgs, err := load.Discover(s.root, modPath, s.root, true, nil)
+	pkgs, err := snap.Discover(s.root, modPath, s.root, true)
 	if err != nil {
 		r.err = err
 		return r
 	}
-	if r.pa, err = findAssets(s.root, modPath); err != nil {
+	if r.pa, err = findAssetsIn(snap, s.root, modPath); err != nil {
 		r.err = err
 		return r
 	}
 	stepDone("discover")
 	var gens []load.Generated
 	t0 := time.Now()
-	routes := scanRoutes(s.root, modPath, nil)
+	routes := scanRoutesIn(snap, s.root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		r.err = err
 		return r
@@ -528,6 +530,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		}
 		opts := routes.options(loadOptions(r.pa))
 		opts.Files = filepath.Join(s.tmp, "gen") // kept across builds: an unchanged file isn't written again
+		opts.Snapshot = snap
 		if gens, r.overlay, err = transpile(pkgs, dir, opts); err != nil {
 			r.err, r.gens = err, gens // the report checks the packages that transpiled
 			return r
@@ -541,14 +544,16 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
-	if _, err := routes.writeFiles(); err != nil {
+	wrote, err := routes.writeFiles()
+	snap.Forget(wrote...)
+	if err != nil {
 		r.err = err
 		return r
 	}
 	stepDone("apply routes")
 	ph.step("linking the module's packages")
 	var linkMsg string
-	if r.overlay, gens, linkMsg, err = moduleOverlay(s.root, modPath, dir, r.overlay, pkgs, gens, false, s.stderr); err != nil {
+	if r.overlay, gens, linkMsg, err = moduleOverlay(snap, s.root, modPath, dir, r.overlay, pkgs, gens, false, s.stderr); err != nil {
 		r.err = err
 		return r
 	}
@@ -562,7 +567,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		s.linked = linkMsg
 	}
 	if s.stub {
-		if r.overlay, err = stubEmbeds(r.overlay, dir, frontendEmbeds(s.root)); err != nil {
+		if r.overlay, err = stubEmbeds(r.overlay, dir, frontendEmbeds(snap, s.root)); err != nil {
 			r.err = err
 			return r
 		}
@@ -580,7 +585,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	}
 	if s.goKeys != nil && r.statics != "" {
 		r.goKeyRoots = s.w.embedRoots()
-		r.goKey, _, _ = s.goKeys.goKey(s, r.goKeyRoots, r.overlay)
+		r.goKey, _, _ = s.goKeys.goKey(s, snap, r.goKeyRoots, r.overlay)
 		stepDone("go key")
 	}
 	r.err = ctx.Err()
@@ -731,8 +736,8 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		// texts finds it, when what go build read is as it was before it
 		// ran — the sources as the first key says, the embedded files older
 		// than the build.
-		key0, _, err0 := s.goKeys.goKey(s, r.goKeyRoots, r.overlay)
-		key, newestEmbed, err := s.goKeys.goKey(s, r.embeds, r.overlay)
+		key0, _, err0 := s.goKeys.goKey(s, nil, r.goKeyRoots, r.overlay)
+		key, newestEmbed, err := s.goKeys.goKey(s, nil, r.embeds, r.overlay)
 		if err0 == nil && err == nil && key0 == r.goKey && newestEmbed.Before(r.started) {
 			r.goKey, r.goKeyRoots = key, r.embeds
 		} else {
