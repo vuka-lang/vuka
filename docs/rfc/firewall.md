@@ -156,9 +156,12 @@ edit applied to a warm cache, recompiles counted from `go build -x`
 | (a″) body edit adding a line above later decls | **dep, facade, u1..u20, main** | dep, u1..u20, main |
 | (b) unexported func appended | **dep, facade, u1..u20, main** | dep, u1..u20, main |
 | (b′) unexported func above other decls | **dep, facade, u1..u20, main** | dep, u1..u20, main |
-| (b″) unexported func in a new file | dep, facade | dep, u1..u20 |
+| (b″) unexported func in a new file | dep, facade † | dep, u1..u20 † |
 | (b3) unexported var appended | **dep, facade, u1..u20, main** | dep, u1..u20, main |
 | (c) exported func appended | dep, facade, u1..u20 | dep, u1..u20, main |
+
+† a cache-history artifact, corrected in §7.1: rerun on a fresh module
+path, (b″) fans out like (b).
 
 Raw output (facade module):
 
@@ -185,15 +188,15 @@ What it shows:
 
 - §2 holds for what it measured: the cascade stops one level above the
   edited package when that level's output comes out unchanged, and an
-  alias facade does sit on that level for (a), (a′) and (b″).
+  alias facade does sit on that level for (a) and (a′).
 - But the facade's output is unchanged only while dep's **export data** is.
-  The facade's `__.PKGDEF` carries dep's 8-byte fingerprint (compared
-  before/after (b): the build id and those 8 trailing bytes differ, plus a
-  2-byte length), so any change to dep's export data changes the facade's,
-  and its importers recompile. A facade can hide dep's object code, never
-  its export data.
+  Any change there changes the facade's own archive (§7.1: three different
+  unexported additions give the facade one and the same new content id, so
+  what it carries is dep's declaration layout, not a hash of its API), and
+  its importers recompile. A facade can hide dep's object code, never its
+  export data.
 - dep's export data changes on far more than API: an unexported func or
-  var added to an existing file, and declaration positions — so a body
+  var added anywhere, and declaration positions — so a body
   edit that adds or removes a line moves every later declaration and fans
   out (a″). Through the watch's `//line` directives that is the position in
   the `.vuka` source, so most real saves (adding a line to a component or
@@ -206,3 +209,52 @@ What it shows:
 The remaining win — an alias facade over a package, unsharded, firewalls
 same-line body edits — is too narrow to carry the design; the measured
 19–25s saves are dominated by edits that change export data.
+
+### 7.1 Position pinning (v2) — also negative
+
+Hypothesis: the (a″)/(b) fan-outs come from source positions in export
+data, and the transpiler controls positions through `//line`, so pinned
+positions could keep export data stable. Same module and flags, facade in
+place; **each case on a fresh module path** (the export data records
+absolute paths, so no case can hit a cache entry another case left — the
+§7 (b″) result was such a hit). Layouts of dep:
+
+- plain — one file, no directives (the control)
+- pinned — one file, `//line dep.go:1000`, `:2000`, … before each decl
+- per-decl — one file, `//line <decl>.go:1` before each decl
+- files — one real file per decl
+- padded — one file, each decl at a fixed physical line (100, 200, …),
+  blank lines absorbing growth
+
+New decls get their own directive, file or slot in each layout.
+
+| Edit to dep | plain | pinned | per-decl | files | padded |
+|---|---|---|---|---|---|
+| (a) body edit, same lines | dep, facade | dep, facade | dep, facade | dep, facade | dep, facade |
+| (a′) line added in the last func | dep, facade | dep, facade | — | — | — |
+| (a″) lines added in an early func | **fans out** | **fans out** | **fans out** | dep, facade | dep, facade |
+| (b) unexported func appended | **fans out** | **fans out** | **fans out** | **fans out** | **fans out** |
+| (b3) unexported var appended | **fans out** | **fans out** | **fans out** | **fans out** | **fans out** |
+| (b″) unexported func in a new last file | **fans out** | **fans out** | **fans out** | **fans out** | **fans out** |
+| (c) exported func appended | fans out | fans out | fans out | fans out | fans out |
+
+"fans out" = dep, facade, u1..u20, main.
+
+- `//line` changes nothing: pinned and per-decl match plain cell for cell.
+  A directive starts a relative position base, and the base is recorded
+  at the directive's own physical position, so lines added above it still
+  move it.
+- Physical positions are what count for body edits: one file per decl, or
+  fixed-line padding, contains (a″).
+- Unexported additions fan out in every layout, new file or not: adding
+  any package-level func or var changes dep's export data whatever its
+  position. Earlier runs that seemed to contain one were cache hits — the
+  facade's output after an unexported addition is the same whichever
+  addition it was, so the first case to reach it pays the fan-out and the
+  later ones look contained.
+
+Verdict: position pinning through `//line` contains nothing; physical
+layout (a file or a padded slot per declaration) would contain body edits
+that add or remove lines, but no layout contains an added unexported
+func or var, and generated code adds and removes unexported helpers on
+ordinary saves. The status stays rejected.
