@@ -256,5 +256,5 @@ New decls get their own directive, file or slot in each layout.
 Verdict: position pinning through `//line` contains nothing; physical
 layout (a file or a padded slot per declaration) would contain body edits
 that add or remove lines, but no layout contains an added unexported
-func or var, and generated code adds and removes unexported helpers on
-ordinary saves. The status stays rejected.
+func or var — and every save that adds or removes one, written or
+generated, fans out. The status stays rejected.
