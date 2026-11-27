@@ -388,5 +388,5 @@ compile is most of the save; that app is the measure still to take.
   points a few lines off; the respeller could map pins back (not done).
 - Exported variables keep a package out; entity packages exporting a
   manager variable need forwarding by accessor or by linkname.
-- The full `go test ./cmd/vuka` suite wasn't run locally (disk at the
-  stop line); CI runs it.
+- `go test ./...` in cmd/vuka passes with `VUKA_FIREWALL` unset; CI is
+  green.
