@@ -205,6 +205,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
 		s.tty = true
 	}
+	s.st = &plainStatus{w: stderr, tty: s.tty}
 	s.staticsMain, s.staticsFromFile = devStaticsMain(root, dir, pkg, env)
 	if s.staticsFromFile {
 		if s.goKeys = s.reuse; s.goKeys == nil {
@@ -351,17 +352,17 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 				// go build runs all the same, behind the app it skipped:
 				// one that comes out different is swapped in.
 				r.checked = true
-				r.ph = newPhases(io.Discard) // nothing waits for it
+				r.steps = newPhases(io.Discard) // nothing waits for it
 				verify(r)
 			}
 		case a := <-s.exits:
 			if a == s.app {
 				s.app = nil
-				status := "exit status 0"
+				exit := "exit status 0"
 				if a.err != nil {
-					status = a.err.Error()
+					exit = a.err.Error()
 				}
-				fmt.Fprintf(stderr, "● the app exited (%s); waiting for a change\n", status)
+				s.status().exited(exit)
 			}
 		}
 	}
@@ -375,6 +376,7 @@ type supervisor struct {
 	flags, pkg      []string
 	prog, env       []string
 	stdout, stderr  io.Writer
+	st              watchStatus // what the watch says; nil: plain over stderr
 	w               *watcher
 	sess            *load.Session // what the last builds transpiled; nil for none
 	stub            bool          // the frontend's build is left out of the binary (stubEmbeds)
@@ -406,7 +408,7 @@ type buildResult struct {
 	listed  chan struct{} // closed once go list has read the overlay, for the cache pruning; nil for none
 
 	started     time.Time // when it began reading the sources
-	ph          *phases
+	steps       buildSteps
 	tTranspile  time.Duration
 	key         string   // reuseCache.key before go build, with keyRoots embedded; "" for none
 	keyRoots    []string //
@@ -439,7 +441,7 @@ func (s *supervisor) build(ctx context.Context, n int, running *app) *buildResul
 		r.embeds = s.w.embedRoots() // the running app's, which the key covered
 		traceStep("go build skipped: what it reads is unchanged")
 		traceStep("transpile %v build 0s", r.tTranspile)
-		r.ph.done()
+		r.steps.done()
 		return r
 	}
 	s.compile(ctx, r)
@@ -450,7 +452,7 @@ func (s *supervisor) build(ctx context.Context, n int, running *app) *buildResul
 // given.
 func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	dir := filepath.Join(s.tmp, fmt.Sprint(n))
-	r := &buildResult{dir: dir, started: time.Now(), ph: newPhases(s.stderr)}
+	r := &buildResult{dir: dir, started: time.Now(), steps: s.status().build()}
 	if r.err = os.MkdirAll(dir, 0o755); r.err != nil {
 		return r
 	}
@@ -469,7 +471,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 			}
 		}
 	}
-	ph := r.ph
+	ph := r.steps
 	ph.step("scanning the module")
 	tStep := time.Now()
 	stepDone := func(name string) {
@@ -540,7 +542,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		// Said once per change: a package created mid-session is linked by the
 		// next rebuild, a deleted one unlinked.
 		if linkMsg != "" {
-			fmt.Fprintln(s.stderr, linkMsg)
+			s.status().linked(strings.TrimPrefix(linkMsg, "● "))
 		}
 		s.linked = linkMsg
 	}
@@ -575,7 +577,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 // compile builds the program a prepared build transpiled, and asks go
 // list, alongside, for what its packages embed.
 func (s *supervisor) compile(ctx context.Context, r *buildResult) {
-	ph := r.ph
+	ph := r.steps
 	defer ph.done()
 	if r.err != nil {
 		return
@@ -648,7 +650,7 @@ func (s *supervisor) startKept(e *keptBuild) bool {
 		r.statics = texts
 	}
 	s.w.setEmbeds(e.Roots)
-	fmt.Fprintln(s.stderr, "● reusing the last build (no changes)")
+	s.status().reused()
 	traceStep("start")
 	if !s.startApp(r, buildState{State: "ok", At: time.Now()}) {
 		return false
@@ -700,24 +702,13 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	if r.err != nil {
 		plain, shown := s.failure(r)
 		s.setState(buildState{State: "failed", At: time.Now(), Output: plain})
-		at := ""
-		if s.tty {
-			// The errors of this build replace the last one's on the screen.
-			io.WriteString(s.stderr, clearScreen)
-			at = " at " + time.Now().Format("15:04:05")
-		}
 		s.failedShown = true
-		io.WriteString(s.stderr, shown)
-		if s.app != nil {
-			fmt.Fprintf(s.stderr, "● build failed%s; the last good build keeps running\n", at)
-		} else {
-			fmt.Fprintf(s.stderr, "● build failed%s; waiting for a change\n", at)
-		}
+		s.status().failed(shown, s.app != nil)
 		r.discard()
 		return
 	}
-	if s.failedShown && s.tty {
-		io.WriteString(s.stderr, clearScreen) // the errors are gone
+	if s.failedShown {
+		s.status().clear()
 	}
 	if r.goKey != "" && r.embeds != nil && !r.skipped && !slices.Equal(r.embeds, r.goKeyRoots) {
 		// goKey took the last build's roots (none, for the first): it is
@@ -751,7 +742,7 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 			r.discard() // the app exited: the next change builds
 			return
 		}
-		fmt.Fprintln(s.stderr, "● warning: go build was skipped, but one of its inputs changed that vuka's key for it doesn't cover (please report it); swapping in the new build")
+		s.status().warn("go build was skipped, but one of its inputs changed that vuka's key for it doesn't cover (please report it); swapping in the new build")
 	} else if r.verify {
 		if r.sum == s.reusedSum && (s.app == nil || r.statics == s.app.statics) {
 			// The kept build is this one.
@@ -769,13 +760,13 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		if overlayHash(r.overlay) != r.keptOverlay {
 			missed = "vuka's transpiler's"
 		}
-		fmt.Fprintf(s.stderr, "● warning: the reused build was out of date: one of %s inputs changed that the reuse key doesn't cover (please report it); swapping in the new build\n", missed)
+		s.status().warn(fmt.Sprintf("the reused build was out of date: one of %s inputs changed that the reuse key doesn't cover (please report it); swapping in the new build", missed))
 	} else if s.app != nil && s.app.sum == r.sum && r.statics != s.app.statics {
 		s.restart(r, changed)
 		return
 	} else if s.app != nil && s.app.sum == r.sum {
 		s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
-		fmt.Fprintln(s.stderr, "● unchanged")
+		s.status().unchanged()
 		if s.reuse != nil {
 			s.reuse.store(s, r)
 		}
@@ -799,7 +790,7 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.reuse.store(s, r)
 	}
 	if !changed.IsZero() && s.app != nil {
-		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
+		s.status().rebuilt(time.Since(changed))
 	}
 }
 
@@ -827,7 +818,7 @@ func (s *supervisor) restart(r *buildResult, changed time.Time) {
 		r.discard() // the app runs from the last build's directory
 	}
 	if !changed.IsZero() {
-		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
+		s.status().rebuilt(time.Since(changed))
 	}
 }
 
