@@ -349,26 +349,28 @@ an added import beyond the prologue's slot.
 
 ### 8.4 Numbers
 
-`TestWatchBench`, scale 36 (50 packages), GOMAXPROCS=10, M1 Pro, before
-(`VUKA_FIREWALL` unset) and after (`VUKA_WATCH_BENCH_ENV=VUKA_FIREWALL=1`),
-Go compile + link / total to live:
+`TestWatchBench`, scale 36 (50 packages), GOMAXPROCS=10, M1 Pro, both
+sides run back to back on one build cache: before (`VUKA_FIREWALL` unset),
+then after (`VUKA_WATCH_BENCH_ENV=VUKA_FIREWALL=1`). Go compile + link /
+total to live:
 
 | Save | Before | After |
 |---|---|---|
-| Go body edit in a shared component #1 | 1.80 s / 2.8 s | 0.63 s / 1.6 s |
-| Go body edit in a shared component #2 | 1.60 s / 2.6 s | 0.63 s / 1.9 s |
-| Go body edit, widely imported package #1 | 1.96 s / 2.8 s | 0.70 s / 1.6 s |
-| Go body edit, widely imported package #2 | 1.93 s / 2.9 s | 0.76 s / 1.7 s |
-| text in a shared component #1 | 0.00 s / 0.5 s | 0.00 s / 0.4 s |
-| new unused func, widely imported package #1 | 2.34 s / 3.0 s | 1.87 s / 2.2 s |
-| exported API change, widely imported package #1 | 5.11 s / 6.9 s | 1.75 s / 2.7 s |
+| Go body edit in a shared component #1 | 1.53 s / 2.5 s | 0.57 s / 1.5 s |
+| Go body edit in a shared component #2 | 1.44 s / 2.5 s | 0.53 s / 1.5 s |
+| Go body edit, widely imported package #1 | 1.54 s / 2.5 s | 0.51 s / 1.5 s |
+| Go body edit, widely imported package #2 | 1.55 s / 2.4 s | 0.50 s / 1.4 s |
+| Go in one page #1 | 0.55 s / 1.5 s | 0.54 s / 1.5 s |
+| text in a shared component #1 | 0.00 s / 0.4 s | 0.00 s / 0.4 s |
+| new unused func, widely imported package #1 | 1.56 s / 1.9 s | 1.55 s / 1.9 s |
+| new exported func, widely imported package #1 | 1.54 s / 2.0 s | 1.49 s / 2.4 s |
+| exported API change, widely imported package #1 | 1.56 s / 2.5 s | 1.60 s / 2.5 s |
 
-The body-edit compile drops to the link (~0.6–0.7 s). The synthetic app
-is small — its importers are cheap packages, so the before rows are ~2 s,
-not the 15–22 s of the 216-package app in §1 — and the rows that should not
-change (API change, added func) moved between runs by as much, so read the
-table for which compiles ran, not for the absolute saving. The real
-measure is the 216-package app.
+The body-edit saves compile as much as a one-page edit (the link and
+two small packages); the rows that change export data are as before. The
+synthetic app's importers are cheap packages, so the saving here is ~1 s,
+not the 15–22 s of the 216-package app in §1, where the importers'
+compile is most of the save; that app is the measure still to take.
 
 ### 8.5 Problems met and open
 
