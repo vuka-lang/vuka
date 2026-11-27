@@ -346,8 +346,12 @@ build ends as a timed line above it — `✓ rebuilt in 4.9s` with the files it
 answers and how long its steps took, `✓ updated` when only markup changed and
 the same binary restarted, a dim `○ unchanged`, a red `✗ build failed` naming
 the first error. A failure stays on the bottom line until a build passes; the
-same event twice in a row counts on its line (`(x2)`). The app's output
-scrolls above it. A build's errors replace the screen when they appear and
+same event twice in a row counts on its line (`(x2)`). A compile that runs
+past 3s counts the packages it has compiled (`143/216 packages`), so a cold
+build doesn't look hung. The app's output scrolls above it, but for web's
+`listening on` line: the first one is a banner with vuka's version and the
+address, a restart at the same address says nothing, one at another address
+says the new one. A build's errors replace the screen when they appear and
 when they go; `-no-clear` leaves it. Piped, under `TERM=dumb` or with
 `NO_COLOR` set, the watch writes plain `●` lines instead.
 

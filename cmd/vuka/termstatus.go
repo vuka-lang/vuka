@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -36,6 +38,10 @@ type termStatus struct {
 	fixed   bool       // the errors went: the next build says so
 	frame   int
 	stop    chan struct{}
+
+	version string // vuka's, for the banner
+	pkgs    int    // the module's packages, for the banner; 0 until known
+	url     string // the address the app last listened on; "" until it did
 }
 
 type stepTime struct {
@@ -54,7 +60,7 @@ const (
 )
 
 func newTermStatus(w io.Writer, noClear bool) *termStatus {
-	t := &termStatus{w: w, noClear: noClear, tick: 100 * time.Millisecond}
+	t := &termStatus{w: w, noClear: noClear, tick: 100 * time.Millisecond, version: version}
 	if f, ok := w.(*os.File); ok {
 		t.width = func() int { return termWidth(f) }
 	}
@@ -67,21 +73,80 @@ func (t *termStatus) wrap(w io.Writer) io.Writer { return &termOut{t: t, w: w} }
 // termOut is a writer of the app's (or anything else's) on the status's
 // terminal.
 type termOut struct {
-	t *termStatus
-	w io.Writer
+	t    *termStatus
+	w    io.Writer
+	open bool // what it wrote last didn't end its line
 }
 
 func (o *termOut) Write(p []byte) (int, error) {
 	o.t.mu.Lock()
 	defer o.t.mu.Unlock()
 	o.t.eraseLocked()
-	n, err := o.w.Write(p)
+	q := o.t.listenLocked(p, o.open)
+	n, err := o.w.Write(q)
 	if n > 0 {
-		o.t.midLine = p[n-1] != '\n'
+		o.t.midLine = q[n-1] != '\n'
 		o.t.last = ""
 	}
+	if len(p) > 0 {
+		o.open = p[len(p)-1] != '\n'
+	}
 	o.t.drawLocked()
+	if err == nil {
+		n = len(p)
+	}
 	return n, err
+}
+
+// listenLine is web's line saying where the app listens, after log's date.
+var listenLine = regexp.MustCompile(`(?:^|\s)web: listening on (https?://\S+)\r?\n$`)
+
+// listenLocked is p with web's listen lines taken out: the first one of the
+// session as the banner, a later one at another address as one line, the
+// rest (the app restarting on a rebuild) not at all. Only a line written
+// whole is one; open says p continues a line.
+func (t *termStatus) listenLocked(p []byte, open bool) []byte {
+	if !bytes.Contains(p, []byte("web: listening on ")) {
+		return p
+	}
+	var out []byte
+	for i := 0; i < len(p); {
+		j := bytes.IndexByte(p[i:], '\n')
+		if j < 0 {
+			out = append(out, p[i:]...)
+			break
+		}
+		line := p[i : i+j+1]
+		m := listenLine.FindSubmatch(line)
+		if m == nil || (i == 0 && open) {
+			out = append(out, line...)
+		} else if url := string(m[1]); t.url == "" {
+			t.url = url
+			out = append(out, t.banner()...)
+		} else if url != t.url {
+			t.url = url
+			out = append(out, "  "+ansiGreen+"➜"+ansiReset+"  Local:   "+ansiCyan+url+ansiReset+"\n"...)
+		}
+		i += j + 1
+	}
+	return out
+}
+
+// banner says the app is up, and where.
+func (t *termStatus) banner() string {
+	head := ansiGreen + "vuka " + t.version + ansiReset + "  " + ansiDim + "dev"
+	if t.pkgs > 0 {
+		head += " — " + pkgProgress(t.pkgs, 0)
+	}
+	head += ansiReset
+	return "\n  " + head + "\n\n  " + ansiGreen + "➜" + ansiReset + "  Local:   " + ansiCyan + t.url + ansiReset + "\n\n"
+}
+
+// setPackages is how many packages the module has, for the banner.
+func (t *termStatus) setPackages(n int) {
+	t.mu.Lock()
+	t.pkgs = n
+	t.mu.Unlock()
 }
 
 // termFile is the file w writes to, seen through the status's wrapper.

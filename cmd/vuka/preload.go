@@ -22,6 +22,7 @@ type preloader struct {
 	dir    string
 	tools  []string // nil until asked; empty when go env can't say
 	files  []string
+	pkgs   int // the packages the last good build was made of; 0 for unknown
 	cancel context.CancelFunc
 }
 
@@ -41,7 +42,19 @@ func (p *preloader) set(exports map[string]string) {
 	sort.Strings(files)
 	p.mu.Lock()
 	p.files = slices.Concat(tools, files)
+	p.pkgs = len(exports)
 	p.mu.Unlock()
+}
+
+// packages is how many packages the last good build was made of; 0 for
+// unknown.
+func (p *preloader) packages() int {
+	if p == nil {
+		return 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.pkgs
 }
 
 func (p *preloader) toolFiles() []string {
