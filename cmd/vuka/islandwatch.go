@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evanw/esbuild/pkg/api"
@@ -18,12 +19,16 @@ import (
 // cache's key (islandInputs) hashes them.
 
 // recordInputs is an esbuild plugin noting each file the build loads.
+// esbuild loads files concurrently, so the notes are serialized.
 func recordInputs(into *[]string) api.Plugin {
 	*into = nil
+	var mu sync.Mutex
 	return api.Plugin{Name: "vuka-inputs", Setup: func(b api.PluginBuild) {
 		b.OnLoad(api.OnLoadOptions{Filter: ".*"}, func(a api.OnLoadArgs) (api.OnLoadResult, error) {
 			if a.Namespace == "file" || a.Namespace == "" {
+				mu.Lock()
 				*into = append(*into, a.Path)
+				mu.Unlock()
 			}
 			return api.OnLoadResult{}, nil
 		})

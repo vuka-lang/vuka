@@ -17,6 +17,7 @@ import (
 	"go/types"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,6 +131,18 @@ func (im *Importer) missing(paths []string) []string {
 		missing = append(missing, p)
 	}
 	return missing
+}
+
+// Loaded are the paths whose export data the importer has listed and
+// keeps: not the stale, listed again once the overlay changes.
+func (im *Importer) Loaded() []string {
+	var paths []string
+	for _, path := range slices.Sorted(maps.Keys(im.exports)) {
+		if !im.stale[path] {
+			paths = append(paths, path)
+		}
+	}
+	return paths
 }
 
 func (im *Importer) Import(path string) (*types.Package, error) {
