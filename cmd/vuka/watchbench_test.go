@@ -18,8 +18,9 @@ import (
 
 // TestWatchBench measures what a rebuild under vuka run -watch costs, by
 // the steps VUKA_WATCH_TRACE reports, for the saves of #310: text in one
-// page, text in a shared component, a new unused function in a widely
-// imported package, and a change to that package's exported API. It runs
+// page, text in a shared component, lines added to a function's body in a
+// shared component and in a widely imported package, a new unused function
+// in that package, and a change to its exported API. It runs
 // only with VUKA_WATCH_BENCH set (it takes minutes):
 //
 //	VUKA_WATCH_BENCH=1 go test -run TestWatchBench -v -timeout 60m
@@ -129,6 +130,8 @@ var benchEdits = []benchEdit{
 	{"text in one page", "text", "pages/s7/detail.vuka.html", "Detail of section 7"},
 	{"Go in one page", "text", "pages/s7/detail.vuka.html", `return "Detail 7`},
 	{"text in a shared component", "text", "components/c3.vuka.html", "Component 3 says"},
+	{"Go body edit in a shared component", "replace", "components/c3.vuka.html", "func (c C3) count() int { return len(c.Items) }=>func (c C3) count() int {\n\tif len(c.Items) > 99 {\n\t\tprintln(\"bench_{id}\")\n\t}\n\treturn len(c.Items)\n}"},
+	{"Go body edit, widely imported package", "replace", "models/model3.vuka", "\tout := make([]Item3, 0, 8)\n=>\tout := make([]Item3, 0, 8)\n\tif s.seed > 99 {\n\t\tprintln(\"bench_{id}\")\n\t}\n"},
 	{"new unused func, widely imported package", "func", "models/model3.vuka", ""},
 	{"new exported func, widely imported package", "export", "models/model3.vuka", ""},
 	{"new exported const, widely imported package", "const", "models/model3.vuka", ""},
