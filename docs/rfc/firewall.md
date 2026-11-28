@@ -3,7 +3,8 @@
 Status: draft v3 2026-11-27 — padded layout + facade (§8). The sharded
 design of §3 was rejected (§7, §7.1); what carries is a whole-package alias
 facade over code laid out so that body edits leave its export data as it
-was. Prototype behind `VUKA_FIREWALL=1` in the watch; numbers in §8.4.
+was. Prototype behind `VUKA_FIREWALL=1` in the watch; numbers in §8.4,
+exported variables by linkname in §8.6.
 
 ## 1. Problem
 
@@ -299,8 +300,8 @@ overlay and devstatics (`cmd/vuka/firewall.go`):
 - **Which packages:** module packages other than main imported by at least
   8 module packages (`VUKA_FIREWALL_IMPORTERS`), from the import graph
   discovery already has. A package with cgo, assembly or `go:embed`, or with
-  an exported variable (a facade can't share one: a copy would be a second
-  variable), is left as it is.
+  an exported variable whose type the facade can't tell (§8.6), is left as
+  it is; `VUKA_WATCH_TRACE` says which and why (`firewall: left <pkg>: …`).
 - **Facade:** every Go file of the package is deleted in the overlay and
   moved to `<dir>/0vukafw/`; at the import path stands one file:
   `type T = vukafw_.T` (generic types with their type parameters),
@@ -308,7 +309,8 @@ overlay and devstatics (`cmd/vuka/firewall.go`):
   return vukafw_.F(p0) }`, generic ones instantiating), which keeps
   `runtime.FuncForPC`'s name of the package; a function whose signature names
   what the facade can't (an unexported type) is bound as `var F = vukafw_.F`.
-  Importers are untouched.
+  An exported variable stays the core's own: `//go:linkname V <core>.V` over
+  `var V T` (§8.6). Importers are untouched.
 - **Layout:** the prologue (package clause and imports) and each top-level
   declaration take a slot: their length plus at least 10 lines, rounded up
   to 20. Each declaration starts with a `//line` giving its own position;
@@ -386,7 +388,82 @@ compile is most of the save; that app is the measure still to take.
   header and fields report the line they had at the last layout until the
   next one; body lines are exact. A compile error in a signature then
   points a few lines off; the respeller could map pins back (not done).
-- Exported variables keep a package out; entity packages exporting a
-  manager variable need forwarding by accessor or by linkname.
+- Exported variables kept a package out until §8.6.
 - `go test ./...` in cmd/vuka passes with `VUKA_FIREWALL` unset; CI is
   green.
+
+### 8.6 Exported variables: one variable, by linkname
+
+On the 216-package app the trace showed every entity package left out:
+the orm's generated `<M>Columns = <M>FieldsIn(…)` and `<M>Queries =
+<M>Query{…}` are exported variables, and those are the packages with the
+most importers (143, 95, 66). A facade `var V = vukafw_.V` is a copy, a
+second variable: an importer's `&pkg.V`, or a write to it, would not reach
+the core's. Keeping the variables at the import path and moving the rest
+doesn't work either: the core's own code reads them (handwritten queries
+through `<M>Queries`), and it can't import its facade.
+
+Go has no variable alias, but the linker has one name per variable. The
+variable stays declared and initialized in the core, and the facade
+declares it without a value under the core's symbol:
+
+```go
+import _ "unsafe"
+
+//go:linkname OrderQueries example.com/app/entities/0vukafw.OrderQueries
+var OrderQueries OrderQuery
+
+func _() { var _ *OrderQuery = &vukafw_.OrderQueries }
+```
+
+Importers compile against the facade's export data (`var OrderQueries
+OrderQuery`, stable across body edits) and reference the core's symbol:
+`&pkg.V` is the core's address, writes and reads are the core's, and its
+initialization runs where it did, in the package's init, before any
+importer's. A pull linkname to a non-std symbol passes `-checklinkname`;
+the facade's declaration, content-free BSS, yields to the core's definition
+(data or BSS) at link time.
+
+The facade must spell the variable's type exactly, without type-checking
+the package: the declared type, else what the initializer plainly is — a
+composite literal's type (`&T{…}` its pointer), a call to a non-generic
+package function with one result (that result type, read in the function's
+file), a conversion to a package type, a basic literal's default type, or
+`errors.New`/`fmt.Errorf`/`time.Date`/`time.Now`. Anything else (a function
+value, a method call, another package's function, `[...]T{}`) leaves the
+package out, as before. The blank function, type-checked and never run,
+makes a wrong guess a compile error (`*T` only takes `&V` when the types are
+identical), never a variable of the wrong size. A core path the linker
+would escape (control characters, `%`, `"`, non-ASCII) leaves it out too.
+
+Tests: TestFirewallFacade adds a handwritten file (int, error, struct,
+slice and pointer variables, an unexported one that stays out) and an
+ormgen-shaped generated file (`OrderColumns`, `OrderQueries`, an `init`
+reassigning it); the importer writes through `pkg.V` and checks
+`&pkg.V == core's &V` for each, and five initializers it can't tell keep a
+package out. TestFirewallContains/vars: a body edit beside exported
+variables compiles the package and its core only. TestFirewallWatch's
+shared package exports the item its page shows.
+
+With it, on the 216-package app, the entity package and each per-domain
+entity package over the threshold go behind facades; what stays out are three
+`flow.Of[…]()` variables, one function-typed variable, a package with
+non-Go files and one generic signature.
+
+`TestWatchBench`, the 216-package app, GOMAXPROCS=4, `-p=2`, M1 Pro, the
+three runs back to back on one build cache. The entity edit renames an
+index in `workflowdb`'s one handwritten method; that package has 7
+importers, under the default 8, so the third run lowers the threshold. The
+high-fan-in entity packages hold no handwritten function bodies: their
+bodies are generated, and an edit to a model changes its fields, which is
+API. Go compile + link, two saves each:
+
+| Save | Off | On (8) | On (7) |
+|---|---|---|---|
+| component body (87 importers) | 14.97 s, 15.37 s | 1.90 s, 1.95 s | 2.00 s, 2.04 s |
+| entity body (7 importers) | 2.92 s, 2.99 s | 3.00 s, 3.06 s | 1.89 s, 1.93 s |
+
+Behind its facade the entity edit costs what the component edit does —
+the package, its core and the link. Before this change the same edit
+measured 2.60 s off and 2.68 s on; the entity packages were left out then,
+whatever the threshold.

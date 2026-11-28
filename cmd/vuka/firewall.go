@@ -90,6 +90,7 @@ func firewall(root, modPath, tmp, files, overlay string, pkgs []*load.Package) (
 		dir := p.BuildDir()
 		bp, err := ctx.ImportDir(dir, 0)
 		if err != nil || len(bp.CgoFiles)+len(bp.SFiles)+len(bp.CFiles)+len(bp.HFiles)+len(bp.SysoFiles) > 0 || len(bp.EmbedPatterns) > 0 || len(bp.GoFiles) == 0 {
+			traceStep("firewall: left %s: not plain Go", p.ImportPath)
 			continue
 		}
 		srcs := map[string][]byte{}
@@ -100,8 +101,9 @@ func firewall(root, modPath, tmp, files, overlay string, pkgs []*load.Package) (
 			}
 			srcs[name] = src
 		}
-		moved, facade, ok := fwPackage(dir, p.ImportPath+"/"+firewallDir, bp.GoFiles, srcs)
-		if !ok {
+		moved, facade, why := fwPackage(dir, p.ImportPath+"/"+firewallDir, bp.GoFiles, srcs)
+		if why != "" {
+			traceStep("firewall: left %s: %s", p.ImportPath, why)
 			continue
 		}
 		for _, name := range bp.GoFiles {
@@ -150,95 +152,176 @@ func fwWrite(files, name string, src []byte) (string, error) {
 }
 
 // fwPackage is the package in dir, its files srcs, laid out to move to
-// corePath, and the facade standing in for it. ok is false for a package the
-// firewall leaves alone: one with an exported variable (a facade can't share
-// it) or that doesn't parse.
-func fwPackage(dir, corePath string, names []string, srcs map[string][]byte) (moved map[string][]byte, facade []byte, ok bool) {
+// corePath, and the facade standing in for it. why says, for a package the
+// firewall leaves alone, what keeps it out.
+func fwPackage(dir, corePath string, names []string, srcs map[string][]byte) (moved map[string][]byte, facade []byte, why string) {
 	fset := token.NewFileSet()
 	parsed := map[string]*ast.File{}
 	for _, name := range names {
 		f, err := parser.ParseFile(fset, filepath.Join(dir, name), srcs[name], parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
-			return nil, nil, false
+			return nil, nil, "doesn't parse"
 		}
 		parsed[name] = f
 	}
-	facade, ok = fwFacade(fset, corePath, names, parsed)
-	if !ok {
-		return nil, nil, false
+	facade, why = fwFacade(fset, corePath, names, parsed)
+	if why != "" {
+		return nil, nil, why
 	}
 	moved = map[string][]byte{}
 	for _, name := range names {
 		moved[name] = fwLayOut(fset, filepath.Join(dir, name), srcs[name], parsed[name])
 	}
-	return moved, facade, true
+	return moved, facade, ""
 }
 
 // fwFacade is the Go of a package of the same name re-exporting every
-// exported type, constant and function of files from corePath: types and
-// constants as aliases, functions as forwards (keeping their names for
-// runtime.FuncForPC), or variables bound to them when their signatures name
-// what the facade can't.
-func fwFacade(fset *token.FileSet, corePath string, names []string, files map[string]*ast.File) ([]byte, bool) {
+// exported type, constant, function and variable of files from corePath:
+// types and constants as aliases, functions as forwards (keeping their names
+// for runtime.FuncForPC), or variables bound to them when their signatures
+// name what the facade can't. A variable is the core's own, by linkname, so
+// that there is one: its type is the declared one or what its initializer
+// plainly is, and a function the compiler checks but never runs asserts it.
+func fwFacade(fset *token.FileSet, corePath string, names []string, files map[string]*ast.File) ([]byte, string) {
 	var pkgName string
 	imports := map[string]string{} // name → path, of the packages the facade's declarations name
 	type item struct{ name, src string }
 	var items []item
+	var checks []string
 	show := func(n ast.Node) string {
 		var b bytes.Buffer
 		printer.Fprint(&b, fset, n)
 		return b.String()
 	}
+	importsOf := map[*ast.File]map[string]string{}
+	funcs := map[string]*ast.FuncDecl{}
+	fileOf := map[*ast.FuncDecl]*ast.File{}
+	typeNames := map[string]bool{}
 	for _, fname := range names {
 		f := files[fname]
-		pkgName = f.Name.Name
-		fileImports := map[string]string{}
+		m := map[string]string{}
 		for _, is := range f.Imports {
 			p, _ := strconv.Unquote(is.Path.Value)
 			n := transpile.ImportName(p)
 			if is.Name != nil {
 				n = is.Name.Name
 			}
-			fileImports[n] = p
+			m[n] = p
 		}
-		// uses says whether n names only what the facade can: the
-		// package's exported names, type parameters, predeclared ones and
-		// imported packages', which it adds to imports.
-		uses := func(exprs []ast.Expr, tparams map[string]bool) bool {
-			ok := true
-			need := map[string]string{}
-			for _, e := range exprs {
-				ast.Inspect(e, func(n ast.Node) bool {
-					switch x := n.(type) {
-					case *ast.SelectorExpr:
-						if id, isID := x.X.(*ast.Ident); isID {
-							p, imported := fileImports[id.Name]
-							if !imported {
-								ok = false
-							} else if have, dup := imports[id.Name]; dup && have != p {
-								ok = false
-							} else {
-								need[id.Name] = p
-							}
-							return false
-						}
-					case *ast.Ident:
-						if !x.IsExported() && !tparams[x.Name] && !predeclared(x.Name) {
-							ok = false
-						}
-					case *ast.FuncLit, *ast.BlockStmt:
-						ok = false
+		importsOf[f] = m
+		for _, d := range f.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				if d.Recv == nil {
+					funcs[d.Name.Name], fileOf[d] = d, f
+				}
+			case *ast.GenDecl:
+				for _, s := range d.Specs {
+					if ts, ok := s.(*ast.TypeSpec); ok {
+						typeNames[ts.Name.Name] = true
 					}
-					return ok
-				})
-			}
-			if ok {
-				for n, p := range need {
-					imports[n] = p
 				}
 			}
-			return ok
 		}
+	}
+	// uses says whether exprs, of a file importing fileImports, name only
+	// what the facade can: the package's exported names, type parameters,
+	// predeclared ones and imported packages', which it adds to imports.
+	uses := func(fileImports map[string]string, exprs []ast.Expr, tparams map[string]bool) bool {
+		ok := true
+		need := map[string]string{}
+		for _, e := range exprs {
+			ast.Inspect(e, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.SelectorExpr:
+					if id, isID := x.X.(*ast.Ident); isID {
+						p, imported := fileImports[id.Name]
+						if !imported {
+							ok = false
+						} else if have, dup := imports[id.Name]; dup && have != p {
+							ok = false
+						} else if have, dup := need[id.Name]; dup && have != p {
+							ok = false
+						} else {
+							need[id.Name] = p
+						}
+						return false
+					}
+				case *ast.Ident:
+					if !x.IsExported() && !tparams[x.Name] && !predeclared(x.Name) {
+						ok = false
+					}
+				case *ast.FuncLit, *ast.BlockStmt:
+					ok = false
+				}
+				return ok
+			})
+		}
+		if ok {
+			for n, p := range need {
+				imports[n] = p
+			}
+		}
+		return ok
+	}
+	// varType is the type of a variable initialized to e in file f, as an
+	// expression of the file it is written in, or nil when it isn't plain.
+	known := map[string]string{"errors.New": "error", "fmt.Errorf": "error", "time.Date": "time.Time", "time.Now": "time.Time"}
+	var varType func(f *ast.File, e ast.Expr) (ast.Expr, map[string]string)
+	varType = func(f *ast.File, e ast.Expr) (ast.Expr, map[string]string) {
+		for {
+			p, ok := e.(*ast.ParenExpr)
+			if !ok {
+				break
+			}
+			e = p.X
+		}
+		switch x := e.(type) {
+		case *ast.BasicLit:
+			t := map[token.Token]string{token.INT: "int", token.FLOAT: "float64", token.IMAG: "complex128", token.CHAR: "rune", token.STRING: "string"}[x.Kind]
+			return ast.NewIdent(t), nil
+		case *ast.CompositeLit:
+			if a, ok := x.Type.(*ast.ArrayType); x.Type == nil || ok && fwIsEllipsis(a.Len) {
+				return nil, nil
+			}
+			return x.Type, importsOf[f]
+		case *ast.UnaryExpr:
+			if cl, ok := x.X.(*ast.CompositeLit); ok && x.Op == token.AND {
+				if t, im := varType(f, cl); t != nil {
+					return &ast.StarExpr{X: t}, im
+				}
+			}
+		case *ast.CallExpr:
+			switch fn := x.Fun.(type) {
+			case *ast.Ident:
+				if typeNames[fn.Name] && len(x.Args) == 1 {
+					return fn, importsOf[f]
+				}
+				d := funcs[fn.Name]
+				if d == nil || d.Type.TypeParams != nil || d.Type.Results == nil || len(d.Type.Results.List) != 1 || len(d.Type.Results.List[0].Names) > 1 {
+					return nil, nil
+				}
+				return d.Type.Results.List[0].Type, importsOf[fileOf[d]]
+			case *ast.SelectorExpr:
+				if pkg, ok := fn.X.(*ast.Ident); ok {
+					name := importsOf[f][pkg.Name] + "." + fn.Sel.Name
+					if t, ok := known[name]; ok {
+						te, _ := parser.ParseExpr(t)
+						im := map[string]string{}
+						if p, _, ok := strings.Cut(t, "."); ok && !strings.Contains(t, " ") {
+							im[p] = p
+						}
+						return te, im
+					}
+				}
+			}
+		}
+		return nil, nil
+	}
+	for _, fname := range names {
+		f := files[fname]
+		pkgName = f.Name.Name
+		fileImports := importsOf[f]
 		for _, d := range f.Decls {
 			switch d := d.(type) {
 			case *ast.GenDecl:
@@ -260,19 +343,29 @@ func fwFacade(fset *token.FileSet, corePath string, names []string, files map[st
 								args = append(args, n.Name)
 							}
 						}
-						if !uses(fieldTypes(s.TypeParams), tps) {
-							return nil, false
+						if !uses(fileImports, fieldTypes(s.TypeParams), tps) {
+							return nil, "generic type " + s.Name.Name + "'s constraints"
 						}
 						items = append(items, item{s.Name.Name, "type " + s.Name.Name + tparamList(show, s.TypeParams) + " = " + firewallCore + "." + s.Name.Name + "[" + strings.Join(args, ", ") + "]"})
 					case *ast.ValueSpec:
-						for _, n := range s.Names {
+						for i, n := range s.Names {
 							if !n.IsExported() {
 								continue
 							}
-							if d.Tok == token.VAR {
-								return nil, false
+							if d.Tok == token.CONST {
+								items = append(items, item{n.Name, "const " + n.Name + " = " + firewallCore + "." + n.Name})
+								continue
 							}
-							items = append(items, item{n.Name, "const " + n.Name + " = " + firewallCore + "." + n.Name})
+							t, im := s.Type, fileImports
+							if t == nil && len(s.Values) == len(s.Names) {
+								t, im = varType(f, s.Values[i])
+							}
+							if t == nil || !fwSymbolSafe(corePath) || !uses(im, []ast.Expr{t}, nil) {
+								return nil, "exported variable " + n.Name + " of a type it can't tell"
+							}
+							ts := show(t)
+							items = append(items, item{n.Name, "//go:linkname " + n.Name + " " + corePath + "." + n.Name + "\nvar " + n.Name + " " + ts})
+							checks = append(checks, "var _ *"+ts+" = &"+firewallCore+"."+n.Name)
 						}
 					}
 				}
@@ -290,9 +383,9 @@ func fwFacade(fset *token.FileSet, corePath string, names []string, files map[st
 						}
 					}
 				}
-				if !uses(slices.Concat(fieldTypes(d.Type.TypeParams), fieldTypes(d.Type.Params), fieldTypes(d.Type.Results)), tps) {
+				if !uses(fileImports, slices.Concat(fieldTypes(d.Type.TypeParams), fieldTypes(d.Type.Params), fieldTypes(d.Type.Results)), tps) {
 					if d.Type.TypeParams != nil {
-						return nil, false
+						return nil, "generic function " + d.Name.Name + "'s signature"
 					}
 					items = append(items, item{d.Name.Name, "var " + d.Name.Name + " = " + firewallCore + "." + d.Name.Name})
 					continue
@@ -308,6 +401,9 @@ func fwFacade(fset *token.FileSet, corePath string, names []string, files map[st
 	if len(items) == 0 {
 		core = "_" // its initialization, all the same
 	}
+	if len(checks) > 0 {
+		b.WriteString("\t_ \"unsafe\"\n")
+	}
 	b.WriteString("\t" + core + " " + strconv.Quote(corePath) + "\n")
 	for _, n := range slices.Sorted(func(yield func(string) bool) {
 		for n := range imports {
@@ -322,7 +418,21 @@ func fwFacade(fset *token.FileSet, corePath string, names []string, files map[st
 	for _, it := range items {
 		b.WriteString("\n" + it.src + "\n")
 	}
-	return b.Bytes(), true
+	if len(checks) > 0 {
+		b.WriteString("\nfunc _() {\n\t" + strings.Join(checks, "\n\t") + "\n}\n")
+	}
+	return b.Bytes(), ""
+}
+
+func fwIsEllipsis(e ast.Expr) bool {
+	_, ok := e.(*ast.Ellipsis)
+	return ok
+}
+
+// fwSymbolSafe says whether the linker names path's symbols as it is
+// written, which a //go:linkname to them needs.
+func fwSymbolSafe(path string) bool {
+	return !strings.ContainsFunc(path, func(r rune) bool { return r <= ' ' || r == '%' || r == '"' || r >= 0x7f })
 }
 
 func fieldTypes(fl *ast.FieldList) []ast.Expr {
